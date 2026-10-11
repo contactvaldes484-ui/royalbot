@@ -1,0 +1,15 @@
+node_modules/
+.env
+.env.*
+.env.local
+server/.env
+server/.env.*
+client/.env
+client/.env.*
+token.txt
+server/token.txt
+dist/
+build/
+.DS_Store
+*.log
+.vscode/

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#3b82f6" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="RoyalBot" />
+    <meta name="application-name" content="RoyalBot" />
+    <meta name="msapplication-TileColor" content="#3b82f6" />
+    <meta name="msapplication-tap-highlight" content="no" />
+
+    <title>RoyalBot - Robots de Trading Automatisés Crypto & Deriv</title>
+    <meta name="description" content="Plateforme de robots de trading automatisés multi-brokers : Deriv, Binance et Bybit. Trading automatique et manuel, signaux en direct, analytics avancés." />
+    <meta name="keywords" content="trading automatique, robot trading, RoyalBot, Deriv, Binance, Bybit, crypto, forex, signaux trading, bot trading, indices synthétiques" />
+    <meta name="author" content="RoyalBot" />
+    <link rel="canonical" href="https://royalbot.pro/" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="RoyalBot - Robots de Trading Automatisés" />
+    <meta property="og:description" content="Plateforme de robots de trading automatisés Deriv, Binance et Bybit." />
+    <meta property="og:url" content="https://royalbot.pro/" />
+    <meta property="og:image" content="https://royalbot.pro/icons/icon-512.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="RoyalBot" />
+    <meta property="og:locale" content="fr_FR" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="RoyalBot - Robots de Trading Automatisés" />
+    <meta name="twitter:description" content="Trading automatique Deriv, Binance & Bybit." />
+    <meta name="twitter:image" content="https://royalbot.pro/icons/icon-512.png" />
+
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
+
+    <!-- DNS prefetch & preconnect -->
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://ws.binaryws.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then(reg => console.log('SW registered:', reg.scope))
+            .catch(err => console.warn('SW registration failed:', err));
+        });
+      }
+    </script>
+  </body>
+</html>

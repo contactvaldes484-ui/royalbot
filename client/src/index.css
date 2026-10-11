@@ -1,0 +1,136 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ── Thème Binance (jaune #FCD535 / fonds sombres #0B0E11·#181A20) ── */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 213 21% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 213 21% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 213 21% 9%;
+    --primary: 45 96% 50%;            /* Binance yellow */
+    --primary-foreground: 213 26% 6%; /* near-black text on yellow */
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 45 96% 90%;
+    --accent-foreground: 213 26% 11%;
+    --destructive: 351 91% 62%;       /* Binance red #F6465D */
+    --destructive-foreground: 0 0% 100%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 45 96% 50%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 213 21% 5%;          /* #0B0E11 */
+    --foreground: 216 13% 93%;         /* #EAECEF */
+    --card: 225 14% 11%;               /* #181A20 */
+    --card-foreground: 216 13% 93%;
+    --popover: 225 14% 11%;
+    --popover-foreground: 216 13% 93%;
+    --primary: 45 96% 60%;             /* Binance yellow #FCD535 */
+    --primary-foreground: 213 26% 6%;
+    --secondary: 218 15% 14%;          /* #1E2329 */
+    --secondary-foreground: 216 13% 93%;
+    --muted: 218 15% 14%;
+    --muted-foreground: 215 11% 60%;   /* #848E9C */
+    --accent: 218 15% 16%;
+    --accent-foreground: 45 96% 60%;
+    --destructive: 351 80% 55%;        /* #F6465D */
+    --destructive-foreground: 0 0% 100%;
+    --border: 218 14% 20%;             /* #2B3139 */
+    --input: 218 14% 20%;
+    --ring: 45 96% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Gradient text — Binance gold */
+.gradient-text {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500;
+}
+
+/* Glass effect */
+.glass {
+  @apply bg-white/10 backdrop-blur-lg border border-white/20;
+}
+
+.dark .glass {
+  @apply bg-white/5 backdrop-blur-lg border border-white/10;
+}
+
+/* Pulse animation for live indicators */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Marquee animations for profit screenshots */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes marquee-reverse {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+.animate-marquee {
+  animation: marquee 40s linear infinite;
+  width: max-content;
+}
+.animate-marquee-reverse {
+  animation: marquee-reverse 45s linear infinite;
+  width: max-content;
+}
+
+/* Chart draw animation */
+@keyframes chart-draw {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-chart-draw {
+  animation: chart-draw 1.5s ease-out forwards;
+}
+
+/* Fade-in for candlesticks */
+@keyframes fade-in {
+  from { opacity: 0; transform: scaleY(0.3); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+  opacity: 0;
+}

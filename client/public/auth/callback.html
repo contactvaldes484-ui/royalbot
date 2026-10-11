@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UltimateBot - Connexion Deriv</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      max-width: 500px;
+      width: 90%;
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #334155;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1.5rem;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .status {
+      color: #94a3b8;
+      margin-bottom: 1.5rem;
+    }
+
+    .error {
+      color: #f87171;
+      background: #1e1e2e;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-top: 1rem;
+      text-align: left;
+      font-size: 0.875rem;
+    }
+
+    .success {
+      color: #4ade80;
+    }
+
+    .debug {
+      background: #1e293b;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+      text-align: left;
+      font-size: 0.75rem;
+      font-family: monospace;
+      word-break: break-all;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .debug p {
+      margin-bottom: 0.5rem;
+    }
+
+    .debug .label {
+      color: #94a3b8;
+    }
+
+    .debug .value {
+      color: #67e8f9;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="spinner" id="spinner"></div>
+    <h1>Connexion Deriv</h1>
+    <p class="status" id="status">Traitement en cours...</p>
+    <div class="debug" id="debug"></div>
+    <div id="error-box"></div>
+  </div>
+
+  <script>
+    const BACKEND_URL = 'https://ultimatebot-w2gm.onrender.com/api';
+
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const state = params.get('state');
+    const error = params.get('error');
+    const errorDesc = params.get('error_description');
+
+    const debugEl = document.getElementById('debug');
+    const statusEl = document.getElementById('status');
+    const spinnerEl = document.getElementById('spinner');
+    const errorBox = document.getElementById('error-box');
+
+    // Log everything for debugging
+    debugEl.innerHTML = `
+      <p><span class="label">href:</span> <span class="value">${window.location.href}</span></p>
+      <p><span class="label">code:</span> <span class="value">${code || 'NULL'}</span></p>
+      <p><span class="label">state:</span> <span class="value">${state || 'NULL'}</span></p>
+      ${error ? `<p><span class="label">error:</span> <span class="value">${error}: ${decodeURIComponent((errorDesc || '').replace(/\+/g, ' '))}</span></p>` : ''}
+    `;
+
+    console.log('=== STATIC CALLBACK ===');
+    console.log('href:', window.location.href);
+    console.log('code:', code);
+    console.log('state:', state);
+
+    if (error) {
+      spinnerEl.style.display = 'none';
+      statusEl.textContent = 'Erreur retournée par Deriv';
+      statusEl.style.color = '#f87171';
+      errorBox.innerHTML = `<div class="error">${error}: ${decodeURIComponent((errorDesc || '').replace(/\+/g, ' '))}</div>`;
+    } else if (!code) {
+      spinnerEl.style.display = 'none';
+      statusEl.textContent = 'Aucun code reçu';
+      statusEl.style.color = '#f87171';
+      errorBox.innerHTML = `<div class="error">Aucun paramètre "code" dans l'URL. La redirection OAuth n'a pas fonctionné correctement.</div>`;
+    } else {
+      // We have code! Exchange it via backend
+      statusEl.textContent = 'Code reçu ! Échange du token...';
+
+      // Retrieve PKCE values from sessionStorage (same origin)
+      const codeVerifier = sessionStorage.getItem('deriv_code_verifier');
+      const storedState = sessionStorage.getItem('deriv_oauth_state');
+
+      debugEl.innerHTML += `
+        <p><span class="label">code_verifier:</span> <span class="value">${codeVerifier ? codeVerifier.length + ' chars' : 'MISSING'}</span></p>
+        <p><span class="label">stored state:</span> <span class="value">${storedState || 'MISSING'}</span></p>
+        <p><span class="label">state match:</span> <span class="value">${state === storedState ? '✅ YES' : '❌ NO'}</span></p>
+      `;
+
+      if (!codeVerifier) {
+        spinnerEl.style.display = 'none';
+        statusEl.textContent = 'Code verifier manquant';
+        statusEl.style.color = '#f87171';
+        errorBox.innerHTML = `<div class="error">Le code_verifier n'est plus dans sessionStorage. La session a expiré ou a été ouverte dans un autre onglet. Réessayez.</div>`;
+      } else {
+        // POST to backend
+        fetch(BACKEND_URL + '/auth/deriv-exchange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: code,
+            codeVerifier: codeVerifier,
+            redirectUri: window.location.origin + '/auth/callback.html'
+          })
+        })
+          .then(async (res) => {
+            const data = await res.json();
+            if (!res.ok) {
+              const err = new Error(data.error || 'Erreur serveur');
+              err.debug = data.debug;
+              throw err;
+            }
+
+            // Success! Store token and redirect
+            localStorage.setItem('token', data.token);
+            sessionStorage.removeItem('deriv_code_verifier');
+            sessionStorage.removeItem('deriv_oauth_state');
+
+            spinnerEl.style.display = 'none';
+            statusEl.textContent = '✅ Connexion réussie !';
+            statusEl.classList.add('success');
+            debugEl.innerHTML += `<p><span class="label">result:</span> <span class="value">SUCCESS - redirecting...</span></p>`;
+
+            setTimeout(() => {
+              window.location.replace('/dashboard/bots');
+            }, 1500);
+          })
+          .catch(async (err) => {
+            spinnerEl.style.display = 'none';
+            statusEl.textContent = 'Erreur lors de l\'échange';
+            statusEl.style.color = '#f87171';
+            errorBox.innerHTML = `<div class="error">${err.message}</div>`;
+            debugEl.innerHTML += `<p><span class="label">exchange error:</span> <span class="value">${err.message}</span></p>`;
+            if (err.debug) {
+              debugEl.innerHTML += `<p><span class="label">backend client_id:</span> <span class="value">${err.debug.backend_client_id || 'N/A'}</span></p>`;
+              debugEl.innerHTML += `<p><span class="label">backend redirect_uri:</span> <span class="value">${err.debug.backend_redirect_uri || 'N/A'}</span></p>`;
+            }
+          });
+      }
+    }
+  </script>
+</body>
+
+</html>
