@@ -1,9 +1,12 @@
 {
-  "name": "ultimatebot-saas",
+  "name": "royalbot-saas",
   "version": "1.0.0",
-  "description": "SaaS platform for automated Deriv SmartTrader trading bots",
+  "description": "SaaS platform for automated Deriv, Binance and Bybit trading bots",
   "private": true,
   "scripts": {
+    "start": "cd server && npm start",
+    "build": "cd server && npm install",
+    "postinstall": "cd server && npm install",
     "client": "cd client && npm start",
     "server": "cd server && npm run dev",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
