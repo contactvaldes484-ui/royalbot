@@ -429,3 +429,69 @@ function DiagramTestnetBybit() {
     </Frame>
   )
 }
+
+/**
+ * Guide rapide d'utilisation des robots pour le Dashboard Abonnements.
+ */
+export function PlanRobotInstructions() {
+  return (
+    <div className="rounded-2xl border bg-card/60 backdrop-blur p-5 space-y-4">
+      <div className="flex items-center gap-2.5">
+        <div className="w-9 h-9 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+          <BookOpen className="w-5 h-5" />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold text-foreground">Comment activer et utiliser vos robots ?</h3>
+          <p className="text-xs text-muted-foreground">3 étapes simples pour lancer le trading automatisé sur votre compte.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+        <div className="p-3.5 rounded-xl border bg-muted/20 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-lg bg-violet-500/20 text-violet-400 font-bold text-xs flex items-center justify-center">1</span>
+            <h4 className="text-xs font-bold text-foreground">Lier votre compte</h4>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Connectez votre compte <strong>Binance</strong>, <strong>Bybit</strong> ou <strong>Deriv</strong> avec vos clés API sécurisées (sans permission de retrait).
+          </p>
+          <div className="pt-1">
+            <Link to="/dashboard/guide" className="text-[11px] text-violet-400 hover:underline inline-flex items-center gap-1 font-semibold">
+              Guide de liaison <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded-xl border bg-muted/20 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 font-bold text-xs flex items-center justify-center">2</span>
+            <h4 className="text-xs font-bold text-foreground">Choisir votre robot</h4>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Sélectionnez la stratégie souhaitée dans le catalogue selon votre plan (Spot, Futures, ou Volatilité Deriv).
+          </p>
+          <div className="pt-1">
+            <Link to="/dashboard/bots" className="text-[11px] text-emerald-400 hover:underline inline-flex items-center gap-1 font-semibold">
+              Catalogue des robots <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded-xl border bg-muted/20 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-lg bg-blue-500/20 text-blue-400 font-bold text-xs flex items-center justify-center">3</span>
+            <h4 className="text-xs font-bold text-foreground">Lancer le trading</h4>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Définissez votre capital, Stop Loss et Take Profit, puis activez le robot en 1 clic pour trader 24/7.
+          </p>
+          <div className="pt-1">
+            <Link to="/dashboard/trades" className="text-[11px] text-blue-400 hover:underline inline-flex items-center gap-1 font-semibold">
+              Suivi des trades <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
