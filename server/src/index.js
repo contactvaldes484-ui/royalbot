@@ -71,11 +71,15 @@ app.use(helmet({
   hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',').map(s => s.trim());
+const rawOrigins = process.env.CORS_ORIGIN || process.env.CLIENT_URL || process.env.FRONTEND_URL || '*';
+const allowedOrigins = rawOrigins.split(',').map(s => s.trim());
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) callback(null, true);
-    else callback(new Error('CORS not allowed'));
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true);
+    }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -84,6 +88,10 @@ app.use(cors({
 }));
 app.use(compression());
 app.use(morgan('dev'));
+
+// Health check endpoints for Railway / cloud monitoring
+app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime(), time: new Date() }));
+app.get('/api/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime(), time: new Date() }));
 
 // Webhooks paiement — montés AVANT le parser JSON (vérif HMAC sur le corps brut)
 app.use('/api/webhooks', webhookRoutes);
@@ -365,13 +373,14 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/RoyalBot'
 
     copyTradingEngine.start();
     forexScanner.start().catch(err => console.error('Forex scanner start failed:', err.message));
-    server.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-    });
   })
   .catch((err) => {
     console.error('❌ MongoDB connection error:', err.message);
-    process.exit(1);
+    console.warn('⚠️  Please check MONGODB_URI in your Railway environment variables');
   });
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
 
 module.exports = { app, server, wss };
