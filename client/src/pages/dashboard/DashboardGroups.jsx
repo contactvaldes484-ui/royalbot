@@ -94,7 +94,7 @@ export default function DashboardGroups() {
   const connectGroupWS = (groupId) => {
     const token = localStorage.getItem('token')
     if (!token) return
-    const apiUrl = import.meta.env.VITE_API_URL || '/api'
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://web-production-19f31.up.railway.app/api'
     let wsUrl
     if (apiUrl.startsWith('http')) {
       const url = new URL(apiUrl)
