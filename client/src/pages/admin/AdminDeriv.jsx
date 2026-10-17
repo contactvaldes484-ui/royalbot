@@ -54,8 +54,8 @@ export default function AdminDeriv() {
   // Settings parrainage & API
   const [derivReferralLink, setDerivReferralLink] = useState('')
   const [derivPartnerId, setDerivPartnerId] = useState('')
-  const [derivAppId, setDerivAppId] = useState('1089')
-  const [derivWsUrl, setDerivWsUrl] = useState('wss://ws.binaryws.com/websockets/v3')
+  const [derivAppId, setDerivAppId] = useState('34HkkJSIK047dAEWEgXML')
+  const [derivWsUrl, setDerivWsUrl] = useState('wss://ws.derivws.com/websockets/v3')
   const [savingSettings, setSavingSettings] = useState(false)
 
   useEffect(() => {
@@ -78,8 +78,8 @@ export default function AdminDeriv() {
         setSettings(setRes.data.settings)
         setDerivReferralLink(setRes.data.settings.derivReferralLink || '')
         setDerivPartnerId(setRes.data.settings.derivPartnerId || '')
-        setDerivAppId(setRes.data.settings.derivAppId || '1089')
-        setDerivWsUrl(setRes.data.settings.derivWsUrl || 'wss://ws.binaryws.com/websockets/v3')
+        setDerivAppId(setRes.data.settings.derivAppId || '34HkkJSIK047dAEWEgXML')
+        setDerivWsUrl(setRes.data.settings.derivWsUrl || 'wss://ws.derivws.com/websockets/v3')
       }
     } catch (err) {
       console.error(err)

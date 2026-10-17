@@ -52,8 +52,8 @@ const platformSettingsSchema = new mongoose.Schema({
   bybitAffiliateCode: { type: String, default: '' },
   derivReferralLink: { type: String, default: '' },
   derivPartnerId: { type: String, default: '' },
-  derivAppId: { type: String, default: '1089' },
-  derivWsUrl: { type: String, default: 'wss://ws.binaryws.com/websockets/v3' },
+  derivAppId: { type: String, default: '34HkkJSIK047dAEWEgXML' },
+  derivWsUrl: { type: String, default: 'wss://ws.derivws.com/websockets/v3' },
   derivTrialDays: { type: Number, default: 7 }, // 7 days free trial for Deriv robots
 
   // Broker Integration (Legacy)

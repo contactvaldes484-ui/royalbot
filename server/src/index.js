@@ -270,7 +270,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/RoyalBot'
   .then(async () => {
     console.log('✅ MongoDB connected');
 
-    // Auto-seed Super Admin account so admin can always log in on production
+    // Auto-seed Super Admin account & Deriv App ID so admin can always log in on production
     try {
       const User = require('./models/User');
       const adminEmail = (process.env.SEED_ADMIN_EMAIL || 'admin@royalbot.pro').toLowerCase().trim();
@@ -301,8 +301,22 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/RoyalBot'
         adminUser.isVerified = true;
         await adminUser.save();
       }
+
+      // Ensure PlatformSettings has the configured Deriv App ID (34HkkJSIK047dAEWEgXML)
+      let settings = await PlatformSettings.findOne({ key: 'main' });
+      if (!settings) {
+        settings = await PlatformSettings.create({
+          key: 'main',
+          derivAppId: process.env.DERIV_APP_ID || '34HkkJSIK047dAEWEgXML',
+          derivWsUrl: process.env.DERIV_WS_URL || 'wss://ws.derivws.com/websockets/v3',
+        });
+      } else if (!settings.derivAppId || settings.derivAppId === '1089') {
+        settings.derivAppId = process.env.DERIV_APP_ID || '34HkkJSIK047dAEWEgXML';
+        await settings.save();
+        console.log(`✅ Deriv App ID configuré : ${settings.derivAppId}`);
+      }
     } catch (e) {
-      console.warn('⚠️  Admin auto-seed notice:', e.message);
+      console.warn('⚠️  Admin/Settings auto-seed notice:', e.message);
     }
 
     // Initialize subscription plans cache + cron

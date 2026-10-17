@@ -73,12 +73,14 @@ export default function DerivCallback() {
     // Authentification directe + Synchronisation immédiate des soldes Réel & Démo avec l'API Deriv
     try {
       const codeVerifier = sessionStorage.getItem('deriv_pkce_verifier') || localStorage.getItem('deriv_pkce_verifier') || ''
+      const clientId = sessionStorage.getItem('deriv_client_id') || localStorage.getItem('deriv_client_id') || '34HkkJSIK047dAEWEgXML'
       const redirectUri = `${window.location.origin}/deriv/callback`
 
       const res = await derivAPI.oauthLogin({
         accounts,
         code: oauthCode || undefined,
         codeVerifier: codeVerifier || undefined,
+        clientId,
         redirectUri,
       })
 

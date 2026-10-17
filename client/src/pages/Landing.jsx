@@ -10,6 +10,7 @@ import {
   Sparkles, Building2, Cpu, ChevronLeft, ChevronRight, ImageIcon, Package
 } from 'lucide-react'
 import { screenshotAPI, botAPI, subscriptionAPI, shopAPI } from '../lib/api'
+import { startDerivOAuth } from '../lib/derivOAuth'
 import useStore from '../store/useStore'
 import SEO from '../components/SEO'
 import { BN, BinanceLogo, CryptoTicker } from '../components/binance/BinanceKit'
@@ -613,12 +614,13 @@ export default function Landing() {
                 </ul>
               </div>
               <div className="space-y-2">
-                <a
-                  href={`https://oauth.deriv.com/oauth2/authorize?app_id=${encodeURIComponent(ps.derivAppId || '1089')}&l=FR&brand=deriv`}
-                  className="w-full inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/30 transition text-sm"
+                <button
+                  type="button"
+                  onClick={() => startDerivOAuth(ps.derivAppId || '34HkkJSIK047dAEWEgXML')}
+                  className="w-full inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/30 transition text-sm cursor-pointer"
                 >
                   Tester Deriv (Essai Gratuit) <ArrowRight className="w-4 h-4 ml-1.5" />
-                </a>
+                </button>
                 <Link
                   to="/dashboard/deriv"
                   className="w-full inline-flex items-center justify-center text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold py-1"

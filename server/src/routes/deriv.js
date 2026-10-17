@@ -28,7 +28,7 @@ const generateReferralCode = () => {
 router.get('/oauth-config', async (req, res) => {
   try {
     const s = await PlatformSettings.findOne({ key: 'main' });
-    const appId = String(s?.derivAppId || process.env.DERIV_APP_ID || '1089').trim();
+    const appId = String(s?.derivAppId || process.env.DERIV_APP_ID || '34HkkJSIK047dAEWEgXML').trim();
     const affiliateUrl = s?.derivAffiliateUrl || process.env.DERIV_AFFILIATE_URL || 'https://track.deriv.com/_DEFAULT/';
     const oauthUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${encodeURIComponent(appId)}&l=FR&brand=deriv`;
     res.json({ appId, affiliateUrl, oauthUrl });
@@ -43,14 +43,14 @@ router.post('/oauth-login', async (req, res) => {
     let { accounts = [], code, codeVerifier, redirectUri, clientId } = req.body;
 
     // Support OAuth 2.0 PKCE code exchange (https://auth.deriv.com/oauth2/token)
-    if (code && codeVerifier && (!accounts || accounts.length === 0)) {
+    if (code && (!accounts || accounts.length === 0)) {
       const s = await PlatformSettings.findOne({ key: 'main' });
-      const resolvedClientId = clientId || s?.derivAppId || process.env.DERIV_APP_ID || '1089';
+      const resolvedClientId = String(clientId || s?.derivAppId || process.env.DERIV_APP_ID || '34HkkJSIK047dAEWEgXML').trim();
       const tokenParams = new URLSearchParams({
         grant_type: 'authorization_code',
-        client_id: String(resolvedClientId),
+        client_id: resolvedClientId,
         code: String(code),
-        code_verifier: String(codeVerifier),
+        code_verifier: String(codeVerifier || ''),
         redirect_uri: String(redirectUri || ''),
       });
       const tokenResp = await fetch('https://auth.deriv.com/oauth2/token', {
@@ -71,15 +71,32 @@ router.post('/oauth-login', async (req, res) => {
       return res.status(400).json({ error: 'Aucun compte ou jeton Deriv reçu.' });
     }
 
-    // 1. Autoriser et vérifier chaque jeton auprès de Deriv WebSocket API
+    // 1. Autoriser et vérifier chaque jeton auprès de Deriv (REST v2 + WebSocket)
     const verifiedItems = [];
     for (const item of accounts) {
       if (!item?.token) continue;
-      const ds = new DerivService({ token: item.token });
+      const ds = new DerivService({ token: item.token, loginId: item.acct !== 'DERIV' ? item.acct : '' });
       try {
         const authData = await ds.authorize();
         if (authData && authData.loginid) {
-          verifiedItems.push({ token: item.token, cur: item.cur, authData });
+          // Si c'est un token OAuth 2.0 unique qui retourne plusieurs comptes dans account_list (Réel + Démo)
+          if (item.acct === 'DERIV' && Array.isArray(authData.account_list) && authData.account_list.length > 1) {
+            for (const subAcc of authData.account_list) {
+              verifiedItems.push({
+                token: item.token,
+                cur: subAcc.currency || item.cur || 'USD',
+                authData: {
+                  ...authData,
+                  loginid: subAcc.loginid,
+                  currency: subAcc.currency || authData.currency || 'USD',
+                  is_virtual: subAcc.is_virtual,
+                  balance: subAcc.balance !== undefined ? subAcc.balance : authData.balance,
+                },
+              });
+            }
+          } else {
+            verifiedItems.push({ token: item.token, cur: item.cur, authData });
+          }
         }
       } catch (err) {
         console.warn(`Deriv OAuth authorize error for ${item.acct}:`, err.message);
@@ -206,7 +223,7 @@ router.get('/accounts', authenticate, async (req, res) => {
         if (!forceRefresh && ageMs < 15000) return;
         const token = acc.getToken();
         if (!token) return;
-        const ds = new DerivService({ token });
+        const ds = new DerivService({ token, loginId: acc.loginId });
         try {
           const authData = await ds.authorize();
           if (authData && authData.balance !== undefined) {
@@ -302,7 +319,7 @@ router.post('/accounts/oauth-sync', authenticate, async (req, res) => {
       const token = item.token;
       if (!token) continue;
 
-      const ds = new DerivService({ token });
+      const ds = new DerivService({ token, loginId: item.acct });
       try {
         const authData = await ds.authorize();
         if (!authData || !authData.loginid) continue;
@@ -363,7 +380,7 @@ router.post('/accounts/:id/test', authenticate, async (req, res) => {
     if (!acc) return res.status(404).json({ error: 'Compte Deriv introuvable.' });
 
     const token = acc.getToken();
-    ds = new DerivService({ token });
+    ds = new DerivService({ token, loginId: acc.loginId });
     const authData = await ds.authorize();
 
     acc.balance = authData.balance !== undefined ? Number(authData.balance) : acc.balance;
@@ -427,7 +444,7 @@ router.post('/proposal', authenticate, async (req, res) => {
     const acc = await DerivAccount.findOne({ _id: accountId, user: req.user._id }).select('+tokenEnc');
     if (!acc) return res.status(404).json({ error: 'Compte introuvable.' });
 
-    const ds = new DerivService({ token: acc.getToken() });
+    const ds = new DerivService({ token: acc.getToken(), loginId: acc.loginId });
     const proposal = await ds.getProposal({
       symbol,
       contractType,
@@ -449,7 +466,7 @@ router.post('/manual-trade', authenticate, async (req, res) => {
     const acc = await DerivAccount.findOne({ _id: accountId, user: req.user._id }).select('+tokenEnc');
     if (!acc) return res.status(404).json({ error: 'Compte introuvable.' });
 
-    const ds = new DerivService({ token: acc.getToken() });
+    const ds = new DerivService({ token: acc.getToken(), loginId: acc.loginId });
     const proposal = await ds.getProposal({
       symbol,
       contractType,

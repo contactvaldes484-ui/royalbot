@@ -231,7 +231,7 @@ class DerivRobotEngine {
 
       const bot = await DerivBot.findById(session.bot);
       const token = acc.getToken();
-      const ds = new DerivService({ token });
+      const ds = new DerivService({ token, loginId: acc.loginId });
 
       // Analyse du marché et confirmation de signal à fort taux de réussite
       const history = await ds.getTicksHistory(session.symbol, 30).catch(() => null);
