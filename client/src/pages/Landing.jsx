@@ -612,11 +612,20 @@ export default function Landing() {
                   </li>
                 </ul>
               </div>
-              <Button asChild className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-5 rounded-xl shadow-lg shadow-emerald-600/30">
-                <Link to="/dashboard/deriv">
+              <div className="space-y-2">
+                <a
+                  href={`https://oauth.deriv.com/oauth2/authorize?app_id=${encodeURIComponent(ps.derivAppId || '1089')}&l=FR&brand=deriv`}
+                  className="w-full inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/30 transition text-sm"
+                >
                   Tester Deriv (Essai Gratuit) <ArrowRight className="w-4 h-4 ml-1.5" />
+                </a>
+                <Link
+                  to="/dashboard/deriv"
+                  className="w-full inline-flex items-center justify-center text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold py-1"
+                >
+                  Déjà connecté ? Ouvrir le terminal Deriv →
                 </Link>
-              </Button>
+              </div>
             </div>
           </div>
         </div>

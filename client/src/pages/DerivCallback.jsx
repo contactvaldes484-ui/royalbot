@@ -10,39 +10,48 @@ import { Loader2, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, Wallet, Re
 export default function DerivCallback() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isAuthenticated } = useStore()
+  const { setAuth } = useStore()
 
-  const [status, setStatus] = useState('processing') // 'processing' | 'success' | 'error' | 'redirect_login'
+  const [status, setStatus] = useState('processing') // 'processing' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState('')
   const [syncedAccounts, setSyncedAccounts] = useState([])
 
   useEffect(() => {
     handleOAuthCallback()
-  }, [location.search, isAuthenticated])
+  }, [location.search])
 
   async function handleOAuthCallback() {
+    setStatus('processing')
+    setErrorMsg('')
     const params = new URLSearchParams(location.search)
-    const accounts = []
 
+    // Gestion erreur retournée par Deriv OAuth
+    if (params.get('error')) {
+      setStatus('error')
+      setErrorMsg(params.get('error_description') || params.get('error') || 'Authentification Deriv annulée ou refusée.')
+      return
+    }
+
+    const accounts = []
     let i = 1
-    while (params.has(`acct${i}`)) {
-      const acct = params.get(`acct${i}`)
+    while (params.has(`acct${i}`) || params.has(`token${i}`)) {
+      const acct = params.get(`acct${i}`) || `DERIV_${i}`
       const token = params.get(`token${i}`)
       const cur = params.get(`cur${i}`) || 'USD'
-      if (acct && token) {
+      if (token) {
         accounts.push({ acct, token, cur })
       }
       i++
     }
 
-    // Si aucun paramètre standard acct1/token1, vérifier si un token unique ou pending existe
-    if (accounts.length === 0) {
+    // Si aucun paramètre standard acct1/token1, vérifier token unique, code PKCE ou pending
+    const oauthCode = params.get('code')
+    if (accounts.length === 0 && !oauthCode) {
       const singleToken = params.get('token')
       const singleAcct = params.get('acct')
       if (singleToken) {
         accounts.push({ acct: singleAcct || 'CR', token: singleToken, cur: 'USD' })
       } else {
-        // Vérifier dans le stockage
         const pending = localStorage.getItem('pending_deriv_accounts')
         if (pending) {
           try {
@@ -55,33 +64,37 @@ export default function DerivCallback() {
       }
     }
 
-    if (accounts.length === 0) {
+    if (accounts.length === 0 && !oauthCode) {
       setStatus('error')
       setErrorMsg("Aucun compte ou jeton d'autorisation Deriv n'a été détecté dans l'URL de redirection.")
       return
     }
 
-    // Si non connecté à RoyalBot, sauvegarder et rediriger vers le login
-    if (!isAuthenticated) {
-      localStorage.setItem('pending_deriv_accounts', JSON.stringify(accounts))
-      setStatus('redirect_login')
-      setTimeout(() => {
-        navigate('/login?redirect=/deriv/callback')
-      }, 1500)
-      return
-    }
-
-    // Utilisateur connecté : Synchronisation immédiate avec l'API Deriv
+    // Authentification directe + Synchronisation immédiate des soldes Réel & Démo avec l'API Deriv
     try {
-      const res = await derivAPI.syncOAuthAccounts({ accounts })
+      const codeVerifier = sessionStorage.getItem('deriv_pkce_verifier') || localStorage.getItem('deriv_pkce_verifier') || ''
+      const redirectUri = `${window.location.origin}/deriv/callback`
+
+      const res = await derivAPI.oauthLogin({
+        accounts,
+        code: oauthCode || undefined,
+        codeVerifier: codeVerifier || undefined,
+        redirectUri,
+      })
+
       localStorage.removeItem('pending_deriv_accounts')
+      sessionStorage.removeItem('deriv_pkce_verifier')
 
       if (res.data?.success && res.data?.accounts?.length) {
+        if (res.data.token && res.data.user) {
+          localStorage.setItem('token', res.data.token)
+          setAuth(res.data.user, res.data.token)
+        }
         setSyncedAccounts(res.data.accounts)
         setStatus('success')
         setTimeout(() => {
           navigate('/dashboard/deriv')
-        }, 2500)
+        }, 2000)
       } else {
         setStatus('error')
         setErrorMsg('Échec de la validation des comptes par le serveur Deriv.')

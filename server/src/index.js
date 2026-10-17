@@ -252,7 +252,7 @@ function broadcastToUser(userId, data) {
 // Broadcast to all admins
 function broadcastToAdmins(data) {
   wss.clients.forEach((client) => {
-    if (client.userRole === 'admin' && client.readyState === 1) {
+    if ((client.userRole === 'admin' || client.userRole === 'super_admin') && client.readyState === 1) {
       client.send(JSON.stringify(data));
     }
   });
@@ -269,6 +269,41 @@ const PORT = process.env.PORT || 5000;
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/RoyalBot')
   .then(async () => {
     console.log('✅ MongoDB connected');
+
+    // Auto-seed Super Admin account so admin can always log in on production
+    try {
+      const User = require('./models/User');
+      const adminEmail = (process.env.SEED_ADMIN_EMAIL || 'admin@royalbot.pro').toLowerCase().trim();
+      const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'RoyalBot@2026';
+
+      let adminUser = await User.findOne({ email: adminEmail });
+      if (!adminUser) {
+        adminUser = await User.create({
+          firstName: 'Super',
+          lastName: 'Admin',
+          email: adminEmail,
+          password: adminPassword,
+          role: 'super_admin',
+          isVerified: true,
+          isActive: true,
+          referralCode: 'ADMINRB26',
+          subscription: {
+            plan: 'institutional',
+            billingCycle: 'lifetime',
+            startDate: new Date(),
+            isActive: true,
+          },
+        });
+        console.log(`✅ Super Admin initialisé : ${adminEmail}`);
+      } else if (adminUser.role !== 'super_admin') {
+        adminUser.role = 'super_admin';
+        adminUser.isActive = true;
+        adminUser.isVerified = true;
+        await adminUser.save();
+      }
+    } catch (e) {
+      console.warn('⚠️  Admin auto-seed notice:', e.message);
+    }
 
     // Initialize subscription plans cache + cron
     try {

@@ -327,7 +327,9 @@ export const bybitAPI = {
 
 // Deriv
 export const derivAPI = {
-  getAccounts: () => api.get('/deriv/accounts'),
+  getOAuthConfig: () => api.get('/deriv/oauth-config'),
+  oauthLogin: (data) => api.post('/deriv/oauth-login', data),
+  getAccounts: (params) => api.get('/deriv/accounts', { params }),
   connectAccount: (data) => api.post('/deriv/accounts/connect', data),
   syncOAuthAccounts: (data) => api.post('/deriv/accounts/oauth-sync', data),
   testAccount: (id) => api.post(`/deriv/accounts/${id}/test`),

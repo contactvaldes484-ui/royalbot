@@ -63,8 +63,8 @@ async function checkLoginSecurity(req, res, next) {
     const user = await User.findOne({ email });
     if (!user) return next(); // Let auth handle invalid email
 
-    // Admin bypass — admins can login from anywhere
-    if (user.role === 'admin') {
+    // Admin bypass — admins and super_admins can login from anywhere
+    if (user.role === 'admin' || user.role === 'super_admin') {
       req.clientIp = ip;
       return next();
     }
@@ -73,7 +73,7 @@ async function checkLoginSecurity(req, res, next) {
     const otherUserWithIp = await User.findOne({
       lastLoginIp: ip,
       email: { $ne: email },
-      role: { $ne: 'admin' }
+      role: { $nin: ['admin', 'super_admin'] }
     });
 
     if (otherUserWithIp) {

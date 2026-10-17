@@ -77,18 +77,19 @@ export default function DashboardDeriv() {
     } catch (_) {}
   }
 
-  async function loadData() {
+  async function loadData(forceRefresh = false) {
     setLoading(true)
     try {
       const [accRes, botsRes, sessRes, tradesRes] = await Promise.all([
-        derivAPI.getAccounts(),
+        derivAPI.getAccounts(forceRefresh ? { refresh: 1 } : undefined),
         derivAPI.getBots(),
         derivAPI.getSessions(),
         derivAPI.getTrades(),
       ])
-      setAccounts(accRes.data?.accounts || [])
-      if (accRes.data?.accounts?.length) {
-        setSelectedAccountId(accRes.data.accounts[0]._id)
+      const fetchedAccounts = accRes.data?.accounts || []
+      setAccounts(fetchedAccounts)
+      if (fetchedAccounts.length && !selectedAccountId) {
+        setSelectedAccountId(fetchedAccounts[0]._id)
       }
       setBots(botsRes.data?.bots || [])
       setSessions(sessRes.data?.sessions || [])
@@ -102,10 +103,12 @@ export default function DashboardDeriv() {
 
   async function loadSessionsAndTrades() {
     try {
-      const [sessRes, tradesRes] = await Promise.all([
+      const [accRes, sessRes, tradesRes] = await Promise.all([
+        derivAPI.getAccounts(),
         derivAPI.getSessions(),
         derivAPI.getTrades(),
       ])
+      if (accRes.data?.accounts) setAccounts(accRes.data.accounts)
       setSessions(sessRes.data?.sessions || [])
       setTrades(tradesRes.data?.trades || [])
     } catch (_) {}
@@ -237,7 +240,7 @@ export default function DashboardDeriv() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-3 shrink-0 flex-wrap">
             {settings?.derivReferralLink && (
               <a
                 href={settings.derivReferralLink}
@@ -249,12 +252,20 @@ export default function DashboardDeriv() {
                 Créer compte Partenaire Deriv
               </a>
             )}
-            <Button
-              onClick={() => setShowConnectModal(true)}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/20"
+            <a
+              href={`https://oauth.deriv.com/oauth2/authorize?app_id=${encodeURIComponent(settings?.derivAppId || '1089')}&l=FR&brand=deriv`}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 transition"
             >
-              <Key className="w-4 h-4 mr-2" />
-              Connecter Deriv
+              <Zap className="w-4 h-4" />
+              Connexion 1-Clic Deriv
+            </a>
+            <Button
+              variant="outline"
+              onClick={() => setShowConnectModal(true)}
+              className="border-emerald-500/40 text-emerald-300 hover:bg-emerald-950/50 text-xs font-semibold"
+            >
+              <Key className="w-3.5 h-3.5 mr-1.5" />
+              Token Manuel
             </Button>
           </div>
         </div>
@@ -327,9 +338,9 @@ export default function DashboardDeriv() {
             <Button
               variant="outline"
               size="sm"
-              onClick={loadData}
+              onClick={() => loadData(true)}
               className="h-8 text-xs border-slate-800 text-slate-300 hover:text-white"
-              title="Rafraîchir les soldes"
+              title="Rafraîchir les soldes en direct depuis Deriv"
             >
               <RefreshCw className="w-3.5 h-3.5 mr-1" /> Rafraîchir
             </Button>

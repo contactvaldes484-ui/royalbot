@@ -28,6 +28,13 @@ export function AdminLayout() {
   const pLogo = platformSettings?.logoUrl
 
   if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+      </div>
+    )
+  }
   if (!['admin', 'super_admin'].includes(user?.role)) return <Navigate to="/dashboard" replace />
 
   const menuItems = [

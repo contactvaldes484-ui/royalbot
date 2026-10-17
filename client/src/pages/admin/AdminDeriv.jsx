@@ -594,7 +594,33 @@ export default function AdminDeriv() {
               </div>
 
               <div className="pt-3 border-t border-slate-800 space-y-3">
-                <h4 className="text-xs font-bold text-cyan-400">Paramètres Techniques API Deriv</h4>
+                <h4 className="text-xs font-bold text-cyan-400">Paramètres Techniques API Deriv &amp; OAuth 2.0</h4>
+                <div className="p-3 rounded-xl bg-slate-950 border border-emerald-500/30 space-y-1.5">
+                  <div className="text-xs font-bold text-emerald-300">
+                    Redirect URL (URL de Redirection OAuth à copier sur api.deriv.com / developers.deriv.com) :
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/deriv/callback`}
+                      className="bg-slate-900 border-slate-700 text-emerald-400 font-mono text-xs"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/deriv/callback`)
+                        alert('Redirect URL copiée dans le presse-papiers !')
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs shrink-0"
+                    >
+                      Copier
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Lors de la création de votre App ID sur Deriv API, collez cette URL dans le champ <strong>Redirect URL (OAuth)</strong> et cochez les permissions : <strong>Read</strong>, <strong>Trade</strong>, <strong>Trading information</strong>.
+                  </p>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs text-slate-300 font-semibold mb-1 block">Deriv App ID (DERIV_APP_ID)</label>
@@ -605,18 +631,18 @@ export default function AdminDeriv() {
                       onChange={(e) => setDerivAppId(e.target.value)}
                       className="bg-slate-950 border-slate-700 text-white font-mono text-xs"
                     />
-                    <p className="text-[10px] text-slate-500 mt-1">Défaut: 1089 (ou votre App ID api.deriv.com)</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Collez ici l'App ID généré sur api.deriv.com</p>
                   </div>
                   <div>
                     <label className="text-xs text-slate-300 font-semibold mb-1 block">Deriv WebSocket URL (DERIV_WS_URL)</label>
                     <Input
                       type="text"
-                      placeholder="wss://ws.binaryws.com/websockets/v3"
+                      placeholder="wss://ws.derivws.com/websockets/v3"
                       value={derivWsUrl}
                       onChange={(e) => setDerivWsUrl(e.target.value)}
                       className="bg-slate-950 border-slate-700 text-white font-mono text-xs"
                     />
-                    <p className="text-[10px] text-slate-500 mt-1">Point d'accès WebSocket Deriv</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Point d'accès WebSocket Deriv officiel</p>
                   </div>
                 </div>
               </div>

@@ -1,10 +1,10 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
 import useStore from '../store/useStore'
-import { Bot, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Bot, Eye, EyeOff, Loader2, Zap } from 'lucide-react'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -16,6 +16,10 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const { login, platformSettings } = useStore()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  const derivAppId = platformSettings?.derivAppId || '1089'
+  const derivOAuthUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${encodeURIComponent(derivAppId)}&l=FR&brand=deriv`
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -28,7 +32,15 @@ export default function Login() {
         setLoading(false)
         return
       }
-      navigate(result?.user?.role === 'admin' ? '/admin' : '/dashboard')
+      const params = new URLSearchParams(location.search)
+      const redirectTo = params.get('redirect')
+      if (redirectTo) {
+        navigate(redirectTo)
+      } else if (['admin', 'super_admin'].includes(result?.user?.role)) {
+        navigate('/admin')
+      } else {
+        navigate('/dashboard')
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -53,6 +65,24 @@ export default function Login() {
         <CardContent className="space-y-4">
           {error && (
             <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">{error}</div>
+          )}
+
+          {!requires2FA && (
+            <>
+              <a
+                href={derivOAuthUrl}
+                className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 transition"
+              >
+                <Zap className="h-4 w-4" />
+                Se connecter avec Deriv (Soldes Réel &amp; Démo)
+              </a>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-border"></div>
+                <span className="flex-shrink mx-3 text-xs uppercase text-muted-foreground">Ou avec Email</span>
+                <div className="flex-grow border-t border-border"></div>
+              </div>
+            </>
           )}
 
           {/* Email/password login */}
