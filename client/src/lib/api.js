@@ -1,14 +1,25 @@
 import axios from 'axios'
 
-const DEFAULT_PROD_API = 'https://web-production-19f31.up.railway.app/api'
+export const DEFAULT_PROD_API = 'https://web-production-19f31.up.railway.app/api'
 
-function resolveApiUrl() {
+export function resolveApiUrl() {
   const raw = String(import.meta.env.VITE_API_URL || '').trim()
   const isLocalHost =
     typeof window !== 'undefined' &&
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
 
-  if (!raw || raw === '/api') {
+  const isPlaceholder =
+    !raw ||
+    raw === '/api' ||
+    raw.includes('votre-url') ||
+    raw.includes('your-url') ||
+    raw.includes('domaine-railway') ||
+    raw.includes('ultimatebot-api') ||
+    raw.includes('royalbot-api') ||
+    raw.includes('example') ||
+    raw.includes('<')
+
+  if (isPlaceholder) {
     return isLocalHost ? '/api' : DEFAULT_PROD_API
   }
 
@@ -30,7 +41,7 @@ function resolveApiUrl() {
   return url
 }
 
-const API_URL = resolveApiUrl()
+export const API_URL = resolveApiUrl()
 
 const api = axios.create({
   baseURL: API_URL,
@@ -48,11 +59,11 @@ api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const config = err.config
-    // Basculement automatique vers le proxy Vercel (/api) ou l'URL Railway directe en cas de Network Error
+    // Basculement automatique vers l'URL Railway réelle ou le proxy Vercel (/api) en cas de Network Error
     if (config && !config._retriedFallback && (!err.response || err.response.status === 502 || err.response.status === 504)) {
       config._retriedFallback = true
       const currentBase = config.baseURL || API_URL
-      config.baseURL = currentBase === '/api' ? DEFAULT_PROD_API : '/api'
+      config.baseURL = currentBase === DEFAULT_PROD_API ? '/api' : DEFAULT_PROD_API
       try {
         return await api.request(config)
       } catch (retryErr) {

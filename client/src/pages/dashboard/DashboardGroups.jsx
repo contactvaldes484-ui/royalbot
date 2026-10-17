@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Badge } from '../../components/ui/badge'
 import { Button } from '../../components/ui/button'
 import useStore from '../../store/useStore'
-import { groupAPI } from '../../lib/api'
+import { groupAPI, API_URL } from '../../lib/api'
 import {
   MessageCircle, Users, Send, ArrowLeft, Pin, Trash2, Shield,
   Clock, Hash, Zap, Crown, UserPlus, UserMinus, Settings,
@@ -89,12 +89,10 @@ export default function DashboardGroups() {
   }
 
   // WS connection for real-time messages.
-  // L'URL WS est dérivée de VITE_API_URL (le backend Railway/Render), PAS de l'hôte
-  // du frontend — sinon en production (Vercel) on tenterait wss://vercel-app/... :5000.
   const connectGroupWS = (groupId) => {
     const token = localStorage.getItem('token')
     if (!token) return
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://web-production-19f31.up.railway.app/api'
+    const apiUrl = API_URL
     let wsUrl
     if (apiUrl.startsWith('http')) {
       const url = new URL(apiUrl)

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { authAPI, userAPI, botAPI, tradeAPI, settingsAPI } from '../lib/api'
+import { authAPI, userAPI, botAPI, tradeAPI, settingsAPI, resolveApiUrl } from '../lib/api'
 
 const useStore = create((set, get) => ({
   // Auth
@@ -128,12 +128,10 @@ const useStore = create((set, get) => ({
     const token = get().token
     if (!token) return
 
-    // Build WS URL from API URL (backend), not from frontend host
-    const apiUrl = import.meta.env.VITE_API_URL || '/api'
+    // Build WS URL from resolved API_URL (backend), not from placeholder VITE_API_URL
+    const apiUrl = resolveApiUrl()
     let wsUrl
     if (apiUrl.startsWith('http')) {
-      // Production: VITE_API_URL = https://royalbot-api.up.railway.app/api
-      // Convert to wss://royalbot-api.up.railway.app/ws
       const url = new URL(apiUrl)
       const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
       wsUrl = `${protocol}//${url.host}/ws?token=${token}`

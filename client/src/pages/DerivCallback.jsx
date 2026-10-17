@@ -4,8 +4,9 @@ import { Card, CardContent } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { derivAPI } from '../lib/api'
+import { startDerivOAuth } from '../lib/derivOAuth'
 import useStore from '../store/useStore'
-import { Loader2, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, Wallet, RefreshCw } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, Wallet, RefreshCw, Zap } from 'lucide-react'
 
 export default function DerivCallback() {
   const navigate = useNavigate()
@@ -196,20 +197,29 @@ export default function DerivCallback() {
               </div>
               <h2 className="text-xl font-bold">Erreur de Connexion Deriv</h2>
               <p className="text-xs text-rose-300">{errorMsg}</p>
-              <div className="pt-2 flex gap-3">
+              <div className="pt-2 space-y-2.5">
                 <Button
-                  variant="outline"
-                  onClick={() => navigate('/dashboard/deriv')}
-                  className="w-1/2 border-slate-700"
+                  onClick={() => startDerivOAuth('34HkkJSIK047dAEWEgXML')}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
                 >
-                  Retour
+                  <Zap className="w-4 h-4 mr-2" /> Reconnecter avec Deriv en 1-Clic
                 </Button>
-                <Button
-                  onClick={handleOAuthCallback}
-                  className="w-1/2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" /> Réessayer
-                </Button>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate('/dashboard/deriv')}
+                    className="w-1/2 border-slate-700"
+                  >
+                    Retour
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleOAuthCallback}
+                    className="w-1/2 border-slate-700"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" /> Réessayer
+                  </Button>
+                </div>
               </div>
             </div>
           )}
