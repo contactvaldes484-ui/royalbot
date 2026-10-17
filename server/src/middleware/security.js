@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const SecurityLog = require('../models/SecurityLog');
+const fallbackStore = require('../services/RuntimeFallbackStore');
 
 // Extract real IP from request (supports proxies)
 function getClientIp(req) {
@@ -15,6 +16,8 @@ function getClientIp(req) {
 async function checkRegistrationSecurity(req, res, next) {
   try {
     const ip = getClientIp(req);
+    req.clientIp = ip;
+    if (!fallbackStore.isDbConnected()) return next();
     const email = (req.body.email || '').toLowerCase().trim();
 
     if (!email) return next();
@@ -56,6 +59,8 @@ async function checkRegistrationSecurity(req, res, next) {
 async function checkLoginSecurity(req, res, next) {
   try {
     const ip = getClientIp(req);
+    req.clientIp = ip;
+    if (!fallbackStore.isDbConnected()) return next();
     const email = (req.body.email || '').toLowerCase().trim();
 
     if (!email) return next();

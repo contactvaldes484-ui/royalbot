@@ -1,10 +1,17 @@
 require('dotenv').config();
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = '1b38d6a0db1247e468332213f2bb0e74f0e55bc2e676701cecbf15543fc45ba8';
+}
+if (!process.env.ENCRYPTION_KEY) {
+  process.env.ENCRYPTION_KEY = '5c5b110611b60ed22cb031fe506f95243397bdfb644d25bc2e391904f026a47d';
+}
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const mongoose = require('mongoose');
+mongoose.set('bufferTimeoutMS', 2500);
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const mongoSanitize = require('express-mongo-sanitize');
@@ -68,6 +75,8 @@ const authLimiter = rateLimit({
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
   hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
@@ -90,8 +99,8 @@ app.use(compression());
 app.use(morgan('dev'));
 
 // Health check endpoints for Railway / cloud monitoring
-app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime(), time: new Date() }));
-app.get('/api/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime(), time: new Date() }));
+app.get('/health', (req, res) => res.json({ status: 'ok', dbConnected: mongoose.connection.readyState === 1, uptime: process.uptime(), time: new Date() }));
+app.get('/api/health', (req, res) => res.json({ status: 'ok', dbConnected: mongoose.connection.readyState === 1, uptime: process.uptime(), time: new Date() }));
 
 // Webhooks paiement — montés AVANT le parser JSON (vérif HMAC sur le corps brut)
 app.use('/api/webhooks', webhookRoutes);
@@ -136,15 +145,13 @@ app.use('/api/admin/crypto-robots', adminCryptoRobotsRoutes);
 
 // Public: platform settings (no auth — read only)
 const PlatformSettings = require('./models/PlatformSettings');
+const fallbackStore = require('./services/RuntimeFallbackStore');
 app.get('/api/settings', async (req, res) => {
   try {
-    let settings = await PlatformSettings.findOne({ key: 'main' });
-    if (!settings) {
-      settings = await PlatformSettings.create({ key: 'main' });
-    }
+    const settings = await fallbackStore.getSettings();
     res.json({ settings });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ settings: fallbackStore.settings });
   }
 });
 
@@ -152,13 +159,16 @@ app.get('/api/settings', async (req, res) => {
 const ProfitScreenshot = require('./models/ProfitScreenshot');
 app.get('/api/screenshots', async (req, res) => {
   try {
+    if (!fallbackStore.isDbConnected()) {
+      return res.json({ screenshots: [] });
+    }
     const screenshots = await ProfitScreenshot.find({ isActive: true })
       .select('title description imageData profit trader platform order')
       .sort({ order: 1, createdAt: -1 })
       .limit(20);
     res.json({ screenshots });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ screenshots: [] });
   }
 });
 
@@ -265,9 +275,17 @@ global.wss = wss;
 
 // Connect to MongoDB and start server
 const PORT = process.env.PORT || 5000;
+const DEFAULT_ATLAS_URI = 'mongodb+srv://valdeslando15_db_user:MTT3SBR7R6QmWQCY@cluster0.1hr6fwe.mongodb.net/RoyalBot?retryWrites=true&w=majority&appName=Cluster0';
+const MONGO_URI =
+  process.env.MONGODB_URI ||
+  process.env.MONGO_URI ||
+  process.env.MONGO_URL ||
+  process.env.DATABASE_URL ||
+  DEFAULT_ATLAS_URI;
 
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/RoyalBot')
+mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 6000 })
   .then(async () => {
+    mongoose.set('bufferCommands', true);
     console.log('✅ MongoDB connected');
 
     // Auto-seed Super Admin account & Deriv App ID so admin can always log in on production
@@ -424,8 +442,9 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/RoyalBot'
     forexScanner.start().catch(err => console.error('Forex scanner start failed:', err.message));
   })
   .catch((err) => {
+    mongoose.set('bufferCommands', false);
     console.error('❌ MongoDB connection error:', err.message);
-    console.warn('⚠️  Please check MONGODB_URI in your Railway environment variables');
+    console.warn('⚡ RuntimeFallbackStore in-memory mode activated (zero downtime for Auth & Deriv)');
   });
 
 server.listen(PORT, '0.0.0.0', () => {

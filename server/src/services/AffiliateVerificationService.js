@@ -1,5 +1,5 @@
 'use strict';
-const PlatformSettings = require('../models/PlatformSettings');
+const fallbackStore = require('./RuntimeFallbackStore');
 
 class AffiliateVerificationService {
   /**
@@ -7,7 +7,7 @@ class AffiliateVerificationService {
    */
   async verifyDerivAccount(accountDetails, token) {
     try {
-      const settings = await PlatformSettings.findOne({ key: 'main' });
+      const settings = await fallbackStore.getSettings();
       const partnerId = settings?.derivPartnerId || '';
 
       // Si aucun partnerId configuré par l'admin, on valide pour ne pas bloquer les tests
@@ -35,7 +35,7 @@ class AffiliateVerificationService {
    */
   async verifyBybitAccount(bybitUid) {
     try {
-      const settings = await PlatformSettings.findOne({ key: 'main' });
+      const settings = await fallbackStore.getSettings();
       const affCode = settings?.bybitAffiliateCode || '';
 
       if (!affCode) {
@@ -58,7 +58,7 @@ class AffiliateVerificationService {
    */
   async verifyBinanceAccount(binanceUid) {
     try {
-      const settings = await PlatformSettings.findOne({ key: 'main' });
+      const settings = await fallbackStore.getSettings();
       const affCode = settings?.binanceAffiliateCode || '';
 
       if (!affCode) {

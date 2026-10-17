@@ -4,11 +4,12 @@ const User = require('../models/User');
 const { authenticate } = require('../middleware/auth');
 const speakeasy = require('speakeasy');
 const { checkRegistrationSecurity, checkLoginSecurity, recordLoginIp, recordRegistrationIp, getClientIp } = require('../middleware/security');
+const fallbackStore = require('../services/RuntimeFallbackStore');
 
 const router = express.Router();
 
 const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET || 'default_secret', {
+  return jwt.sign({ userId }, process.env.JWT_SECRET || '1b38d6a0db1247e468332213f2bb0e74f0e55bc2e676701cecbf15543fc45ba8', {
     expiresIn: process.env.JWT_EXPIRE || '7d'
   });
 };
@@ -26,7 +27,7 @@ router.post('/register', checkRegistrationSecurity, async (req, res) => {
       return res.status(400).json({ error: 'All fields are required.' });
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await fallbackStore.findUserByEmail(email);
     if (existingUser) {
       return res.status(400).json({ error: 'Email already registered.' });
     }
@@ -44,20 +45,21 @@ router.post('/register', checkRegistrationSecurity, async (req, res) => {
       allowedIps: [ip],
     };
 
-    if (referralCode) {
-      const referrer = await User.findOne({ referralCode });
+    if (referralCode && fallbackStore.isDbConnected()) {
+      const referrer = await User.findOne({ referralCode }).catch(() => null);
       if (referrer) userData.referredBy = referrer._id;
     }
 
-    const user = await User.create(userData);
+    const user = await fallbackStore.createUser(userData);
     const token = generateToken(user._id);
 
-    // Record registration IP
-    await recordRegistrationIp(user._id, ip);
+    if (fallbackStore.isDbConnected()) {
+      await recordRegistrationIp(user._id, ip).catch(() => {});
+    }
 
     res.status(201).json({
       token,
-      user: user.toPublicJSON()
+      user: user.toPublicJSON ? user.toPublicJSON() : user
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -73,17 +75,18 @@ router.post('/login', checkLoginSecurity, async (req, res) => {
       return res.status(400).json({ error: 'Email and password required.' });
     }
 
-    const user = await User.findOne({ email });
+    const user = await fallbackStore.findUserByEmail(email);
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      // Log failed attempt
-      const SecurityLog = require('../models/SecurityLog');
-      const ip = req.clientIp || getClientIp(req);
-      await SecurityLog.create({ user: user._id, email, ip, action: 'login_failed', userAgent: req.headers['user-agent'] || '', details: `Failed login attempt` });
+      if (fallbackStore.isDbConnected()) {
+        const SecurityLog = require('../models/SecurityLog');
+        const ip = req.clientIp || getClientIp(req);
+        await SecurityLog.create({ user: user._id, email, ip, action: 'login_failed', userAgent: req.headers['user-agent'] || '', details: `Failed login attempt` }).catch(() => {});
+      }
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
 
@@ -109,16 +112,17 @@ router.post('/login', checkLoginSecurity, async (req, res) => {
     const ip = req.clientIp || getClientIp(req);
     user.lastLogin = new Date();
     user.lastLoginIp = ip;
-    await user.save();
+    if (user.save) await user.save().catch(() => {});
 
-    // Record login IP
-    await recordLoginIp(user._id, ip);
+    if (fallbackStore.isDbConnected()) {
+      await recordLoginIp(user._id, ip).catch(() => {});
+    }
 
     const token = generateToken(user._id);
 
     res.json({
       token,
-      user: user.toPublicJSON()
+      user: user.toPublicJSON ? user.toPublicJSON() : user
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -128,8 +132,8 @@ router.post('/login', checkLoginSecurity, async (req, res) => {
 // Get current user
 router.get('/me', authenticate, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password -twoFactorSecret');
-    res.json({ user: user.toPublicJSON() });
+    const user = await fallbackStore.findUserById(req.user._id);
+    res.json({ user: user && user.toPublicJSON ? user.toPublicJSON() : user });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

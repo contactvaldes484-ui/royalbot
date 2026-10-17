@@ -41,8 +41,8 @@ class DerivService {
   async _resolveConfig() {
     if (this._resolved) return;
     try {
-      const PlatformSettings = require('../models/PlatformSettings');
-      const s = await PlatformSettings.findOne({ key: 'main' });
+      const fallbackStore = require('./RuntimeFallbackStore');
+      const s = await fallbackStore.getSettings();
       if (s && s.derivAppId && String(s.derivAppId).trim()) {
         this.appId = String(s.derivAppId).trim();
       }

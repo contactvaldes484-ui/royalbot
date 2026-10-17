@@ -1,9 +1,40 @@
 import axios from 'axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://web-production-19f31.up.railway.app/api'
+const DEFAULT_PROD_API = 'https://web-production-19f31.up.railway.app/api'
+
+function resolveApiUrl() {
+  const raw = String(import.meta.env.VITE_API_URL || '').trim()
+  const isLocalHost =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+
+  if (!raw || raw === '/api') {
+    return isLocalHost ? '/api' : DEFAULT_PROD_API
+  }
+
+  // Ignorer localhost en production HTTPS
+  if (!isLocalHost && (raw.includes('localhost') || raw.includes('127.0.0.1'))) {
+    return DEFAULT_PROD_API
+  }
+
+  let url = raw.replace(/\/+$/, '')
+  if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
+    url = `https://${url}`
+  }
+  if (!isLocalHost && url.startsWith('http://')) {
+    url = url.replace(/^http:\/\//i, 'https://')
+  }
+  if (!url.endsWith('/api')) {
+    url = `${url}/api`
+  }
+  return url
+}
+
+const API_URL = resolveApiUrl()
 
 const api = axios.create({
   baseURL: API_URL,
+  timeout: 25000,
   headers: { 'Content-Type': 'application/json' }
 })
 
@@ -15,7 +46,20 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
+  async (err) => {
+    const config = err.config
+    // Basculement automatique vers le proxy Vercel (/api) ou l'URL Railway directe en cas de Network Error
+    if (config && !config._retriedFallback && (!err.response || err.response.status === 502 || err.response.status === 504)) {
+      config._retriedFallback = true
+      const currentBase = config.baseURL || API_URL
+      config.baseURL = currentBase === '/api' ? DEFAULT_PROD_API : '/api'
+      try {
+        return await api.request(config)
+      } catch (retryErr) {
+        err = retryErr
+      }
+    }
+
     if (err.response?.status === 401) {
       localStorage.removeItem('token')
       if (window.location.pathname.startsWith('/dashboard') || window.location.pathname.startsWith('/admin')) {

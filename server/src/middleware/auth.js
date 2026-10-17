@@ -3,6 +3,7 @@ const url = require('url');
 const User = require('../models/User');
 const { hasRole, isAdmin } = require('../lib/permissions');
 const planCache = require('../services/planCache');
+const fallbackStore = require('../services/RuntimeFallbackStore');
 
 const authenticate = async (req, res, next) => {
   try {
@@ -11,8 +12,8 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({ error: 'Access denied. No token provided.' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_secret');
-    const user = await User.findById(decoded.userId).select('-password -twoFactorSecret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || '1b38d6a0db1247e468332213f2bb0e74f0e55bc2e676701cecbf15543fc45ba8');
+    const user = await fallbackStore.findUserById(decoded.userId);
 
     if (!user || !user.isActive) {
       return res.status(401).json({ error: 'Invalid token or account deactivated.' });

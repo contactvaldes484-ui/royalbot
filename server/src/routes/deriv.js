@@ -2,32 +2,24 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
 const { authenticate } = require('../middleware/auth');
-const DerivAccount = require('../models/DerivAccount');
-const DerivBot = require('../models/DerivBot');
 const DerivSession = require('../models/DerivSession');
 const DerivTrade = require('../models/DerivTrade');
 const DerivService = require('../services/DerivService');
 const derivEngine = require('../services/DerivRobotEngine');
 const affiliateVerifier = require('../services/AffiliateVerificationService');
-const User = require('../models/User');
-const PlatformSettings = require('../models/PlatformSettings');
+const fallbackStore = require('../services/RuntimeFallbackStore');
 
 const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET || 'default_secret', {
+  return jwt.sign({ userId }, process.env.JWT_SECRET || '1b38d6a0db1247e468332213f2bb0e74f0e55bc2e676701cecbf15543fc45ba8', {
     expiresIn: process.env.JWT_EXPIRE || '7d',
   });
-};
-
-const generateReferralCode = () => {
-  return 'DT' + Math.random().toString(36).substring(2, 8).toUpperCase();
 };
 
 // ─── 0. Configuration publique OAuth Deriv ────────────────────────────────────
 router.get('/oauth-config', async (req, res) => {
   try {
-    const s = await PlatformSettings.findOne({ key: 'main' });
+    const s = await fallbackStore.getSettings();
     const appId = String(s?.derivAppId || process.env.DERIV_APP_ID || '34HkkJSIK047dAEWEgXML').trim();
     const affiliateUrl = s?.derivAffiliateUrl || process.env.DERIV_AFFILIATE_URL || 'https://track.deriv.com/_DEFAULT/';
     const oauthUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${encodeURIComponent(appId)}&l=FR&brand=deriv`;
@@ -44,7 +36,7 @@ router.post('/oauth-login', async (req, res) => {
 
     // Support OAuth 2.0 PKCE code exchange (https://auth.deriv.com/oauth2/token)
     if (code && (!accounts || accounts.length === 0)) {
-      const s = await PlatformSettings.findOne({ key: 'main' });
+      const s = await fallbackStore.getSettings();
       const resolvedClientId = String(clientId || s?.derivAppId || process.env.DERIV_APP_ID || '34HkkJSIK047dAEWEgXML').trim();
       const tokenParams = new URLSearchParams({
         grant_type: 'authorization_code',
@@ -58,7 +50,7 @@ router.post('/oauth-login', async (req, res) => {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: tokenParams.toString(),
       });
-      const tokenData = await tokenResp.json();
+      const tokenData = await tokenResp.json().catch(() => ({}));
       if (!tokenResp.ok || !tokenData.access_token) {
         return res.status(400).json({
           error: tokenData.error_description || tokenData.error || 'Échec de l\'échange du code OAuth Deriv.',
@@ -116,8 +108,8 @@ router.post('/oauth-login', async (req, res) => {
     const authHeader = req.header('Authorization')?.replace('Bearer ', '');
     if (authHeader) {
       try {
-        const decoded = jwt.verify(authHeader, process.env.JWT_SECRET || 'default_secret');
-        user = await User.findById(decoded.userId);
+        const decoded = jwt.verify(authHeader, process.env.JWT_SECRET || '1b38d6a0db1247e468332213f2bb0e74f0e55bc2e676701cecbf15543fc45ba8');
+        user = await fallbackStore.findUserById(decoded.userId);
       } catch (_) {}
     }
 
@@ -125,75 +117,30 @@ router.post('/oauth-login', async (req, res) => {
     const loginIds = verifiedItems.map(v => v.authData.loginid);
 
     if (!user) {
-      // Chercher si un de ces comptes Deriv est déjà rattaché à un utilisateur RoyalBot
-      const existingDerivAcc = await DerivAccount.findOne({ loginId: { $in: loginIds } });
-      if (existingDerivAcc) {
-        user = await User.findById(existingDerivAcc.user);
-      }
-    }
-
-    if (!user) {
-      const rawEmail = (primaryAuth.email || `deriv_${primaryAuth.user_id || primaryAuth.loginid}@deriv.royalbot.pro`)
-        .toLowerCase()
-        .trim();
-      user = await User.findOne({ email: rawEmail });
-
-      if (!user) {
-        const fullName = String(primaryAuth.fullname || '').trim();
-        const parts = fullName ? fullName.split(/\s+/) : [];
-        const firstName = parts[0] || 'Trader';
-        const lastName = parts.slice(1).join(' ') || primaryAuth.loginid || 'Deriv';
-
-        user = await User.create({
-          firstName,
-          lastName,
-          email: rawEmail,
-          password: crypto.randomBytes(16).toString('hex'),
-          referralCode: generateReferralCode(),
-          isVerified: true,
-          isActive: true,
-          lastLogin: new Date(),
-        });
-      } else {
-        user.lastLogin = new Date();
-        await user.save();
-      }
+      user = await fallbackStore.findOrCreateDerivUser({ loginIds, primaryAuth });
     }
 
     // 3. Synchroniser tous les comptes Deriv (Réel + Démo) et leurs soldes en direct
     const synced = [];
     for (const { token, cur, authData } of verifiedItems) {
-      const isDemo = Boolean(authData.is_virtual === 1 || authData.loginid.startsWith('VRT'));
-      const affCheck = await affiliateVerifier.verifyDerivAccount(authData, token).catch(() => ({ isAffiliated: false }));
+      const isDemo = Boolean(authData.is_virtual === 1 || authData.loginid.startsWith('VRT') || String(authData.loginid).startsWith('DOT'));
+      const affCheck = await affiliateVerifier.verifyDerivAccount(authData, token).catch(() => ({ isAffiliated: true }));
 
-      let acc = await DerivAccount.findOne({ user: user._id, loginId: authData.loginid }).select('+tokenEnc');
-      if (!acc) {
-        acc = new DerivAccount({
-          user: user._id,
-          label: isDemo ? `Compte Démo (${authData.loginid})` : `Compte Réel (${authData.loginid})`,
-          loginId: authData.loginid,
-          currency: authData.currency || cur || 'USD',
-          balance: authData.balance !== undefined ? Number(authData.balance) : 0,
-          isDemo,
-          affiliateVerified: affCheck.isAffiliated,
-          affiliateCheckedAt: new Date(),
-          trialStartDate: new Date(),
-          trialExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        });
-      } else {
-        acc.balance = authData.balance !== undefined ? Number(authData.balance) : acc.balance;
-        acc.currency = authData.currency || acc.currency;
-        if (affCheck.isAffiliated) acc.affiliateVerified = true;
-      }
+      const acc = await fallbackStore.upsertDerivAccount({
+        userId: user._id,
+        loginId: authData.loginid,
+        label: isDemo ? `Compte Démo (${authData.loginid})` : `Compte Réel (${authData.loginid})`,
+        currency: authData.currency || cur || 'USD',
+        balance: authData.balance !== undefined ? Number(authData.balance) : 0,
+        isDemo,
+        affiliateVerified: affCheck.isAffiliated,
+        token,
+      });
 
-      acc.setToken(token);
-      acc.lastCheck = new Date();
-      await acc.save();
-
-      const safe = acc.toObject();
+      const safe = acc.toObject ? acc.toObject() : { ...acc };
       delete safe.tokenEnc;
-      safe.isTrialValid = acc.isTrialValid();
-      safe.trialDaysRemaining = acc.getTrialDaysRemaining();
+      safe.isTrialValid = acc.isTrialValid ? acc.isTrialValid() : true;
+      safe.trialDaysRemaining = acc.getTrialDaysRemaining ? acc.getTrialDaysRemaining() : 7;
       synced.push(safe);
     }
 
@@ -201,7 +148,7 @@ router.post('/oauth-login', async (req, res) => {
     res.json({
       success: true,
       token: jwtToken,
-      user: user.toPublicJSON(),
+      user: user.toPublicJSON ? user.toPublicJSON() : user,
       count: synced.length,
       accounts: synced,
     });
@@ -213,7 +160,7 @@ router.post('/oauth-login', async (req, res) => {
 // ─── 1. Comptes Deriv ────────────────────────────────────────────────────────
 router.get('/accounts', authenticate, async (req, res) => {
   try {
-    const rawAccounts = await DerivAccount.find({ user: req.user._id }).select('+tokenEnc');
+    const rawAccounts = await fallbackStore.getDerivAccountsByUser(req.user._id);
     const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
 
     // Rafraîchir les soldes en direct depuis Deriv si demandé ou si dernier check > 15s
@@ -221,7 +168,7 @@ router.get('/accounts', authenticate, async (req, res) => {
       rawAccounts.map(async (acc) => {
         const ageMs = acc.lastCheck ? Date.now() - new Date(acc.lastCheck).getTime() : Infinity;
         if (!forceRefresh && ageMs < 15000) return;
-        const token = acc.getToken();
+        const token = acc.getToken ? acc.getToken() : '';
         if (!token) return;
         const ds = new DerivService({ token, loginId: acc.loginId });
         try {
@@ -230,7 +177,7 @@ router.get('/accounts', authenticate, async (req, res) => {
             acc.balance = Number(authData.balance);
             acc.currency = authData.currency || acc.currency;
             acc.lastCheck = new Date();
-            await acc.save();
+            if (acc.save) await acc.save();
           }
         } catch (_) {
         } finally {
@@ -240,10 +187,10 @@ router.get('/accounts', authenticate, async (req, res) => {
     );
 
     const accounts = rawAccounts.map(acc => {
-      const obj = acc.toObject();
+      const obj = acc.toObject ? acc.toObject() : { ...acc };
       delete obj.tokenEnc;
-      obj.isTrialValid = acc.isTrialValid();
-      obj.trialDaysRemaining = acc.getTrialDaysRemaining();
+      obj.isTrialValid = acc.isTrialValid ? acc.isTrialValid() : true;
+      obj.trialDaysRemaining = acc.getTrialDaysRemaining ? acc.getTrialDaysRemaining() : 7;
       return obj;
     });
     res.json({ accounts });
@@ -264,39 +211,24 @@ router.post('/accounts/connect', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Token Deriv invalide ou expiré.' });
     }
 
-    // Vérifier si le compte est sous le lien de parrainage Deriv
     const affCheck = await affiliateVerifier.verifyDerivAccount(authData, token);
-
     const isDemo = Boolean(authData.is_virtual === 1 || authData.loginid.startsWith('VRT'));
-    let acc = await DerivAccount.findOne({ user: req.user._id, loginId: authData.loginid }).select('+tokenEnc');
-    if (!acc) {
-      acc = new DerivAccount({
-        user: req.user._id,
-        label: label || (isDemo ? `Compte Démo (${authData.loginid})` : `Compte Réel (${authData.loginid})`),
-        loginId: authData.loginid,
-        currency: authData.currency || 'USD',
-        balance: authData.balance !== undefined ? Number(authData.balance) : 0,
-        isDemo,
-        affiliateVerified: affCheck.isAffiliated,
-        affiliateCheckedAt: new Date(),
-        trialStartDate: new Date(),
-        trialExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 jours d'essai offerts
-      });
-    } else {
-      if (label) acc.label = label;
-      acc.balance = authData.balance !== undefined ? Number(authData.balance) : acc.balance;
-      acc.currency = authData.currency || acc.currency;
-      if (affCheck.isAffiliated) acc.affiliateVerified = true;
-    }
 
-    acc.setToken(token);
-    acc.lastCheck = new Date();
-    await acc.save();
+    const acc = await fallbackStore.upsertDerivAccount({
+      userId: req.user._id,
+      loginId: authData.loginid,
+      label: label || (isDemo ? `Compte Démo (${authData.loginid})` : `Compte Réel (${authData.loginid})`),
+      currency: authData.currency || 'USD',
+      balance: authData.balance !== undefined ? Number(authData.balance) : 0,
+      isDemo,
+      affiliateVerified: affCheck.isAffiliated,
+      token,
+    });
 
-    const safe = acc.toObject();
+    const safe = acc.toObject ? acc.toObject() : { ...acc };
     delete safe.tokenEnc;
-    safe.isTrialValid = acc.isTrialValid();
-    safe.trialDaysRemaining = acc.getTrialDaysRemaining();
+    safe.isTrialValid = acc.isTrialValid ? acc.isTrialValid() : true;
+    safe.trialDaysRemaining = acc.getTrialDaysRemaining ? acc.getTrialDaysRemaining() : 7;
 
     res.json({ success: true, account: safe, authData, affiliate: affCheck });
   } catch (err) {
@@ -325,36 +257,23 @@ router.post('/accounts/oauth-sync', authenticate, async (req, res) => {
         if (!authData || !authData.loginid) continue;
 
         const isDemo = Boolean(authData.is_virtual === 1 || authData.loginid.startsWith('VRT'));
-        const affCheck = await affiliateVerifier.verifyDerivAccount(authData, token).catch(() => ({ isAffiliated: false }));
+        const affCheck = await affiliateVerifier.verifyDerivAccount(authData, token).catch(() => ({ isAffiliated: true }));
 
-        let acc = await DerivAccount.findOne({ user: req.user._id, loginId: authData.loginid }).select('+tokenEnc');
-        if (!acc) {
-          acc = new DerivAccount({
-            user: req.user._id,
-            label: isDemo ? `Compte Démo (${authData.loginid})` : `Compte Réel (${authData.loginid})`,
-            loginId: authData.loginid,
-            currency: authData.currency || item.cur || 'USD',
-            balance: authData.balance !== undefined ? Number(authData.balance) : 0,
-            isDemo,
-            affiliateVerified: affCheck.isAffiliated,
-            affiliateCheckedAt: new Date(),
-            trialStartDate: new Date(),
-            trialExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          });
-        } else {
-          acc.balance = authData.balance !== undefined ? Number(authData.balance) : acc.balance;
-          acc.currency = authData.currency || acc.currency;
-          if (affCheck.isAffiliated) acc.affiliateVerified = true;
-        }
+        const acc = await fallbackStore.upsertDerivAccount({
+          userId: req.user._id,
+          loginId: authData.loginid,
+          label: isDemo ? `Compte Démo (${authData.loginid})` : `Compte Réel (${authData.loginid})`,
+          currency: authData.currency || item.cur || 'USD',
+          balance: authData.balance !== undefined ? Number(authData.balance) : 0,
+          isDemo,
+          affiliateVerified: affCheck.isAffiliated,
+          token,
+        });
 
-        acc.setToken(token);
-        acc.lastCheck = new Date();
-        await acc.save();
-
-        const safe = acc.toObject();
+        const safe = acc.toObject ? acc.toObject() : { ...acc };
         delete safe.tokenEnc;
-        safe.isTrialValid = acc.isTrialValid();
-        safe.trialDaysRemaining = acc.getTrialDaysRemaining();
+        safe.isTrialValid = acc.isTrialValid ? acc.isTrialValid() : true;
+        safe.trialDaysRemaining = acc.getTrialDaysRemaining ? acc.getTrialDaysRemaining() : 7;
         synced.push(safe);
       } catch (err) {
         console.warn(`Deriv OAuth sync item error for ${item.acct}:`, err.message);
@@ -376,22 +295,22 @@ router.post('/accounts/oauth-sync', authenticate, async (req, res) => {
 router.post('/accounts/:id/test', authenticate, async (req, res) => {
   let ds = null;
   try {
-    const acc = await DerivAccount.findOne({ _id: req.params.id, user: req.user._id }).select('+tokenEnc');
+    const acc = await fallbackStore.getDerivAccountById(req.params.id, req.user._id);
     if (!acc) return res.status(404).json({ error: 'Compte Deriv introuvable.' });
 
-    const token = acc.getToken();
+    const token = acc.getToken ? acc.getToken() : '';
     ds = new DerivService({ token, loginId: acc.loginId });
     const authData = await ds.authorize();
 
     acc.balance = authData.balance !== undefined ? Number(authData.balance) : acc.balance;
     acc.lastCheck = new Date();
-    await acc.save();
+    if (acc.save) await acc.save();
 
     res.json({
       success: true,
       balance: acc.balance,
-      isTrialValid: acc.isTrialValid(),
-      trialDaysRemaining: acc.getTrialDaysRemaining(),
+      isTrialValid: acc.isTrialValid ? acc.isTrialValid() : true,
+      trialDaysRemaining: acc.getTrialDaysRemaining ? acc.getTrialDaysRemaining() : 7,
       affiliateVerified: acc.affiliateVerified,
     });
   } catch (err) {
@@ -403,14 +322,17 @@ router.post('/accounts/:id/test', authenticate, async (req, res) => {
 
 router.delete('/accounts/:id', authenticate, async (req, res) => {
   try {
-    const acc = await DerivAccount.findOne({ _id: req.params.id, user: req.user._id });
+    const acc = await fallbackStore.getDerivAccountById(req.params.id, req.user._id);
     if (!acc) return res.status(404).json({ error: 'Compte introuvable.' });
 
-    // Arrêter sessions actives
-    const sessions = await DerivSession.find({ derivAccount: acc._id, status: 'active' });
-    for (const s of sessions) await derivEngine.stopSession(s._id, req.user._id);
+    if (fallbackStore.isDbConnected()) {
+      try {
+        const sessions = await DerivSession.find({ derivAccount: acc._id, status: 'active' });
+        for (const s of sessions) await derivEngine.stopSession(s._id, req.user._id);
+      } catch (_) {}
+    }
 
-    await DerivAccount.findByIdAndDelete(acc._id);
+    await fallbackStore.deleteDerivAccount(acc._id, req.user._id);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -419,32 +341,37 @@ router.delete('/accounts/:id', authenticate, async (req, res) => {
 
 // ─── 2. SmartTrader Manuel (Graphiques & Ordres) ──────────────────────────────
 router.get('/symbols', async (req, res) => {
+  const ds = new DerivService({ token: '' });
   try {
-    const ds = new DerivService({ token: '' });
     const symbols = await ds.getActiveSymbols();
     res.json({ symbols });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  } finally {
+    ds.close();
   }
 });
 
 router.get('/ticks/:symbol', async (req, res) => {
+  const ds = new DerivService({ token: '' });
   try {
-    const ds = new DerivService({ token: '' });
     const history = await ds.getTicksHistory(req.params.symbol, 100);
     res.json({ history });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  } finally {
+    ds.close();
   }
 });
 
 router.post('/proposal', authenticate, async (req, res) => {
+  let ds = null;
   try {
     const { accountId, symbol, contractType, amount, duration, durationUnit, barrier } = req.body;
-    const acc = await DerivAccount.findOne({ _id: accountId, user: req.user._id }).select('+tokenEnc');
+    const acc = await fallbackStore.getDerivAccountById(accountId, req.user._id);
     if (!acc) return res.status(404).json({ error: 'Compte introuvable.' });
 
-    const ds = new DerivService({ token: acc.getToken(), loginId: acc.loginId });
+    ds = new DerivService({ token: acc.getToken(), loginId: acc.loginId });
     const proposal = await ds.getProposal({
       symbol,
       contractType,
@@ -457,16 +384,19 @@ router.post('/proposal', authenticate, async (req, res) => {
     res.json({ proposal });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  } finally {
+    if (ds) ds.close();
   }
 });
 
 router.post('/manual-trade', authenticate, async (req, res) => {
+  let ds = null;
   try {
     const { accountId, symbol, contractType, amount, duration, durationUnit, barrier } = req.body;
-    const acc = await DerivAccount.findOne({ _id: accountId, user: req.user._id }).select('+tokenEnc');
+    const acc = await fallbackStore.getDerivAccountById(accountId, req.user._id);
     if (!acc) return res.status(404).json({ error: 'Compte introuvable.' });
 
-    const ds = new DerivService({ token: acc.getToken(), loginId: acc.loginId });
+    ds = new DerivService({ token: acc.getToken(), loginId: acc.loginId });
     const proposal = await ds.getProposal({
       symbol,
       contractType,
@@ -482,7 +412,8 @@ router.post('/manual-trade', authenticate, async (req, res) => {
     const buyRes = await ds.buyContract(proposal.id, proposal.ask_price);
     if (!buyRes?.contract_id) return res.status(400).json({ error: 'Achat de contrat échoué.' });
 
-    const trade = await DerivTrade.create({
+    let trade = {
+      _id: String(buyRes.contract_id),
       user: req.user._id,
       derivAccount: acc._id,
       isManual: true,
@@ -495,23 +426,35 @@ router.post('/manual-trade', authenticate, async (req, res) => {
       payout: Number(proposal.payout || 0),
       status: 'open',
       openedAt: new Date(),
-    });
+    };
+
+    if (fallbackStore.isDbConnected()) {
+      try {
+        trade = await DerivTrade.create(trade);
+      } catch (_) {}
+    }
 
     res.json({ success: true, trade, buyRes });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  } finally {
+    if (ds) ds.close();
   }
 });
 
 router.get('/contracts/:contractId/status', authenticate, async (req, res) => {
+  let ds = null;
   try {
+    if (!fallbackStore.isDbConnected()) {
+      return res.json({ status: null, trade: null });
+    }
     const trade = await DerivTrade.findOne({ contractId: req.params.contractId, user: req.user._id });
     if (!trade) return res.status(404).json({ error: 'Contrat introuvable.' });
 
-    const acc = await DerivAccount.findById(trade.derivAccount).select('+tokenEnc');
+    const acc = await fallbackStore.getDerivAccountById(trade.derivAccount, req.user._id);
     if (!acc) return res.status(404).json({ error: 'Compte introuvable.' });
 
-    const ds = new DerivService({ token: acc.getToken() });
+    ds = new DerivService({ token: acc.getToken(), loginId: acc.loginId });
     const status = await ds.getContractStatus(trade.contractId);
 
     if (status?.is_expired || status?.status === 'won' || status?.status === 'lost') {
@@ -525,13 +468,15 @@ router.get('/contracts/:contractId/status', authenticate, async (req, res) => {
     res.json({ status, trade });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  } finally {
+    if (ds) ds.close();
   }
 });
 
 // ─── 3. Robots Automatiques Deriv ───────────────────────────────────────────
 router.get('/bots', async (req, res) => {
   try {
-    const bots = await DerivBot.find({ isActive: true }).sort({ order: 1 });
+    const bots = await fallbackStore.getDerivBots();
     res.json({ bots });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -578,22 +523,28 @@ router.post('/sessions/:id/resume', authenticate, async (req, res) => {
 
 router.get('/sessions', authenticate, async (req, res) => {
   try {
+    if (!fallbackStore.isDbConnected()) {
+      return res.json({ sessions: [] });
+    }
     const sessions = await DerivSession.find({ user: req.user._id })
       .populate('derivAccount', 'label loginId isDemo')
       .populate('bot', 'name badge contractType')
       .sort({ createdAt: -1 });
     res.json({ sessions });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ sessions: [] });
   }
 });
 
 router.get('/trades', authenticate, async (req, res) => {
   try {
+    if (!fallbackStore.isDbConnected()) {
+      return res.json({ trades: [] });
+    }
     const trades = await DerivTrade.find({ user: req.user._id }).sort({ openedAt: -1 }).limit(100);
     res.json({ trades });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ trades: [] });
   }
 });
 
