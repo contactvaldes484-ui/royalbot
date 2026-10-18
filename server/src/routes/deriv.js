@@ -325,12 +325,10 @@ router.delete('/accounts/:id', authenticate, async (req, res) => {
     const acc = await fallbackStore.getDerivAccountById(req.params.id, req.user._id);
     if (!acc) return res.status(404).json({ error: 'Compte introuvable.' });
 
-    if (fallbackStore.isDbConnected()) {
-      try {
-        const sessions = await DerivSession.find({ derivAccount: acc._id, status: 'active' });
-        for (const s of sessions) await derivEngine.stopSession(s._id, req.user._id);
-      } catch (_) {}
-    }
+    try {
+      const sessions = await fallbackStore.getActiveDerivSessions({ derivAccount: acc._id });
+      for (const s of sessions) await derivEngine.stopSession(s._id, req.user._id);
+    } catch (_) {}
 
     await fallbackStore.deleteDerivAccount(acc._id, req.user._id);
     res.json({ success: true });
@@ -412,8 +410,13 @@ router.post('/manual-trade', authenticate, async (req, res) => {
     const buyRes = await ds.buyContract(proposal.id, proposal.ask_price);
     if (!buyRes?.contract_id) return res.status(400).json({ error: 'Achat de contrat échoué.' });
 
-    let trade = {
-      _id: String(buyRes.contract_id),
+    if (buyRes.balance_after !== undefined) {
+      acc.balance = Number(buyRes.balance_after);
+      acc.lastCheck = new Date();
+      if (acc.save) await acc.save().catch(() => {});
+    }
+
+    const trade = await fallbackStore.createDerivTrade({
       user: req.user._id,
       derivAccount: acc._id,
       isManual: true,
@@ -426,13 +429,38 @@ router.post('/manual-trade', authenticate, async (req, res) => {
       payout: Number(proposal.payout || 0),
       status: 'open',
       openedAt: new Date(),
-    };
+    });
 
-    if (fallbackStore.isDbConnected()) {
+    // Vérifier automatiquement le résultat du contrat après expiration
+    const waitSeconds = Math.max(3, (Number(duration) || 5) + 2);
+    const activeDs = ds;
+    ds = null;
+    setTimeout(async () => {
       try {
-        trade = await DerivTrade.create(trade);
-      } catch (_) {}
-    }
+        const status = await activeDs.getContractStatus(buyRes.contract_id).catch(() => null);
+        if (status) {
+          const isWon = status.status === 'won' || Number(status.profit) > 0;
+          trade.status = isWon ? 'won' : 'lost';
+          trade.profit =
+            status.profit !== undefined
+              ? Number(status.profit)
+              : isWon
+              ? +(trade.payout - trade.stake).toFixed(2)
+              : -trade.stake;
+          trade.closedAt = new Date();
+          if (trade.save) await trade.save().catch(() => {});
+        }
+        const authAfter = await activeDs.authorize().catch(() => null);
+        if (authAfter?.balance !== undefined) {
+          acc.balance = Number(authAfter.balance);
+          acc.lastCheck = new Date();
+          if (acc.save) await acc.save().catch(() => {});
+        }
+      } catch (_) {
+      } finally {
+        activeDs.close();
+      }
+    }, waitSeconds * 1000);
 
     res.json({ success: true, trade, buyRes });
   } catch (err) {
@@ -445,10 +473,7 @@ router.post('/manual-trade', authenticate, async (req, res) => {
 router.get('/contracts/:contractId/status', authenticate, async (req, res) => {
   let ds = null;
   try {
-    if (!fallbackStore.isDbConnected()) {
-      return res.json({ status: null, trade: null });
-    }
-    const trade = await DerivTrade.findOne({ contractId: req.params.contractId, user: req.user._id });
+    const trade = await fallbackStore.findDerivTradeByContractId(req.params.contractId, req.user._id);
     if (!trade) return res.status(404).json({ error: 'Contrat introuvable.' });
 
     const acc = await fallbackStore.getDerivAccountById(trade.derivAccount, req.user._id);
@@ -462,7 +487,7 @@ router.get('/contracts/:contractId/status', authenticate, async (req, res) => {
       trade.status = isWon ? 'won' : 'lost';
       trade.profit = Number(status.profit || (isWon ? (trade.payout - trade.stake) : -trade.stake));
       trade.closedAt = new Date();
-      await trade.save();
+      if (trade.save) await trade.save().catch(() => {});
     }
 
     res.json({ status, trade });
@@ -523,13 +548,7 @@ router.post('/sessions/:id/resume', authenticate, async (req, res) => {
 
 router.get('/sessions', authenticate, async (req, res) => {
   try {
-    if (!fallbackStore.isDbConnected()) {
-      return res.json({ sessions: [] });
-    }
-    const sessions = await DerivSession.find({ user: req.user._id })
-      .populate('derivAccount', 'label loginId isDemo')
-      .populate('bot', 'name badge contractType')
-      .sort({ createdAt: -1 });
+    const sessions = await fallbackStore.getDerivSessionsByUser(req.user._id);
     res.json({ sessions });
   } catch (err) {
     res.json({ sessions: [] });
@@ -538,10 +557,7 @@ router.get('/sessions', authenticate, async (req, res) => {
 
 router.get('/trades', authenticate, async (req, res) => {
   try {
-    if (!fallbackStore.isDbConnected()) {
-      return res.json({ trades: [] });
-    }
-    const trades = await DerivTrade.find({ user: req.user._id }).sort({ openedAt: -1 }).limit(100);
+    const trades = await fallbackStore.getDerivTradesByUser(req.user._id);
     res.json({ trades });
   } catch (err) {
     res.json({ trades: [] });

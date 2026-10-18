@@ -152,6 +152,7 @@ function createFallbackDerivAccountObject(raw) {
     status: raw.status || 'active',
     lastCheck: raw.lastCheck || new Date(),
     connectedAt: raw.connectedAt || new Date(),
+    createdAt: raw.createdAt || new Date(),
   };
 
   acc.setToken = function (token) {
@@ -191,11 +192,89 @@ function createFallbackDerivAccountObject(raw) {
   return acc;
 }
 
+function createFallbackSessionObject(raw) {
+  const s = {
+    _id: raw._id || new mongoose.Types.ObjectId().toString(),
+    user: String(raw.user),
+    derivAccount: raw.derivAccount,
+    bot: raw.bot,
+    botName: raw.botName || 'Robot Deriv',
+    symbol: raw.symbol || 'R_100',
+    contractType: raw.contractType || 'DIGITOVER',
+    settings: { ...(raw.settings || {}) },
+    stats: {
+      totalTrades: 0,
+      wins: 0,
+      losses: 0,
+      netProfit: 0,
+      currentStake: raw.settings?.initialStake || 1,
+      consecutiveLosses: 0,
+      startBalance: 0,
+      ...(raw.stats || {}),
+    },
+    status: raw.status || 'active',
+    startedAt: raw.startedAt || new Date(),
+    stoppedAt: raw.stoppedAt || null,
+    createdAt: raw.createdAt || new Date(),
+  };
+
+  s.save = async function () {
+    return s;
+  };
+
+  s.toObject = function () {
+    const copy = { ...s };
+    delete copy.save;
+    delete copy.toObject;
+    return copy;
+  };
+
+  return s;
+}
+
+function createFallbackTradeObject(raw) {
+  const t = {
+    _id: raw._id || new mongoose.Types.ObjectId().toString(),
+    user: String(raw.user),
+    session: raw.session || null,
+    derivAccount: raw.derivAccount,
+    isManual: Boolean(raw.isManual),
+    contractId: String(raw.contractId || ''),
+    transactionId: String(raw.transactionId || ''),
+    symbol: raw.symbol || 'R_100',
+    contractType: raw.contractType || 'DIGITOVER',
+    barrier: raw.barrier !== undefined ? String(raw.barrier) : '',
+    stake: Number(raw.stake || 0),
+    payout: Number(raw.payout || 0),
+    profit: Number(raw.profit || 0),
+    status: raw.status || 'open',
+    exitTick: raw.exitTick || null,
+    openedAt: raw.openedAt || new Date(),
+    closedAt: raw.closedAt || null,
+    createdAt: raw.createdAt || new Date(),
+  };
+
+  t.save = async function () {
+    return t;
+  };
+
+  t.toObject = function () {
+    const copy = { ...t };
+    delete copy.save;
+    delete copy.toObject;
+    return copy;
+  };
+
+  return t;
+}
+
 class RuntimeFallbackStore {
   constructor() {
     this.users = new Map(); // _id -> userObj
     this.derivAccounts = new Map(); // _id -> accObj
     this.derivBots = [...DEFAULT_BOTS];
+    this.derivSessions = new Map(); // _id -> sessionObj
+    this.derivTrades = new Map(); // _id -> tradeObj
     this.settings = {
       key: 'main',
       platformName: 'RoyalBot',
@@ -231,6 +310,22 @@ class RuntimeFallbackStore {
       try {
         const PlatformSettings = require('../models/PlatformSettings');
         const s = await PlatformSettings.findOne({ key: 'main' });
+        if (s) return s;
+      } catch (_) {}
+    }
+    return this.settings;
+  }
+
+  async updateSettings(updates = {}) {
+    Object.assign(this.settings, updates);
+    if (this.isDbConnected()) {
+      try {
+        const PlatformSettings = require('../models/PlatformSettings');
+        const s = await PlatformSettings.findOneAndUpdate(
+          { key: 'main' },
+          { $set: updates },
+          { upsert: true, new: true }
+        );
         if (s) return s;
       } catch (_) {}
     }
@@ -422,13 +517,36 @@ class RuntimeFallbackStore {
     if (this.isDbConnected()) {
       try {
         const DerivAccount = require('../models/DerivAccount');
-        const a = await DerivAccount.findOne({ _id: accountId, user: userId }).select('+tokenEnc');
+        const q = userId ? { _id: accountId, user: userId } : { _id: accountId };
+        const a = await DerivAccount.findOne(q).select('+tokenEnc');
         if (a) return a;
       } catch (_) {}
     }
     const a = this.derivAccounts.get(String(accountId));
     if (a && (!userId || String(a.user) === String(userId))) return a;
     return null;
+  }
+
+  async getAllDerivAccountsAdmin() {
+    if (this.isDbConnected()) {
+      try {
+        const DerivAccount = require('../models/DerivAccount');
+        const list = await DerivAccount.find()
+          .populate('user', 'firstName lastName email subscription')
+          .sort({ createdAt: -1 });
+        if (list.length > 0) return list;
+      } catch (_) {}
+    }
+    const list = [];
+    for (const acc of this.derivAccounts.values()) {
+      const u = this.users.get(String(acc.user));
+      const copy = createFallbackDerivAccountObject(acc);
+      copy.user = u
+        ? { _id: u._id, firstName: u.firstName, lastName: u.lastName, email: u.email, subscription: u.subscription }
+        : { _id: acc.user, firstName: 'Trader', lastName: 'Deriv', email: '' };
+      list.push(copy);
+    }
+    return list;
   }
 
   async deleteDerivAccount(accountId, userId) {
@@ -441,15 +559,244 @@ class RuntimeFallbackStore {
     this.derivAccounts.delete(String(accountId));
   }
 
-  async getDerivBots() {
+  // ─── Deriv Bots ─────────────────────────────────────────────────────────────
+  async getDerivBots(includeInactive = false) {
     if (this.isDbConnected()) {
       try {
         const DerivBot = require('../models/DerivBot');
-        const bots = await DerivBot.find({ isActive: true }).sort({ order: 1, createdAt: -1 });
+        const filter = includeInactive ? {} : { isActive: true };
+        const bots = await DerivBot.find(filter).sort({ order: 1, createdAt: -1 });
         if (bots && bots.length > 0) return bots;
       } catch (_) {}
     }
-    return this.derivBots;
+    return includeInactive ? this.derivBots : this.derivBots.filter(b => b.isActive !== false);
+  }
+
+  async findDerivBotById(botId) {
+    if (this.isDbConnected()) {
+      try {
+        const DerivBot = require('../models/DerivBot');
+        const bot = await DerivBot.findById(botId);
+        if (bot) return bot;
+      } catch (_) {}
+    }
+    return this.derivBots.find(b => String(b._id) === String(botId)) || null;
+  }
+
+  async findDerivBotBySlug(slug) {
+    const clean = String(slug || '').toLowerCase().trim();
+    if (this.isDbConnected()) {
+      try {
+        const DerivBot = require('../models/DerivBot');
+        const bot = await DerivBot.findOne({ slug: clean });
+        if (bot) return bot;
+      } catch (_) {}
+    }
+    return this.derivBots.find(b => b.slug === clean) || null;
+  }
+
+  async createDerivBot(data) {
+    if (this.isDbConnected()) {
+      try {
+        const DerivBot = require('../models/DerivBot');
+        const bot = await DerivBot.create(data);
+        return bot;
+      } catch (_) {}
+    }
+    const bot = {
+      _id: new mongoose.Types.ObjectId().toString(),
+      isActive: true,
+      order: this.derivBots.length + 1,
+      createdAt: new Date(),
+      ...data,
+    };
+    this.derivBots.push(bot);
+    return bot;
+  }
+
+  async updateDerivBot(botId, updates) {
+    if (this.isDbConnected()) {
+      try {
+        const DerivBot = require('../models/DerivBot');
+        const bot = await DerivBot.findByIdAndUpdate(botId, updates, { new: true });
+        if (bot) return bot;
+      } catch (_) {}
+    }
+    const idx = this.derivBots.findIndex(b => String(b._id) === String(botId));
+    if (idx === -1) return null;
+    this.derivBots[idx] = { ...this.derivBots[idx], ...updates };
+    return this.derivBots[idx];
+  }
+
+  async deleteDerivBot(botId) {
+    if (this.isDbConnected()) {
+      try {
+        const DerivBot = require('../models/DerivBot');
+        await DerivBot.findByIdAndDelete(botId);
+      } catch (_) {}
+    }
+    this.derivBots = this.derivBots.filter(b => String(b._id) !== String(botId));
+  }
+
+  // ─── Deriv Sessions ─────────────────────────────────────────────────────────
+  async createDerivSession(data) {
+    if (this.isDbConnected()) {
+      try {
+        const DerivSession = require('../models/DerivSession');
+        const s = await DerivSession.create(data);
+        return s;
+      } catch (_) {}
+    }
+    const s = createFallbackSessionObject(data);
+    this.derivSessions.set(String(s._id), s);
+    return s;
+  }
+
+  async findDerivSessionById(sessionId) {
+    if (this.isDbConnected()) {
+      try {
+        const DerivSession = require('../models/DerivSession');
+        const s = await DerivSession.findById(sessionId);
+        if (s) return s;
+      } catch (_) {}
+    }
+    return this.derivSessions.get(String(sessionId)) || null;
+  }
+
+  async updateDerivSession(sessionId, userId, updates) {
+    if (this.isDbConnected()) {
+      try {
+        const DerivSession = require('../models/DerivSession');
+        const q = userId ? { _id: sessionId, user: userId } : { _id: sessionId };
+        const s = await DerivSession.findOneAndUpdate(q, updates, { new: true });
+        if (s) return s;
+      } catch (_) {}
+    }
+    const s = this.derivSessions.get(String(sessionId));
+    if (s && (!userId || String(s.user) === String(userId))) {
+      Object.assign(s, updates);
+      return s;
+    }
+    return null;
+  }
+
+  async getDerivSessionsByUser(userId) {
+    if (this.isDbConnected()) {
+      try {
+        const DerivSession = require('../models/DerivSession');
+        const list = await DerivSession.find({ user: userId })
+          .populate('derivAccount', 'label loginId isDemo')
+          .populate('bot', 'name badge contractType')
+          .sort({ createdAt: -1 });
+        if (list.length > 0) return list;
+      } catch (_) {}
+    }
+    const list = [];
+    for (const s of this.derivSessions.values()) {
+      if (String(s.user) === String(userId)) {
+        list.push(s.toObject ? s.toObject() : s);
+      }
+    }
+    return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  async getActiveDerivSessions(filter = {}) {
+    if (this.isDbConnected()) {
+      try {
+        const DerivSession = require('../models/DerivSession');
+        const list = await DerivSession.find({ status: 'active', ...filter });
+        if (list.length > 0) return list;
+      } catch (_) {}
+    }
+    const list = [];
+    for (const s of this.derivSessions.values()) {
+      if (s.status !== 'active') continue;
+      if (filter.derivAccount && String(s.derivAccount) !== String(filter.derivAccount)) continue;
+      if (filter.bot && String(s.bot) !== String(filter.bot)) continue;
+      list.push(s);
+    }
+    return list;
+  }
+
+  // ─── Deriv Trades ───────────────────────────────────────────────────────────
+  async createDerivTrade(data) {
+    if (this.isDbConnected()) {
+      try {
+        const DerivTrade = require('../models/DerivTrade');
+        const t = await DerivTrade.create(data);
+        return t;
+      } catch (_) {}
+    }
+    const t = createFallbackTradeObject(data);
+    this.derivTrades.set(String(t._id), t);
+    return t;
+  }
+
+  async findDerivTradeByContractId(contractId, userId) {
+    if (this.isDbConnected()) {
+      try {
+        const DerivTrade = require('../models/DerivTrade');
+        const t = await DerivTrade.findOne({ contractId: String(contractId), user: userId });
+        if (t) return t;
+      } catch (_) {}
+    }
+    for (const t of this.derivTrades.values()) {
+      if (String(t.contractId) === String(contractId) && (!userId || String(t.user) === String(userId))) {
+        return t;
+      }
+    }
+    return null;
+  }
+
+  async getDerivTradesByUser(userId) {
+    if (this.isDbConnected()) {
+      try {
+        const DerivTrade = require('../models/DerivTrade');
+        const list = await DerivTrade.find({ user: userId }).sort({ openedAt: -1 }).limit(100);
+        if (list.length > 0) return list;
+      } catch (_) {}
+    }
+    const list = [];
+    for (const t of this.derivTrades.values()) {
+      if (String(t.user) === String(userId)) {
+        list.push(t.toObject ? t.toObject() : t);
+      }
+    }
+    return list.sort((a, b) => new Date(b.openedAt) - new Date(a.openedAt)).slice(0, 100);
+  }
+
+  async getDerivStatsAdmin() {
+    if (this.isDbConnected()) {
+      try {
+        const DerivAccount = require('../models/DerivAccount');
+        const DerivBot = require('../models/DerivBot');
+        const DerivSession = require('../models/DerivSession');
+        const DerivTrade = require('../models/DerivTrade');
+        const [totalAccounts, verifiedAffiliates, totalBots, activeSessions, totalTrades] = await Promise.all([
+          DerivAccount.countDocuments(),
+          DerivAccount.countDocuments({ affiliateVerified: true }),
+          DerivBot.countDocuments(),
+          DerivSession.countDocuments({ status: 'active' }),
+          DerivTrade.countDocuments(),
+        ]);
+        return { totalAccounts, verifiedAffiliates, totalBots, activeSessions, totalTrades };
+      } catch (_) {}
+    }
+    let verifiedAffiliates = 0;
+    for (const a of this.derivAccounts.values()) {
+      if (a.affiliateVerified) verifiedAffiliates++;
+    }
+    let activeSessions = 0;
+    for (const s of this.derivSessions.values()) {
+      if (s.status === 'active') activeSessions++;
+    }
+    return {
+      totalAccounts: this.derivAccounts.size,
+      verifiedAffiliates,
+      totalBots: this.derivBots.length,
+      activeSessions,
+      totalTrades: this.derivTrades.size,
+    };
   }
 }
 

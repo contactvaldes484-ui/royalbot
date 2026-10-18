@@ -171,6 +171,7 @@ class DerivService {
           this._ws = ws;
           this._connectingPromise = null;
           this._isAuthorized = preAuthorizedByOtp;
+          this._isOtpSocket = preAuthorizedByOtp;
           this._resetIdleTimer();
           resolve(ws);
         });
@@ -198,6 +199,7 @@ class DerivService {
           this._ws = null;
           this._connectingPromise = null;
           this._isAuthorized = false;
+          this._isOtpSocket = false;
           for (const [, entry] of this._pending.entries()) {
             clearTimeout(entry.timeout);
             entry.reject(new Error('Connexion Deriv fermée'));
@@ -288,6 +290,14 @@ class DerivService {
    * Liste des symboles actifs (Volatility, Crash/Boom, Forex...)
    */
   async getActiveSymbols() {
+    if (this.token && (String(this.loginId).startsWith('DOT') || String(this.token).startsWith('ory_at_'))) {
+      const pub = new DerivService({ token: '' });
+      try {
+        return await pub.getActiveSymbols();
+      } finally {
+        pub.close();
+      }
+    }
     const res = await this._send({ active_symbols: 'brief', product_type: 'basic' });
     return res.active_symbols || [];
   }
@@ -296,6 +306,14 @@ class DerivService {
    * Historique des derniers ticks
    */
   async getTicksHistory(symbol, count = 100) {
+    if (this.token && (String(this.loginId).startsWith('DOT') || String(this.token).startsWith('ory_at_'))) {
+      const pub = new DerivService({ token: '' });
+      try {
+        return await pub.getTicksHistory(symbol, count);
+      } finally {
+        pub.close();
+      }
+    }
     const res = await this._send({
       ticks_history: symbol,
       end: 'latest',
@@ -307,23 +325,46 @@ class DerivService {
 
   /**
    * Demande de proposition de contrat (calcul de payout et vérification)
+   * Compatible à la fois avec le nouveau WebSocket OTP Deriv v2 (underlying_symbol) et le WebSocket v3 (symbol)
    */
   async getProposal({ symbol, contractType, amount, duration = 5, durationUnit = 't', barrier, currency = 'USD' }) {
-    const payload = {
+    if (this.token && !this._isAuthorized) {
+      await this.authorize();
+    }
+    await this._ensureSocket();
+
+    const basePayload = {
       proposal: 1,
       amount: Number(amount),
       basis: 'stake',
       contract_type: contractType,
-      currency,
+      currency: currency || 'USD',
       duration: Number(duration),
       duration_unit: durationUnit,
-      symbol,
     };
     if (barrier !== undefined && barrier !== null && barrier !== '') {
-      payload.barrier = String(barrier);
+      basePayload.barrier = String(barrier);
     }
-    const res = await this._send(payload, { requireAuth: Boolean(this.token) });
-    return res.proposal;
+
+    const primaryPayload = this._isOtpSocket
+      ? { ...basePayload, underlying_symbol: symbol }
+      : { ...basePayload, symbol };
+
+    try {
+      const res = await this._sendRaw(primaryPayload);
+      return res.proposal;
+    } catch (err) {
+      // Fallback automatique si le serveur attendait symbol au lieu de underlying_symbol (ou inversement)
+      const fallbackPayload = this._isOtpSocket
+        ? { ...basePayload, symbol }
+        : { ...basePayload, underlying_symbol: symbol };
+      try {
+        const retryRes = await this._sendRaw(fallbackPayload);
+        return retryRes.proposal;
+      } catch (_) {
+        throw err;
+      }
+    }
   }
 
   /**
