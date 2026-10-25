@@ -196,7 +196,14 @@ function detectLiquiditySweep(highs, lows, closes) {
   return null;
 }
 
-function isActiveSession(sessionType) {
+function isCryptoPair(symbol) {
+  if (!symbol) return false;
+  const s = String(symbol).toUpperCase();
+  return s.endsWith('USDT') || s.endsWith('BUSD') || s.endsWith('USDC') || s.endsWith('FDUSD') || s.includes('BTC') || s.includes('ETH') || s.includes('SOL');
+}
+
+function isActiveSession(sessionType, symbol) {
+  if (isCryptoPair(symbol)) return true; // Les cryptos (Binance & Bybit) s'exécutent en continu 24/7
   const h = new Date().getUTCHours();
   if (sessionType === 'london') return h >= 7 && h < 16;
   if (sessionType === 'newyork') return h >= 13 && h < 22;
@@ -284,7 +291,7 @@ function starterSmcSignal(tick) {
   const ema21 = calcEMA(closes, 21);
 
   if (!rsi || !atr || !ema21) return null;
-  if (!isActiveSession('london') && !isActiveSession('newyork')) return null;
+  if (!isCryptoPair(tick.symbol) && !isActiveSession('london') && !isActiveSession('newyork')) return null;
 
   const price = closes[closes.length - 1];
   const { bos, choch, lastOB, fvg } = structure;
@@ -1195,19 +1202,20 @@ function instFlowSignal(tick) {
 
   // Multi-session analysis: only trade during institutional sessions
   const h = new Date().getUTCHours();
-  const londonOpen = h >= 7 && h <= 10;
-  const nyOpen = h >= 13 && h <= 16;
-  const londonNyOverlap = h >= 13 && h <= 16;
-  if (!londonOpen && !nyOpen) return null;
+  const isCrypto = isCryptoPair(tick.symbol);
+  if (!isCrypto) {
+    const londonOpen = h >= 7 && h <= 10;
+    const nyOpen = h >= 13 && h <= 16;
+    if (!londonOpen && !nyOpen) return null;
+    // News time protection (skip 5 min before/after hour marks)
+    if (isNewsTime()) return null;
+  }
 
   // Extreme volatility protection
   const atr14 = calcATR(highs, lows, closes, 14);
   const atr50 = calcATR(highs, lows, closes, Math.min(50, closes.length - 1));
   if (!atr14 || !atr50) return null;
   if (atr14 > atr50 * 2.5) return null; // extreme vol — disable
-
-  // News time protection (skip 5 min before/after hour marks)
-  if (isNewsTime()) return null;
 
   // Institutional structure analysis
   const structure = detectStructure(highs, lows, closes);

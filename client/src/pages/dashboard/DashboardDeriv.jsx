@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 
 export default function DashboardDeriv() {
-  const { user } = useStore()
+  const { user, derivLiveTrades } = useStore()
   const [activeTab, setActiveTab] = useState('manual') // 'manual' | 'robots'
   const [accounts, setAccounts] = useState([])
   const [selectedAccountId, setSelectedAccountId] = useState('')
@@ -64,12 +64,29 @@ export default function DashboardDeriv() {
   const hasPaidPlan = user?.subscription?.plan?.startsWith('deriv') || user?.subscription?.plan === 'vip'
   const canRunRobots = isTrialValid || isAffiliated || hasPaidPlan
 
+  const allTrades = React.useMemo(() => {
+    const map = new Map()
+    for (const t of (derivLiveTrades || [])) {
+      if (t.contractId) map.set(String(t.contractId), t)
+    }
+    for (const t of (trades || [])) {
+      if (t.contractId && !map.has(String(t.contractId))) {
+        map.set(String(t.contractId), t)
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => new Date(b.openedAt || b._receivedAt) - new Date(a.openedAt || a._receivedAt))
+  }, [trades, derivLiveTrades])
+
   useEffect(() => {
     loadData()
     loadSettings()
-    const timer = setInterval(loadSessionsAndTrades, 8000)
-    return () => clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    const hasActive = sessions.some(s => s.status === 'active')
+    const timer = setInterval(loadSessionsAndTrades, hasActive ? 1500 : 7000)
+    return () => clearInterval(timer)
+  }, [sessions])
 
   async function loadSettings() {
     try {
@@ -167,7 +184,7 @@ export default function DashboardDeriv() {
     setBotStake(bot.defaultSettings?.initialStake || 1)
     setBotSL(bot.defaultSettings?.stopLoss || 20)
     setBotTP(bot.defaultSettings?.takeProfit || 50)
-    setBotMartingale(bot.defaultSettings?.martingaleMultiplier || 2)
+    setBotMartingale(bot.defaultSettings?.martingaleMultiplier || (bot.contractType === 'DIGITOVER' ? 3.2 : 2))
   }
 
   async function confirmStartBot() {
@@ -186,6 +203,7 @@ export default function DashboardDeriv() {
       })
       if (res.data?.success) {
         setSelectedBotForStart(null)
+        setActiveTab('robots')
         await loadSessionsAndTrades()
       }
     } catch (err) {
@@ -748,6 +766,143 @@ export default function DashboardDeriv() {
               </div>
             </div>
           )}
+
+          {/* ── FLUX EN DIRECT DES TRADES & CONTRATS (LIVE STREAM) ──────────── */}
+          <Card className="bg-slate-900/90 border-slate-800 shadow-xl overflow-hidden">
+            <CardHeader className="pb-3 border-b border-slate-800/80 bg-slate-950/40">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                  </span>
+                  <div>
+                    <CardTitle className="text-base text-white flex items-center gap-2">
+                      Flux en Direct des Trades &amp; Contrats
+                      <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-500/40">
+                        Live Stream
+                      </Badge>
+                    </CardTitle>
+                    <CardDescription className="text-xs text-slate-400">
+                      Suivez chaque contrat Deriv SmartTrader exécuté par les robots et le trading manuel en temps réel.
+                    </CardDescription>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-slate-800 text-slate-300 font-mono text-xs">
+                    {allTrades.length} contrat(s) au total
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadSessionsAndTrades}
+                    className="h-7 text-xs border-slate-700 text-slate-300 hover:text-white"
+                  >
+                    <RefreshCw className="w-3 h-3 mr-1" /> Actualiser
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="text-slate-400 border-b border-slate-800 bg-slate-950/60 font-semibold">
+                    <tr>
+                      <th className="py-3 px-4">Contrat #</th>
+                      <th className="py-3 px-4">Robot / Marché</th>
+                      <th className="py-3 px-4">Type de Contrat</th>
+                      <th className="py-3 px-4">Mise ($)</th>
+                      <th className="py-3 px-4">Statut en Direct</th>
+                      <th className="py-3 px-4">Gain Net</th>
+                      <th className="py-3 px-4">Tick Sortie</th>
+                      <th className="py-3 px-4 text-right">Heure</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-mono">
+                    {allTrades.slice(0, 15).map(t => {
+                      const isOpen = t.status === 'open'
+                      const isWon = t.status === 'won' || Number(t.profit) > 0
+                      const isLost = t.status === 'lost' || (t.status !== 'open' && Number(t.profit) < 0)
+
+                      return (
+                        <tr
+                          key={t._id || t.contractId}
+                          className={`transition ${
+                            isOpen
+                              ? 'bg-amber-500/10 hover:bg-amber-500/15'
+                              : isWon
+                              ? 'hover:bg-emerald-500/5'
+                              : 'hover:bg-rose-500/5'
+                          }`}
+                        >
+                          <td className="py-3 px-4 text-slate-300 font-bold">
+                            #{t.contractId?.slice(-8) || 'N/A'}
+                          </td>
+                          <td className="py-3 px-4 font-sans font-semibold text-white">
+                            <div>{t.symbol}</div>
+                            {t.botName && <div className="text-[10px] text-slate-400 font-mono">{t.botName}</div>}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="text-emerald-400 font-bold">{t.contractType}</span>
+                            {t.barrier !== undefined && t.barrier !== null && t.barrier !== '' && (
+                              <span className="text-slate-400 text-[11px] ml-1">({t.barrier})</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-slate-200">
+                            ${Number(t.stake || 0).toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4">
+                            {isOpen ? (
+                              <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] animate-pulse flex items-center gap-1 w-fit">
+                                <RefreshCw className="w-3 h-3 animate-spin" /> EN COURS
+                              </Badge>
+                            ) : isWon ? (
+                              <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] flex items-center gap-1 w-fit">
+                                <CheckCircle2 className="w-3 h-3" /> GAGNÉ
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[10px] w-fit">
+                                PERDU
+                              </Badge>
+                            )}
+                          </td>
+                          <td className={`py-3 px-4 font-bold text-xs ${isOpen ? 'text-amber-400' : isWon ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {isOpen ? (
+                              <span className="text-slate-400">+{Number(t.payout ? t.payout - t.stake : t.stake * 0.38).toFixed(2)}$ pot.</span>
+                            ) : isWon ? (
+                              `+$${Number(t.profit || 0).toFixed(2)}`
+                            ) : (
+                              `-$${Math.abs(Number(t.profit || t.stake || 0)).toFixed(2)}`
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-slate-400 text-xs">
+                            {t.exitTick ? t.exitTick : isOpen ? '—' : 'N/A'}
+                          </td>
+                          <td className="py-3 px-4 text-slate-400 text-[11px] text-right">
+                            {t.openedAt ? new Date(t.openedAt).toLocaleTimeString() : 'En direct'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {allTrades.length === 0 && (
+                      <tr>
+                        <td colSpan="8" className="py-8 text-center text-slate-400">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <Bot className="w-8 h-8 text-slate-600 animate-pulse" />
+                            <span className="text-sm">Aucun contrat exécuté pour l'instant.</span>
+                            <span className="text-xs text-slate-500">
+                              Lancez un robot ci-dessous ou passez un ordre manuel pour voir le flux s'animer en direct.
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Catalogue des Robots Deriv */}
           <div>

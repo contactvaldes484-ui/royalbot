@@ -119,6 +119,7 @@ const useStore = create((set, get) => ({
   wsConnected: false,
   liveTrades: [],      // Real-time trades from bot
   liveEvents: [],      // Real-time events (skips, pauses, etc.)
+  derivLiveTrades: [], // Real-time Deriv contracts/trades
   mt5Ticks: {},        // { symbol: { bid, ask, candle } } — live MT5 ticks
   mt5Positions: [],    // Live MT5 open positions
   copyEvents: [],      // Copy Trading: live copy trade events
@@ -300,6 +301,48 @@ const useStore = create((set, get) => ({
           type: 'success',
           title: '💰 Commission reçue',
           message: `+$${msg.amount.toFixed(2)} (${msg.feePct}% sur ${msg.symbol})`,
+        })
+        break
+      }
+      case 'deriv_trade_opened': {
+        const trade = { ...msg.trade, _receivedAt: now, status: 'open' }
+        const prev = get().derivLiveTrades || []
+        const exists = prev.some(t => t.contractId === trade.contractId)
+        const derivLiveTrades = exists
+          ? prev.map(t => t.contractId === trade.contractId ? trade : t)
+          : [trade, ...prev].slice(0, 50)
+        set({ derivLiveTrades })
+        break
+      }
+      case 'deriv_trade_result': {
+        const trade = { ...msg.trade, _receivedAt: now }
+        const prev = get().derivLiveTrades || []
+        const exists = prev.some(t => t.contractId === trade.contractId)
+        const derivLiveTrades = exists
+          ? prev.map(t => t.contractId === trade.contractId ? trade : t)
+          : [trade, ...prev].slice(0, 50)
+        set({ derivLiveTrades })
+        const isWon = trade.status === 'won' || Number(trade.profit) > 0
+        get().addNotification?.({
+          type: isWon ? 'success' : 'warning',
+          title: isWon ? '🟢 Contrat Deriv Gagné (+)' : '🔴 Contrat Deriv Perdu (−)',
+          message: `${trade.symbol} · ${isWon ? '+' : ''}$${Number(trade.profit || 0).toFixed(2)} USD`,
+        })
+        break
+      }
+      case 'deriv_robot_tp_hit': {
+        get().addNotification?.({
+          type: 'success',
+          title: '🎯 Take Profit Atteint !',
+          message: `Robot Deriv arrêté avec succès : +$${Number(msg.profit || 0).toFixed(2)} USD`,
+        })
+        break
+      }
+      case 'deriv_robot_sl_hit': {
+        get().addNotification?.({
+          type: 'warning',
+          title: '🛑 Stop Loss Déclenché',
+          message: `Robot Deriv protégé par le Stop Loss : -$${Math.abs(Number(msg.loss || 0)).toFixed(2)} USD`,
         })
         break
       }

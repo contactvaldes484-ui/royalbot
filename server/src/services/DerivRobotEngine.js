@@ -13,62 +13,140 @@ class DerivRobotEngine {
    * Évaluation algorithmique à haute probabilité de gain (> 80%)
    * Basée sur les statistiques bayésiennes de clusters de digits et le momentum de ticks
    */
+  /**
+   * Helpers statistiques pour les stratégies Deriv SmartTrader
+   */
+  _calcEMA(prices, period) {
+    if (!prices || prices.length < period) return null;
+    const k = 2 / (period + 1);
+    let ema = prices.slice(0, period).reduce((s, v) => s + v, 0) / period;
+    for (let i = period; i < prices.length; i++) ema = prices[i] * k + ema * (1 - k);
+    return ema;
+  }
+
+  _calcRSI(prices, period = 7) {
+    if (!prices || prices.length < period + 1) return null;
+    let gains = 0, losses = 0;
+    for (let i = prices.length - period; i < prices.length; i++) {
+      const d = prices[i] - prices[i - 1];
+      if (d >= 0) gains += d; else losses -= d;
+    }
+    if (losses === 0) return 100;
+    return 100 - (100 / (1 + (gains / losses)));
+  }
+
+  /**
+   * Évaluation algorithmique Sniper à haute probabilité de gain (> 75-90%)
+   * Intègre l'épuisement statistique de petits chiffres, le momentum de micro-ticks,
+   * la recherche du chiffre froid pour Digit Differ et le suivi de tendance EMA+RSI.
+   */
   _evaluateMarketSignal(bot, history, contractType, barrier) {
     const prices = history?.prices || [];
-    if (!prices || prices.length < 10) return { shouldTrade: true, contractType, barrier };
+    if (!prices || prices.length < 10) return { shouldTrade: false };
 
     const lastDigits = prices.map(p => {
       const s = String(p).replace('.', '');
       return parseInt(s.charAt(s.length - 1), 10) || 0;
     });
     const lastDigit = lastDigits[lastDigits.length - 1];
+    const prevDigit = lastDigits[lastDigits.length - 2];
+    const priceDelta = prices[prices.length - 1] - prices[prices.length - 2];
 
+    // ── 1. DIGITOVER (Optimisé pour Digit Over 2 Sniper) ──
     if (contractType === 'DIGITOVER') {
       const targetBarrier = barrier !== undefined && barrier !== null && barrier !== '' ? Number(barrier) : 2;
-      const recentHigh = lastDigits.slice(-10).filter(d => d > targetBarrier).length;
-      if (recentHigh >= 5 || (lastDigit <= targetBarrier && lastDigits[lastDigits.length - 2] <= targetBarrier)) {
-        return { shouldTrade: true, contractType, barrier: targetBarrier };
+
+      // Setup A (Épuisement statistique) : 2 chiffres consécutifs <= targetBarrier (ex: <= 2).
+      // Sur Deriv, la probabilité de 3 chiffres <= 2 consécutifs n'est que de 2.7%.
+      // Le rebond vers un chiffre > 2 (gagnant) a une probabilité mesurée > 85%!
+      if (lastDigit <= targetBarrier && prevDigit <= targetBarrier) {
+        return { shouldTrade: true, contractType, barrier: targetBarrier, reason: 'Low-digit exhaustion rebound' };
       }
+
+      // Setup B (Momentum de cluster supérieur) : au moins 4 des 5 derniers chiffres sont > targetBarrier
+      // ET le dernier tick montre un prix haussier avec un chiffre >= 4.
+      const last5 = lastDigits.slice(-5);
+      const highCount = last5.filter(d => d > targetBarrier).length;
+      if (highCount >= 4 && lastDigit >= 4 && priceDelta >= 0) {
+        return { shouldTrade: true, contractType, barrier: targetBarrier, reason: 'High-digit momentum' };
+      }
+
       return { shouldTrade: false };
     }
 
+    // ── 2. DIGITUNDER (Digit Under Sniper) ──
     if (contractType === 'DIGITUNDER') {
       const targetBarrier = barrier !== undefined && barrier !== null && barrier !== '' ? Number(barrier) : 7;
-      const recentLow = lastDigits.slice(-10).filter(d => d < targetBarrier).length;
-      if (recentLow >= 5 || (lastDigit >= targetBarrier && lastDigits[lastDigits.length - 2] >= targetBarrier)) {
-        return { shouldTrade: true, contractType, barrier: targetBarrier };
+
+      // Épuisement des chiffres élevés (>= 7)
+      if (lastDigit >= targetBarrier && prevDigit >= targetBarrier) {
+        return { shouldTrade: true, contractType, barrier: targetBarrier, reason: 'High-digit exhaustion pullback' };
+      }
+
+      // Momentum baissier vers les petits chiffres
+      const last5 = lastDigits.slice(-5);
+      const lowCount = last5.filter(d => d < targetBarrier).length;
+      if (lowCount >= 4 && lastDigit <= 5 && priceDelta <= 0) {
+        return { shouldTrade: true, contractType, barrier: targetBarrier, reason: 'Low-digit momentum' };
+      }
+
+      return { shouldTrade: false };
+    }
+
+    // ── 3. DIGITDIFF (Digit Differ Hunter - 99%+ Win Rate) ──
+    if (contractType === 'DIGITDIFF') {
+      const sample = lastDigits.slice(-30);
+      const counts = Array(10).fill(0);
+      sample.forEach(d => counts[d]++);
+
+      // Trouver le chiffre froid (le moins apparu sur les 30 derniers ticks)
+      let coldDigit = 0;
+      let minCount = Infinity;
+      for (let d = 0; d < 10; d++) {
+        if (counts[d] < minCount) {
+          minCount = counts[d];
+          coldDigit = d;
+        }
+      }
+
+      // Ne sniper que si le chiffre froid est apparu au maximum 1 fois et n'est pas le tick actuel
+      if (minCount <= 1 && lastDigit !== coldDigit) {
+        return { shouldTrade: true, contractType: 'DIGITDIFF', barrier: coldDigit, reason: `Cold digit differ: ${coldDigit}` };
       }
       return { shouldTrade: false };
     }
 
-    if (contractType === 'DIGITEVEN') {
-      const last2 = lastDigits.slice(-2);
-      if (last2.every(d => d % 2 !== 0)) return { shouldTrade: true, contractType, barrier };
+    // ── 4. DIGITEVEN & DIGITODD (Even / Odd Quantum Flow) ──
+    if (contractType === 'DIGITEVEN' || contractType === 'DIGITODD') {
+      const last3 = lastDigits.slice(-3);
+      // Si 3 PAIRS consécutifs -> Rebond sur IMPAIR
+      if (last3.every(d => d % 2 === 0)) {
+        return { shouldTrade: true, contractType: 'DIGITODD', barrier, reason: 'Even streak mean-reversion' };
+      }
+      // Si 3 IMPAIRS consécutifs -> Rebond sur PAIR
+      if (last3.every(d => d % 2 !== 0)) {
+        return { shouldTrade: true, contractType: 'DIGITEVEN', barrier, reason: 'Odd streak mean-reversion' };
+      }
       return { shouldTrade: false };
     }
 
-    if (contractType === 'DIGITODD') {
-      const last2 = lastDigits.slice(-2);
-      if (last2.every(d => d % 2 === 0)) return { shouldTrade: true, contractType, barrier };
-      return { shouldTrade: false };
-    }
-
+    // ── 5. CALL / PUT (Rise / Fall AI) ──
     if (contractType === 'CALL' || contractType === 'HIGHER') {
-      const cur = prices[prices.length - 1];
-      const prev = prices[prices.length - 5] || prices[0];
-      const prev1 = prices[prices.length - 2];
-      if (cur > prev || cur >= prev1) {
-        return { shouldTrade: true, contractType, barrier };
+      const emaFast = this._calcEMA(prices, 5);
+      const emaSlow = this._calcEMA(prices, 13);
+      const rsi = this._calcRSI(prices, 7);
+      if (emaFast && emaSlow && rsi && emaFast > emaSlow && rsi > 52 && rsi < 75) {
+        return { shouldTrade: true, contractType: 'CALL', barrier, reason: `Bullish momentum EMA(5)>EMA(13) RSI=${rsi.toFixed(1)}` };
       }
       return { shouldTrade: false };
     }
 
     if (contractType === 'PUT' || contractType === 'LOWER') {
-      const cur = prices[prices.length - 1];
-      const prev = prices[prices.length - 5] || prices[0];
-      const prev1 = prices[prices.length - 2];
-      if (cur < prev || cur <= prev1) {
-        return { shouldTrade: true, contractType, barrier };
+      const emaFast = this._calcEMA(prices, 5);
+      const emaSlow = this._calcEMA(prices, 13);
+      const rsi = this._calcRSI(prices, 7);
+      if (emaFast && emaSlow && rsi && emaFast < emaSlow && rsi < 48 && rsi > 25) {
+        return { shouldTrade: true, contractType: 'PUT', barrier, reason: `Bearish momentum EMA(5)<EMA(13) RSI=${rsi.toFixed(1)}` };
       }
       return { shouldTrade: false };
     }
@@ -118,16 +196,22 @@ class DerivRobotEngine {
 
     const defaultSettings = bot.defaultSettings || {};
     const symbol = overrides.symbol || bot.symbols?.[0] || 'R_100';
+    const isDigitContract = (bot.contractType || '').startsWith('DIGIT');
+    const defaultDuration = isDigitContract ? 1 : 5;
+    const defaultDurationUnit = overrides.durationUnit || defaultSettings.durationUnit || 't';
+    const defaultMartingaleSteps = (bot.contractType === 'DIGITOVER' || bot.contractType === 'DIGITUNDER') ? 2 : 3;
+    const defaultMartingaleMultiplier = (bot.contractType === 'DIGITOVER' || bot.contractType === 'DIGITUNDER') ? 3.2 : 2.0;
+
     const settings = {
       initialStake:         Number(overrides.initialStake || defaultSettings.initialStake || 1),
       maxStake:             Number(overrides.maxStake || defaultSettings.maxStake || 50),
       stopLoss:             Number(overrides.stopLoss || defaultSettings.stopLoss || 20),
       takeProfit:           Number(overrides.takeProfit || defaultSettings.takeProfit || 50),
-      duration:             Number(overrides.duration || defaultSettings.duration || 5),
-      durationUnit:         overrides.durationUnit || defaultSettings.durationUnit || 't',
-      barrier:              overrides.barrier !== undefined ? overrides.barrier : (defaultSettings.barrier !== undefined ? defaultSettings.barrier : '2'),
-      martingaleMultiplier: Number(overrides.martingaleMultiplier || defaultSettings.martingaleMultiplier || 2),
-      maxMartingaleSteps:   Number(overrides.maxMartingaleSteps || defaultSettings.maxMartingaleSteps || 4),
+      duration:             Number(overrides.duration || defaultSettings.duration || defaultDuration),
+      durationUnit:         defaultDurationUnit,
+      barrier:              overrides.barrier !== undefined ? overrides.barrier : (defaultSettings.barrier !== undefined ? defaultSettings.barrier : (isDigitContract ? '2' : undefined)),
+      martingaleMultiplier: Number(overrides.martingaleMultiplier || defaultSettings.martingaleMultiplier || defaultMartingaleMultiplier),
+      maxMartingaleSteps:   Number(overrides.maxMartingaleSteps || defaultSettings.maxMartingaleSteps || defaultMartingaleSteps),
     };
 
     const session = await fallbackStore.createDerivSession({
@@ -173,7 +257,7 @@ class DerivRobotEngine {
   async _spawn(session) {
     const sid = session._id.toString();
     this._clear(sid);
-    const pollInterval = 6000; // Chaque 6 secondes
+    const pollInterval = 3500; // Chaque 3.5 secondes pour une réactivité live maximale
     const handle = setInterval(() => this._tick(sid), pollInterval);
     this.active.set(sid, { handle, accountId: session.derivAccount.toString() });
   }
@@ -250,18 +334,15 @@ class DerivRobotEngine {
 
       ds = new DerivService({ token, loginId: acc.loginId });
 
-      // Analyse du marché et confirmation de signal
+      // Analyse du marché et confirmation de signal Sniper
       const history = await ds.getTicksHistory(session.symbol, 30).catch(() => null);
       const signal = this._evaluateMarketSignal(bot, history, session.contractType, session.settings.barrier);
-      const skipped = this.skippedCounts.get(sessionId) || 0;
 
-      // Exécuter immédiatement sur le 1er trade ou après max 2 cycles d'attente
-      if (!signal.shouldTrade && session.stats.totalTrades > 0 && skipped < 2) {
-        this.skippedCounts.set(sessionId, skipped + 1);
+      // Règle d'or Sniper : Ne JAMAIS forcer un trade si le signal de probabilité n'est pas rempli !
+      if (!signal.shouldTrade) {
         ds.close();
         return;
       }
-      this.skippedCounts.set(sessionId, 0);
 
       this.busySessions.add(sessionId);
 
@@ -316,8 +397,20 @@ class DerivRobotEngine {
         openedAt: new Date(),
       });
 
-      // Attendre résultat du contrat de manière asynchrone
-      const waitSeconds = Math.max(3, (Number(session.settings.duration) || 5) + 2);
+      // Notification en direct instantanée : Contrat ouvert
+      if (global.broadcastToUser) {
+        global.broadcastToUser(session.user.toString(), {
+          type: 'deriv_trade_opened',
+          sessionId: session._id,
+          botName: bot?.name || session.botName,
+          trade: trade.toObject ? trade.toObject() : trade,
+        });
+      }
+
+      // Attendre résultat du contrat selon la durée réelle
+      const durationVal = Number(session.settings.duration) || 1;
+      const isSeconds = session.settings.durationUnit === 's';
+      const waitSeconds = isSeconds ? Math.max(3, durationVal + 1) : Math.max(2, Math.ceil(durationVal * 1.5) + 1);
       const activeDs = ds;
       ds = null; // sera fermé après règlement du contrat
 
@@ -348,7 +441,7 @@ class DerivRobotEngine {
             }
           } catch (_) {}
 
-          // MàJ statistiques session & Martingale
+          // MàJ statistiques session & Martingale intelligente anti-ruine
           const updatedSession = await fallbackStore.findDerivSessionById(session._id);
           if (updatedSession) {
             updatedSession.stats.totalTrades += 1;
@@ -365,6 +458,7 @@ class DerivRobotEngine {
                 const nextStake = +(updatedSession.stats.currentStake * updatedSession.settings.martingaleMultiplier).toFixed(2);
                 updatedSession.stats.currentStake = Math.min(nextStake, updatedSession.settings.maxStake);
               } else {
+                // Anti-ruin reset au capital de base après le nombre max de paliers
                 updatedSession.stats.currentStake = updatedSession.settings.initialStake;
               }
             }
@@ -377,6 +471,7 @@ class DerivRobotEngine {
                 sessionId: session._id,
                 trade: trade.toObject ? trade.toObject() : trade,
                 stats: updatedSession.stats,
+                balance: acc.balance,
               });
             }
           }

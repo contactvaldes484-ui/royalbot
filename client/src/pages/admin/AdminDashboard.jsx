@@ -53,8 +53,8 @@ export function AdminLayout() {
     { icon: Trophy,           label: 'Copy Trading',    href: '/admin/copy-trading', badge: null },
     { icon: MessageCircle,    label: 'Avis robots',     href: '/admin/reviews', badge: null },
     { icon: Brain,            label: 'IA Forex',        href: '/admin/forex-ai', badge: null },
-    { icon: Bitcoin,          label: 'Binance',         href: '/admin/binance', badge: null },
-    { icon: Zap,              label: 'Deriv Broker',    href: '/admin/deriv', badge: 'Essais 7j' },
+    { icon: Bitcoin,          label: 'Binance & Bybit', href: '/admin/binance', badge: null },
+    { icon: Zap,              label: 'Robots Deriv SmartTrader', href: '/admin/deriv', badge: 'Dédié' },
     { icon: ImageIcon,        label: 'Marketing',       href: '/admin/screenshots', badge: null },
     { icon: Settings,          label: 'Paramètres',      href: '/admin/settings', badge: null },
   ]
