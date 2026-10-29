@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Navigate } from 'react-router-dom'
 import { Input } from '../../components/ui/input'
 import useStore from '../../store/useStore'
 import { binanceAPI, bybitAPI } from '../../lib/api'
@@ -44,6 +45,20 @@ function BybitLogo({ size = 20 }) {
 
 export default function DashboardBinance() {
   const { user } = useStore()
+
+  const userPlan = (user?.subscription?.plan || '').toLowerCase()
+  const isDerivUser =
+    userPlan.includes('deriv') ||
+    user?.subscription?.category === 'deriv' ||
+    user?.subscription?.broker === 'deriv' ||
+    localStorage.getItem('deriv_oauth_connected') === 'true' ||
+    Boolean(user?.derivAccount) ||
+    user?.tradingPreferences?.primaryBroker === 'deriv'
+
+  if (isDerivUser) {
+    return <Navigate to="/dashboard/deriv" replace />
+  }
+
   const [tab, setTab] = useState('accounts')
   const [accounts, setAccounts] = useState([])
   const [robots, setRobots] = useState([])

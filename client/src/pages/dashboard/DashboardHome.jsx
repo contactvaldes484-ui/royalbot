@@ -44,6 +44,15 @@ export default function DashboardHome() {
     fetchData()
   }, [])
 
+  const userPlan = (user?.subscription?.plan || '').toLowerCase()
+  const isDerivUser =
+    userPlan.includes('deriv') ||
+    user?.subscription?.category === 'deriv' ||
+    user?.subscription?.broker === 'deriv' ||
+    localStorage.getItem('deriv_oauth_connected') === 'true' ||
+    Boolean(user?.derivAccount) ||
+    user?.tradingPreferences?.primaryBroker === 'deriv'
+
   const statCards = [
     {
       title: 'Profit Total',
@@ -84,7 +93,11 @@ export default function DashboardHome() {
           <p className="text-muted-foreground text-sm">Voici un résumé de votre activité trading.</p>
         </div>
         <div className="flex items-center gap-2">
-          {false ? null : (
+          {isDerivUser ? (
+            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 flex items-center gap-1.5 px-3 py-1 font-semibold">
+              <Zap className="h-3.5 w-3.5 text-emerald-400" /> Mode Deriv SmartTrader Actif
+            </Badge>
+          ) : (
             <Badge variant="destructive" className="flex items-center gap-1">
               <WifiOff className="h-3 w-3" /> Binance
             </Badge>
@@ -92,8 +105,29 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      {/* Guide de connexion Binance (bandeau repliable) */}
-      <BinanceConnectGuide variant="compact" />
+      {/* Guide Deriv ou Guide Binance selon le profil */}
+      {isDerivUser ? (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-950 border border-emerald-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <Zap className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white">Robots Automatisés &amp; Terminal Deriv</h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Exécution en direct sur indices synthétiques (Volatility 100/75/50, Boom &amp; Crash).
+              </p>
+            </div>
+          </div>
+          <Button asChild className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold shrink-0">
+            <Link to="/dashboard/deriv">
+              Accéder au Pôle Deriv <ArrowRight className="w-4 h-4 ml-1.5" />
+            </Link>
+          </Button>
+        </div>
+      ) : (
+        <BinanceConnectGuide variant="compact" />
+      )}
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -157,8 +191,8 @@ export default function DashboardHome() {
                 <div className="text-center py-6">
                   <Bot className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground mb-3">Aucun robot actif</p>
-                  <Button size="sm" variant="gradient" asChild>
-                    <Link to="/dashboard/bots">Lancer un robot</Link>
+                  <Button size="sm" variant={isDerivUser ? "default" : "gradient"} className={isDerivUser ? "bg-emerald-600 hover:bg-emerald-500 text-white font-bold" : ""} asChild>
+                    <Link to={isDerivUser ? "/dashboard/deriv" : "/dashboard/bots"}>Lancer un robot</Link>
                   </Button>
                 </div>
               ) : (

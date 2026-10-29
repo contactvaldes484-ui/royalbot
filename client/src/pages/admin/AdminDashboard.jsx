@@ -3135,11 +3135,25 @@ export function AdminSettings() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium mb-1.5 block">Lien d'affiliation Partenaire Deriv</label>
-                  <Input value={form.derivReferralLink} onChange={e => update('derivReferralLink', e.target.value)}
-                    placeholder="https://track.deriv.com/_..." className="font-mono text-xs" />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-sm font-medium">Lien de Parrainage & Affiliation Deriv (Inscription des Nouveaux Utilisateurs)</label>
+                    {form.derivReferralLink && (
+                      <a
+                        href={form.derivReferralLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-emerald-500 hover:underline flex items-center gap-1"
+                      >
+                        Tester le lien ↗
+                      </a>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input value={form.derivReferralLink} onChange={e => update('derivReferralLink', e.target.value)}
+                      placeholder="https://track.deriv.com/_..." className="font-mono text-xs flex-1" />
+                  </div>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    Lien utilisé par les membres pour débloquer l'accès gratuit permanent.
+                    Ce lien est automatiquement affiché sur la page de Connexion et d'Inscription ("S'inscrire sur Deriv") pour rattacher chaque nouvel inscrit à votre compte partenaire.
                   </p>
                 </div>
               </div>

@@ -1,12 +1,26 @@
 import React from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Badge } from '../../components/ui/badge'
 import { Bot, Monitor, ArrowRight, Info } from 'lucide-react'
 import BinanceConnectGuide from '../../components/guides/BinanceConnectGuide'
+import useStore from '../../store/useStore'
 
 export default function DashboardBots() {
+  const { user } = useStore()
+  const userPlan = (user?.subscription?.plan || '').toLowerCase()
+  const isDerivUser =
+    userPlan.includes('deriv') ||
+    user?.subscription?.category === 'deriv' ||
+    user?.subscription?.broker === 'deriv' ||
+    localStorage.getItem('deriv_oauth_connected') === 'true' ||
+    Boolean(user?.derivAccount) ||
+    user?.tradingPreferences?.primaryBroker === 'deriv'
+
+  if (isDerivUser) {
+    return <Navigate to="/dashboard/deriv" replace />
+  }
   return (
     <div className="space-y-6">
       <div>

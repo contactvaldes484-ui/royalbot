@@ -572,7 +572,19 @@ export default function AdminDeriv() {
           <CardContent>
             <form onSubmit={handleSaveSettings} className="space-y-4">
               <div>
-                <label className="text-xs text-slate-300 font-semibold mb-1 block">Lien d'Affiliation Deriv Officiel</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-slate-300 font-semibold block">Lien d'Affiliation &amp; Parrainage Deriv Officiel</label>
+                  {derivReferralLink && (
+                    <a
+                      href={derivReferralLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-semibold"
+                    >
+                      Tester le lien ↗
+                    </a>
+                  )}
+                </div>
                 <Input
                   type="url"
                   placeholder="https://track.deriv.com/_..."
@@ -580,6 +592,9 @@ export default function AdminDeriv() {
                   onChange={(e) => setDerivReferralLink(e.target.value)}
                   className="bg-slate-950 border-slate-700 text-white font-mono"
                 />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Tous les visiteurs sans compte Deriv qui cliquent sur "S'inscrire sur Deriv" (sur les pages Login et Inscription) seront dirigés vers ce lien pour créer leur compte sous votre parrainage.
+                </p>
               </div>
 
               <div>

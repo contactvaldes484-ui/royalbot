@@ -18,14 +18,17 @@ export default function DashboardLayout() {
   if (!isAuthenticated) return <Navigate to="/login" replace />
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
-  const isDerivConnected =
+  const userPlan = (user?.subscription?.plan || '').toLowerCase()
+  const isDerivPlan =
+    userPlan.includes('deriv') ||
+    user?.subscription?.category === 'deriv' ||
+    user?.subscription?.broker === 'deriv' ||
     localStorage.getItem('deriv_oauth_connected') === 'true' ||
     Boolean(user?.derivAccount) ||
-    Boolean(user?.subscription?.plan?.startsWith('deriv')) ||
     user?.tradingPreferences?.primaryBroker === 'deriv'
 
-  // Si l'utilisateur est connecté via Deriv ou a souscrit à un plan Deriv, masquer Binance & Bybit
-  const showBinance = isAdmin || !isDerivConnected
+  // Si l'utilisateur a choisi un plan Deriv ou est connecté via Deriv, masquer STRICTEMENT Binance & Bybit de tout son dashboard
+  const showBinance = !isDerivPlan
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },

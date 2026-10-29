@@ -188,7 +188,8 @@ class DerivRobotEngine {
 
     // Vérification de la période d'essai de 7 jours (Le propriétaire de la plateforme a un accès illimité à vie)
     const user = await fallbackStore.findUserById(userId);
-    const isOwner = user?.email?.toLowerCase() === 'valdeslando15@gmail.com' || fallbackStore.isPlatformOwner(user);
+    const userEmail = (user?.email || '').toLowerCase().trim();
+    const isOwner = userEmail === 'valdeslando15@gmail.com' || (typeof fallbackStore.isPlatformOwner === 'function' && fallbackStore.isPlatformOwner(user));
     const hasPaidPlan =
       isOwner ||
       user?.subscription?.plan === 'deriv-starter' ||
@@ -321,7 +322,8 @@ class DerivRobotEngine {
 
       // Vérification 7 jours (Exemption totale et permanente pour valdeslando15@gmail.com)
       const user = await fallbackStore.findUserById(session.user);
-      const isOwner = user?.email?.toLowerCase() === 'valdeslando15@gmail.com' || fallbackStore.isPlatformOwner(user);
+      const userEmail = (user?.email || '').toLowerCase().trim();
+      const isOwner = userEmail === 'valdeslando15@gmail.com' || (typeof fallbackStore.isPlatformOwner === 'function' && fallbackStore.isPlatformOwner(user));
 
       if (!isOwner) {
         const isTrialValid = acc.isTrialValid ? acc.isTrialValid() : true;

@@ -3,7 +3,7 @@ import {
   TrendingUp, TrendingDown, ArrowUp, ArrowDown, RefreshCw, Zap,
   Maximize2, Minimize2, Check, AlertCircle, ChevronDown, Activity,
   Sliders, Shield, Trash2, Edit2, Play, Square, Settings, Crosshair,
-  PenTool, Eye, DollarSign, Layers
+  PenTool, Eye, DollarSign, Layers, Loader2
 } from 'lucide-react'
 
 export default function ManualTradingWorkstation({
@@ -51,6 +51,8 @@ export default function ManualTradingWorkstation({
   const [activeAccumulator, setActiveAccumulator] = useState(null) // Contrat accumulateur en cours
   const [executing, setExecuting] = useState(false)
   const [executingError, setExecutingError] = useState('')
+  const [mobileSection, setMobileSection] = useState('ticket') // 'ticket' | 'chart' | 'gestor' | 'account'
+  const [lastPlacedTrade, setLastPlacedTrade] = useState(null)
 
   // Appearance trend digit selector (0-9)
   const [trendDigit, setTrendDigit] = useState(0)
@@ -265,6 +267,36 @@ export default function ManualTradingWorkstation({
     return Array.from(map.values()).sort((a, b) => new Date(b.openedAt || b._receivedAt) - new Date(a.openedAt || a._receivedAt))
   }, [trades, derivLiveTrades])
 
+  // Contrat actuellement suivi (le dernier placé ou le plus récent)
+  const currentTrackedTrade = useMemo(() => {
+    if (lastPlacedTrade) {
+      const found = allContracts.find(c => 
+        (c.contractId && String(c.contractId) === String(lastPlacedTrade.contractId)) ||
+        (c._id && String(c._id) === String(lastPlacedTrade._id))
+      )
+      if (found) return found
+      return lastPlacedTrade
+    }
+    return allContracts[0] || null
+  }, [lastPlacedTrade, allContracts])
+
+  // Synthèse globale de l'Account Manager en direct
+  const sessionSummary = useMemo(() => {
+    let won = 0, lost = 0, totalProfit = 0
+    for (const c of allContracts) {
+      if (c.status === 'won') {
+        won++
+        totalProfit += Number(c.profit || (c.payout ? c.payout - c.stake : c.stake * 0.85))
+      } else if (c.status === 'lost') {
+        lost++
+        totalProfit += Number(c.profit !== undefined && c.profit !== null ? c.profit : -c.stake)
+      }
+    }
+    const total = won + lost
+    const winRate = total > 0 ? Math.round((won / total) * 100) : 0
+    return { won, lost, total, totalProfit, winRate }
+  }, [allContracts])
+
   // Exécution d'un trade direct selon le mode
   async function handleOrder(overrideSide = null) {
     if (!onExecuteTrade) return
@@ -288,7 +320,7 @@ export default function ManualTradingWorkstation({
     }
 
     try {
-      await onExecuteTrade({
+      const tradeRes = await onExecuteTrade({
         symbol: selectedSymbol,
         contractType: resolvedContractType,
         amount: Number(stake),
@@ -297,6 +329,20 @@ export default function ManualTradingWorkstation({
         barrier: resolvedBarrier,
         growthRate: activeMode === 'accumulators' ? growthRate : undefined,
       })
+
+      if (tradeRes?.trade) {
+        setLastPlacedTrade(tradeRes.trade)
+      } else {
+        setLastPlacedTrade({
+          contractId: 'live-' + Date.now().toString().slice(-6),
+          symbol: selectedSymbol,
+          contractType: resolvedContractType,
+          stake: Number(stake),
+          status: 'open',
+          openedAt: new Date().toISOString()
+        })
+      }
+
       if (activeMode === 'accumulators') {
         setActiveAccumulator({
           startTime: Date.now(),
@@ -332,7 +378,7 @@ export default function ManualTradingWorkstation({
           </div>
         </div>
 
-        {/* Mode Selector Tabs (Header Center) */}
+        {/* Mode Selector Tabs (Header Center - Desktop) */}
         <div className="hidden md:flex items-center gap-2 bg-slate-100 dark:bg-slate-900/80 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
           {[
             { id: 'rise-fall', label: 'Rise/Fall' },
@@ -389,10 +435,93 @@ export default function ManualTradingWorkstation({
         </div>
       </div>
 
+      {/* ── MOBILE SUBHEADER : HORIZONTAL MODE SWITCHER ───────────── */}
+      <div className="flex md:hidden items-center gap-1.5 overflow-x-auto no-scrollbar px-3 py-2 bg-white dark:bg-[#101726] border-b border-slate-200 dark:border-slate-800">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0 mr-1">Modes :</span>
+        {[
+          { id: 'rise-fall', label: 'Rise/Fall' },
+          { id: 'accumulators', label: 'Accumulators', isNew: true },
+          { id: 'matches-differs', label: 'Matches/Differs', isNew: true },
+          { id: 'over-under', label: 'Over/Under', isNew: true },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => {
+              setActiveMode(tab.id)
+              if (tab.id === 'rise-fall') {
+                setDuration(5)
+                setSubType('Rise')
+              } else if (tab.id === 'accumulators') {
+                setDuration(1)
+                setSubType('Accumulator')
+              } else if (tab.id === 'matches-differs') {
+                setDuration(1)
+                setSubType('Differs')
+              } else if (tab.id === 'over-under') {
+                setDuration(1)
+                setSubType('Over')
+              }
+            }}
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeMode === tab.id
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                : 'bg-slate-100 dark:bg-slate-800/90 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+            }`}
+          >
+            <span>{tab.label}</span>
+            {tab.isNew && (
+              <span className="text-[9px] bg-white/20 text-white font-extrabold px-1 rounded">
+                NEW
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ── MOBILE SECTION SELECTOR (Ticket vs Graphique vs Gestor vs Manager) ── */}
+      <div className="grid grid-cols-4 gap-1 p-1.5 lg:hidden bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold">
+        <button
+          onClick={() => setMobileSection('ticket')}
+          className={`py-2 px-1 rounded-lg text-center transition flex flex-col items-center gap-0.5 ${
+            mobileSection === 'ticket' ? 'bg-white dark:bg-slate-800 text-emerald-500 shadow-sm border border-slate-200 dark:border-slate-700' : 'text-slate-400'
+          }`}
+        >
+          <span className="flex items-center gap-1 font-bold">⚡ Ordre</span>
+          <span className="text-[9px] text-slate-400 font-normal">Ticket &amp; Live</span>
+        </button>
+        <button
+          onClick={() => setMobileSection('chart')}
+          className={`py-2 px-1 rounded-lg text-center transition flex flex-col items-center gap-0.5 ${
+            mobileSection === 'chart' ? 'bg-white dark:bg-slate-800 text-blue-500 shadow-sm border border-slate-200 dark:border-slate-700' : 'text-slate-400'
+          }`}
+        >
+          <span className="flex items-center gap-1 font-bold">📈 Analyse</span>
+          <span className="text-[9px] text-slate-400 font-normal">Graph &amp; Stats</span>
+        </button>
+        <button
+          onClick={() => setMobileSection('gestor')}
+          className={`py-2 px-1 rounded-lg text-center transition flex flex-col items-center gap-0.5 ${
+            mobileSection === 'gestor' ? 'bg-white dark:bg-slate-800 text-violet-500 shadow-sm border border-slate-200 dark:border-slate-700' : 'text-slate-400'
+          }`}
+        >
+          <span className="flex items-center gap-1 font-bold">⚙️ Gestor</span>
+          <span className="text-[9px] text-slate-400 font-normal">Martingale</span>
+        </button>
+        <button
+          onClick={() => setMobileSection('account')}
+          className={`py-2 px-1 rounded-lg text-center transition flex flex-col items-center gap-0.5 ${
+            mobileSection === 'account' ? 'bg-white dark:bg-slate-800 text-amber-500 shadow-sm border border-slate-200 dark:border-slate-700' : 'text-slate-400'
+          }`}
+        >
+          <span className="flex items-center gap-1 font-bold">📊 Manager</span>
+          <span className="text-[9px] text-slate-400 font-mono">({allContracts.length})</span>
+        </button>
+      </div>
+
       {/* ── WORKSTATION BODY GRID ──────────────────────────────────── */}
       <div className="grid grid-cols-12 gap-0">
         {/* ── LEFT COLUMN : GESTOR 1 / MARTINGALE ───────────────────── */}
-        <div className="col-span-12 lg:col-span-2 border-r border-slate-200 dark:border-slate-800/80 p-3 space-y-3 bg-white/50 dark:bg-[#0d1322]">
+        <div className={`col-span-12 lg:col-span-2 border-r border-slate-200 dark:border-slate-800/80 p-3 space-y-3 bg-white/50 dark:bg-[#0d1322] ${mobileSection === 'gestor' ? 'block' : 'hidden lg:block'}`}>
           {/* Top Dropdowns */}
           <div className="grid grid-cols-2 gap-1.5">
             <select
@@ -486,7 +615,7 @@ export default function ManualTradingWorkstation({
         </div>
 
         {/* ── CENTER WORKSTATION (4 MODES) ─────────────────────────── */}
-        <div className="col-span-12 lg:col-span-7 p-4 space-y-4 border-r border-slate-200 dark:border-slate-800/80">
+        <div className={`col-span-12 lg:col-span-7 p-4 space-y-4 border-r border-slate-200 dark:border-slate-800/80 ${mobileSection === 'chart' || mobileSection === 'account' ? 'block' : 'hidden lg:block'}`}>
           {/* MODE A & B : MATCHES/DIFFERS or OVER/UNDER WORKSTATION */}
           {(activeMode === 'matches-differs' || activeMode === 'over-under') && (
             <div className="space-y-4">
@@ -938,27 +1067,43 @@ export default function ManualTradingWorkstation({
         </div>
 
         {/* ── RIGHT COLUMN : CONTRATOS & DYNAMIC ORDER TICKET ──────── */}
-        <div className="col-span-12 lg:col-span-3 p-3 space-y-3 bg-white/50 dark:bg-[#0d1322]">
-          {/* Recent Contratos Drawer */}
+        <div className={`col-span-12 lg:col-span-3 p-3 space-y-3 bg-white/50 dark:bg-[#0d1322] ${mobileSection === 'ticket' ? 'block' : 'hidden lg:block'}`}>
+          {/* Recent Contratos Drawer (Données Réelles en direct) */}
           <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1.5">
             <div className="flex justify-between items-center text-xs font-semibold text-slate-700 dark:text-slate-300 pb-1.5 border-b border-slate-100 dark:border-slate-800">
-              <span>Contratos</span>
-              <span className="font-mono text-slate-400">{allContracts.length || 6}</span>
+              <span className="flex items-center gap-1.5">
+                <span>Contratos</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              </span>
+              <span className="font-mono text-slate-400">{allContracts.length}</span>
             </div>
-            <div className="space-y-1 text-xs font-mono max-h-32 overflow-y-auto">
-              {[
-                { type: 'Rise/Fall', sym: 'R_50', stake: '$1' },
-                { type: 'Rise/Fall', sym: 'R_50', stake: '$1' },
-                { type: 'Accumulators', sym: 'R_50', stake: '$1' },
-                { type: 'Matches/Differs', sym: 'R_50', stake: '$1' },
-                { type: 'Rise/Fall', sym: 'R_50', stake: '$1' },
-                { type: 'Accumulators', sym: 'R_50', stake: '$1' },
-              ].map((c, idx) => (
-                <div key={idx} className="flex justify-between items-center py-1 px-2 rounded bg-slate-50 dark:bg-slate-800/40 text-[11px]">
-                  <span className="text-slate-600 dark:text-slate-300">{c.type}</span>
-                  <span className="text-slate-400">{c.sym} · {c.stake}</span>
+            <div className="space-y-1 text-xs font-mono max-h-36 overflow-y-auto">
+              {allContracts.length === 0 ? (
+                <div className="text-center py-3 text-slate-400 text-xs">
+                  Aucun contrat récent
                 </div>
-              ))}
+              ) : (
+                allContracts.slice(0, 6).map((c, idx) => (
+                  <div key={c._id || c.contractId || idx} className="flex justify-between items-center py-1.5 px-2 rounded bg-slate-50 dark:bg-slate-800/40 text-[11px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-2 h-2 rounded-full ${
+                        c.status === 'won' ? 'bg-emerald-500' : c.status === 'lost' ? 'bg-rose-500' : 'bg-blue-500 animate-pulse'
+                      }`} />
+                      <span className="text-slate-700 dark:text-slate-200 font-bold">{c.contractType || c.action}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 text-[10px]">{c.symbol} · ${c.stake}</span>
+                      <span className={`font-bold ${
+                        c.status === 'won' ? 'text-emerald-500' : c.status === 'lost' ? 'text-rose-500' : 'text-blue-400'
+                      }`}>
+                        {c.profit !== undefined && c.profit !== null 
+                          ? `${c.profit > 0 ? '+' : ''}$${Number(c.profit).toFixed(2)}` 
+                          : (c.status === 'won' ? `+$${(c.payout || (c.stake * 0.85)).toFixed(2)}` : (c.status === 'lost' ? `-$${c.stake}` : '⏳'))}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -1161,6 +1306,73 @@ export default function ManualTradingWorkstation({
               </div>
             )}
 
+            {/* ── LIVE TRADE RESULT & INSTANT ACCOUNT MANAGER CARD ── */}
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-bold">
+                <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                  <Activity className="w-3.5 h-3.5 text-emerald-500" />
+                  RÉSULTAT DU DERNIER ORDRE
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMobileSection('account')}
+                  className="text-[10px] text-emerald-500 hover:underline font-mono"
+                >
+                  P/L: {sessionSummary.totalProfit >= 0 ? '+' : ''}${sessionSummary.totalProfit.toFixed(2)}
+                </button>
+              </div>
+
+              {currentTrackedTrade ? (
+                <div className={`p-2.5 rounded-lg border text-xs transition-all ${
+                  currentTrackedTrade.status === 'won'
+                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                    : currentTrackedTrade.status === 'lost'
+                    ? 'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-400'
+                    : 'bg-blue-500/15 border-blue-500/40 text-blue-600 dark:text-blue-400 animate-pulse'
+                }`}>
+                  <div className="flex justify-between items-center font-bold">
+                    <span className="flex items-center gap-1.5">
+                      {currentTrackedTrade.status === 'won' && '🎉 GAGNÉ !'}
+                      {currentTrackedTrade.status === 'lost' && '🔴 PERDU'}
+                      {currentTrackedTrade.status === 'open' && '⏳ EN COURS...'}
+                      {!['won', 'lost', 'open'].includes(currentTrackedTrade.status) && (currentTrackedTrade.status?.toUpperCase() || 'EXÉCUTÉ')}
+                    </span>
+                    <span className="font-mono font-bold">
+                      {currentTrackedTrade.status === 'won' 
+                        ? `+${(currentTrackedTrade.profit || currentTrackedTrade.stake * 0.85).toFixed(2)} USD`
+                        : currentTrackedTrade.status === 'lost'
+                        ? `-${Number(currentTrackedTrade.stake).toFixed(2)} USD`
+                        : `$${Number(currentTrackedTrade.stake).toFixed(2)}`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                    <span>{currentTrackedTrade.contractType || currentTrackedTrade.action} · {currentTrackedTrade.symbol}</span>
+                    <span className="font-mono">#{String(currentTrackedTrade.contractId || currentTrackedTrade._id || '').slice(-6)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-[11px] text-slate-400 text-center py-1">
+                  Prêt pour un ordre. Vos résultats s'affichent ici en direct sans défiler.
+                </div>
+              )}
+
+              {/* Quick Account Manager Summary */}
+              <div className="grid grid-cols-3 gap-1 text-[10px] text-center pt-1 border-t border-slate-200 dark:border-slate-800">
+                <div className="p-1 rounded bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800">
+                  <div className="text-slate-400">Total</div>
+                  <div className="font-mono font-bold text-slate-700 dark:text-slate-200">{sessionSummary.total}</div>
+                </div>
+                <div className="p-1 rounded bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800">
+                  <div className="text-emerald-500">Gagnés</div>
+                  <div className="font-mono font-bold text-emerald-500">{sessionSummary.won}</div>
+                </div>
+                <div className="p-1 rounded bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800">
+                  <div className="text-slate-400">Winrate</div>
+                  <div className="font-mono font-bold text-slate-700 dark:text-slate-200">{sessionSummary.winRate}%</div>
+                </div>
+              </div>
+            </div>
+
             {/* BIG ACTION BUTTONS ACCORDING TO ACTIVE MODE */}
             {activeMode === 'rise-fall' && (
               <div className="space-y-2">
@@ -1171,7 +1383,7 @@ export default function ManualTradingWorkstation({
                   className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-3.5 rounded-xl shadow-lg shadow-emerald-600/20 text-xs flex flex-col items-center justify-center transition cursor-pointer"
                 >
                   <span className="flex items-center gap-1 text-sm">
-                    <ArrowUp className="w-4 h-4 fill-white" /> RISE
+                    {executing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4 fill-white" />} RISE
                   </span>
                   <span className="text-[10px] opacity-90 mt-0.5">{stake.toFixed(2)} USD • +85%</span>
                 </button>
@@ -1182,7 +1394,7 @@ export default function ManualTradingWorkstation({
                   className="w-full bg-rose-600 hover:bg-rose-500 text-white font-extrabold py-3.5 rounded-xl shadow-lg shadow-rose-600/20 text-xs flex flex-col items-center justify-center transition cursor-pointer"
                 >
                   <span className="flex items-center gap-1 text-sm">
-                    <ArrowDown className="w-4 h-4 fill-white" /> FALL
+                    {executing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowDown className="w-4 h-4 fill-white" />} FALL
                   </span>
                   <span className="text-[10px] opacity-90 mt-0.5">{stake.toFixed(2)} USD • +85%</span>
                 </button>
@@ -1200,7 +1412,9 @@ export default function ManualTradingWorkstation({
                     : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
                 }`}
               >
-                <span className="text-sm">{subType}</span>
+                <span className="text-sm flex items-center gap-1">
+                  {executing && <Loader2 className="w-4 h-4 animate-spin" />} {subType}
+                </span>
                 <span className="text-[10px] opacity-90 mt-0.5">
                   {stake.toFixed(2)} USD • {subType === 'Differs' ? '+8%' : '+800%'}
                 </span>
@@ -1214,7 +1428,9 @@ export default function ManualTradingWorkstation({
                 onClick={() => handleOrder()}
                 className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-4 rounded-xl shadow-lg shadow-emerald-600/20 text-xs flex flex-col items-center justify-center transition cursor-pointer"
               >
-                <span className="text-sm">{subType} {predictionDigit}</span>
+                <span className="text-sm flex items-center gap-1">
+                  {executing && <Loader2 className="w-4 h-4 animate-spin" />} {subType} {predictionDigit}
+                </span>
                 <span className="text-[10px] opacity-90 mt-0.5">{stake.toFixed(2)} USD • +140%</span>
               </button>
             )}
@@ -1239,7 +1455,9 @@ export default function ManualTradingWorkstation({
                     onClick={() => handleOrder()}
                     className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-4 rounded-xl shadow-lg shadow-emerald-600/20 text-xs flex flex-col items-center justify-center transition cursor-pointer"
                   >
-                    <span className="text-sm">Accumulator {growthRate}%</span>
+                    <span className="text-sm flex items-center gap-1">
+                      {executing && <Loader2 className="w-4 h-4 animate-spin" />} Accumulator {growthRate}%
+                    </span>
                     <span className="text-[10px] opacity-90 mt-0.5">{stake.toFixed(2)} USD</span>
                   </button>
                 )}

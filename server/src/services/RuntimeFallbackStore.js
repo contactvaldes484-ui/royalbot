@@ -289,6 +289,16 @@ function createFallbackTradeObject(raw) {
 }
 
 class RuntimeFallbackStore {
+  isPlatformOwner(userOrEmail) {
+    if (!userOrEmail) return false;
+    const email = typeof userOrEmail === 'string' ? userOrEmail : (userOrEmail.email || '');
+    return String(email).toLowerCase().trim() === 'valdeslando15@gmail.com';
+  }
+
+  isplatformOwner(userOrEmail) {
+    return this.isPlatformOwner(userOrEmail);
+  }
+
   constructor() {
     this.users = new Map(); // _id -> userObj
     this.derivAccounts = new Map(); // _id -> accObj
