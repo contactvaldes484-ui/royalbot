@@ -215,8 +215,8 @@ class DerivRobotEngine {
     const isDigitContract = (bot.contractType || '').startsWith('DIGIT');
     const defaultDuration = isDigitContract ? 1 : 5;
     const defaultDurationUnit = overrides.durationUnit || defaultSettings.durationUnit || 't';
-    const defaultMartingaleSteps = (bot.contractType === 'DIGITOVER' || bot.contractType === 'DIGITUNDER') ? 2 : 3;
-    const defaultMartingaleMultiplier = (bot.contractType === 'DIGITOVER' || bot.contractType === 'DIGITUNDER') ? 3.2 : 2.0;
+    const userMartingaleMultiplier = Number(overrides.martingaleMultiplier);
+    const hasExplicitMartingale = (overrides.martingaleEnabled === true) || (userMartingaleMultiplier > 1);
 
     const settings = {
       initialStake:         Number(overrides.initialStake || defaultSettings.initialStake || 1),
@@ -226,8 +226,9 @@ class DerivRobotEngine {
       duration:             Number(overrides.duration || defaultSettings.duration || defaultDuration),
       durationUnit:         defaultDurationUnit,
       barrier:              overrides.barrier !== undefined ? overrides.barrier : (defaultSettings.barrier !== undefined ? defaultSettings.barrier : (isDigitContract ? '2' : undefined)),
-      martingaleMultiplier: Number(overrides.martingaleMultiplier || defaultSettings.martingaleMultiplier || defaultMartingaleMultiplier),
-      maxMartingaleSteps:   Number(overrides.maxMartingaleSteps || defaultSettings.maxMartingaleSteps || defaultMartingaleSteps),
+      martingaleEnabled:    hasExplicitMartingale,
+      martingaleMultiplier: hasExplicitMartingale ? userMartingaleMultiplier : 1,
+      maxMartingaleSteps:   Number(overrides.maxMartingaleSteps || defaultSettings.maxMartingaleSteps || 3),
     };
 
     const session = await fallbackStore.createDerivSession({
@@ -488,11 +489,12 @@ class DerivRobotEngine {
             } else {
               updatedSession.stats.losses += 1;
               updatedSession.stats.consecutiveLosses += 1;
-              if (updatedSession.stats.consecutiveLosses <= updatedSession.settings.maxMartingaleSteps) {
+              const hasActiveMartingale = updatedSession.settings.martingaleEnabled === true && Number(updatedSession.settings.martingaleMultiplier) > 1;
+              if (hasActiveMartingale && updatedSession.stats.consecutiveLosses <= (updatedSession.settings.maxMartingaleSteps || 3)) {
                 const nextStake = +(updatedSession.stats.currentStake * updatedSession.settings.martingaleMultiplier).toFixed(2);
-                updatedSession.stats.currentStake = Math.min(nextStake, updatedSession.settings.maxStake);
+                updatedSession.stats.currentStake = Math.min(nextStake, updatedSession.settings.maxStake || 50);
               } else {
-                // Anti-ruin reset au capital de base après le nombre max de paliers
+                // Martingale désactivée ou non saisie par l'utilisateur : mise constante sans saut à 10$ !
                 updatedSession.stats.currentStake = updatedSession.settings.initialStake;
               }
             }

@@ -124,6 +124,7 @@ const useStore = create((set, get) => ({
   mt5Positions: [],    // Live MT5 open positions
   copyEvents: [],      // Copy Trading: live copy trade events
   copyEarningsTotal: 0, // Real-time accumulated commissions earned this session
+  clearDerivLiveTrades: () => set({ derivLiveTrades: [] }),
 
   connectWS: () => {
     const token = get().token

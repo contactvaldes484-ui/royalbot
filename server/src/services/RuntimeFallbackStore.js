@@ -16,7 +16,7 @@ const DEFAULT_BOTS = [
     symbols: ['R_100', 'R_75', 'R_50', 'R_25', 'R_10'],
     strategyType: 'digit_analyzer',
     description: 'Sniper algorithmique 1-tick basé sur l\'épuisement statistique des petits chiffres (rebond Mean Reversion) et le momentum haussier.',
-    defaultSettings: { initialStake: 1, maxStake: 30, stopLoss: 20, takeProfit: 50, duration: 1, durationUnit: 't', barrier: '2', martingaleMultiplier: 3.2, maxMartingaleSteps: 2 },
+    defaultSettings: { initialStake: 1, maxStake: 30, stopLoss: 20, takeProfit: 50, duration: 1, durationUnit: 't', barrier: '2', martingaleEnabled: false, martingaleMultiplier: 1, maxMartingaleSteps: 2 },
     winRate: '78-84%',
     badge: 'Sniper 1-Tick Rentable',
     isActive: true,
@@ -816,6 +816,65 @@ class RuntimeFallbackStore {
       }
     }
     return list.sort((a, b) => new Date(b.openedAt) - new Date(a.openedAt)).slice(0, 100);
+  }
+
+  async deleteTrade(userId, tradeId) {
+    if (this.isDbConnected()) {
+      try {
+        const DerivTrade = require('../models/DerivTrade');
+        const BinanceTrade = require('../models/BinanceTrade');
+        const Trade = require('../models/Trade');
+        await Promise.all([
+          DerivTrade.deleteOne({ _id: tradeId, user: userId }).catch(() => {}),
+          BinanceTrade.deleteOne({ _id: tradeId, user: userId }).catch(() => {}),
+          Trade.deleteOne({ _id: tradeId, user: userId }).catch(() => {}),
+        ]);
+      } catch (_) {}
+    }
+    for (const [key, t] of this.derivTrades.entries()) {
+      if (String(t.user) === String(userId) && (String(t._id) === String(tradeId) || String(t.contractId) === String(tradeId))) {
+        this.derivTrades.delete(key);
+      }
+    }
+    return true;
+  }
+
+  async clearTrades(userId, category = 'all') {
+    if (this.isDbConnected()) {
+      try {
+        const DerivTrade = require('../models/DerivTrade');
+        const BinanceTrade = require('../models/BinanceTrade');
+        const Trade = require('../models/Trade');
+
+        if (category === 'all' || category === 'deriv_manual') {
+          await DerivTrade.deleteMany({ user: userId, ...(category === 'deriv_manual' ? { isManual: true } : {}) }).catch(() => {});
+        }
+        if (category === 'all' || category === 'deriv_robot') {
+          await DerivTrade.deleteMany({ user: userId, ...(category === 'deriv_robot' ? { isManual: false } : {}) }).catch(() => {});
+        }
+        if (category === 'all' || category === 'binance') {
+          await BinanceTrade.deleteMany({ user: userId, ...(category === 'binance' ? { exchange: 'binance' } : {}) }).catch(() => {});
+        }
+        if (category === 'all' || category === 'bybit') {
+          await BinanceTrade.deleteMany({ user: userId, ...(category === 'bybit' ? { exchange: 'bybit' } : {}) }).catch(() => {});
+        }
+        if (category === 'all') {
+          await Trade.deleteMany({ user: userId }).catch(() => {});
+        }
+      } catch (_) {}
+    }
+    for (const [key, t] of this.derivTrades.entries()) {
+      if (String(t.user) === String(userId)) {
+        if (category === 'all') {
+          this.derivTrades.delete(key);
+        } else if (category === 'deriv_manual' && t.isManual) {
+          this.derivTrades.delete(key);
+        } else if (category === 'deriv_robot' && !t.isManual) {
+          this.derivTrades.delete(key);
+        }
+      }
+    }
+    return true;
   }
 
   async getDerivStatsAdmin() {

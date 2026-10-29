@@ -55,6 +55,10 @@ const platformSettingsSchema = new mongoose.Schema({
   derivAppId: { type: String, default: '34HkkJSIK047dAEWEgXML' },
   derivWsUrl: { type: String, default: 'wss://ws.derivws.com/websockets/v3' },
   derivTrialDays: { type: Number, default: 7 }, // 7 days free trial for Deriv robots
+  freeTrialDays: { type: Number, default: 7 }, // 7 days free trial for all robot categories
+  freeTrialEnabled: { type: Boolean, default: true }, // Admin can toggle free trial on/off
+  allRobotsFree: { type: Boolean, default: false }, // Admin can make all robots 100% free without requiring paid subscriptions
+  subscriptionsEnabled: { type: Boolean, default: true }, // Admin can enable/disable paid subscriptions system
 
   // Broker Integration (Legacy)
   brokerSignupUrl: { type: String, default: '' },

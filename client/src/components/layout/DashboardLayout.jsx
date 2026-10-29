@@ -18,26 +18,16 @@ export default function DashboardLayout() {
   if (!isAuthenticated) return <Navigate to="/login" replace />
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
-  const userPlan = (user?.subscription?.plan || '').toLowerCase()
-  const isDerivPlan =
-    userPlan.includes('deriv') ||
-    user?.subscription?.category === 'deriv' ||
-    user?.subscription?.broker === 'deriv' ||
-    localStorage.getItem('deriv_oauth_connected') === 'true' ||
-    Boolean(user?.derivAccount) ||
-    user?.tradingPreferences?.primaryBroker === 'deriv'
-
-  // Si l'utilisateur a choisi un plan Deriv ou est connecté via Deriv, masquer STRICTEMENT Binance & Bybit de tout son dashboard
-  const showBinance = !isDerivPlan
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
+    { icon: Bot, label: 'Robots de Trading', href: '/dashboard/bots', highlight: true },
     { icon: Zap, label: 'Deriv SmartTrader', href: '/dashboard/deriv', highlight: true },
-    showBinance ? { icon: Bitcoin, label: 'Binance & Bybit', href: '/dashboard/binance', highlight: true } : null,
+    { icon: Bitcoin, label: 'Binance & Bybit', href: '/dashboard/binance' },
     { icon: BarChart3, label: 'Analytics', href: '/dashboard/analytics' },
     { icon: History, label: 'Historique', href: '/dashboard/trades' },
-    { icon: MessageCircle, label: 'Groupes', href: '/dashboard/groups', highlight: true },
-    isAdmin ? { icon: Bot, label: 'Gestion Marketplace (Admin)', href: '/admin/bots', highlight: true } : null,
+    { icon: MessageCircle, label: 'Groupes', href: '/dashboard/groups' },
+    isAdmin ? { icon: Bot, label: 'Marketplace (Admin)', href: '/admin/bots', highlight: true } : null,
     { icon: CreditCard, label: 'Mon accès', href: '/dashboard/subscription' },
     { icon: Settings, label: 'Paramètres', href: '/dashboard/settings' },
     { icon: BookOpen, label: 'Guide', href: '/dashboard/guide', highlight: false },

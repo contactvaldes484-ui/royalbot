@@ -55,6 +55,7 @@ export default function DashboardDeriv() {
   const [botStake, setBotStake] = useState(1)
   const [botSL, setBotSL] = useState(20)
   const [botTP, setBotTP] = useState(50)
+  const [useBotMartingale, setUseBotMartingale] = useState(false)
   const [botMartingale, setBotMartingale] = useState(2)
   const [startingBot, setStartingBot] = useState(false)
 
@@ -189,13 +190,18 @@ export default function DashboardDeriv() {
     setBotStake(bot.defaultSettings?.initialStake || 1)
     setBotSL(bot.defaultSettings?.stopLoss || 20)
     setBotTP(bot.defaultSettings?.takeProfit || 50)
-    setBotMartingale(bot.defaultSettings?.martingaleMultiplier || (bot.contractType === 'DIGITOVER' ? 3.2 : 2))
+    setUseBotMartingale(false)
+    setBotMartingale(2)
   }
 
   async function confirmStartBot() {
     if (!selectedAccount || !selectedBotForStart) return
     setStartingBot(true)
     try {
+      // Vider automatiquement le flux en direct avant le démarrage d'une nouvelle session
+      useStore.getState().clearDerivLiveTrades?.()
+      setTrades([])
+
       const res = await derivAPI.startSession({
         accountId: selectedAccount._id,
         botId: selectedBotForStart._id,
@@ -203,7 +209,8 @@ export default function DashboardDeriv() {
           initialStake: Number(botStake),
           stopLoss: Number(botSL),
           takeProfit: Number(botTP),
-          martingaleMultiplier: Number(botMartingale),
+          martingaleEnabled: useBotMartingale,
+          martingaleMultiplier: useBotMartingale ? Number(botMartingale) : 1,
         },
       })
       if (res.data?.success) {
@@ -567,6 +574,19 @@ export default function DashboardDeriv() {
                   >
                     <RefreshCw className="w-3 h-3 mr-1" /> Actualiser
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (window.confirm('Voulez-vous vider le flux des contrats en direct ?')) {
+                        useStore.getState().clearDerivLiveTrades?.()
+                        setTrades([])
+                      }
+                    }}
+                    className="h-7 text-xs border-rose-500/30 text-rose-400 hover:bg-rose-500/10"
+                  >
+                    Vider le flux
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -757,16 +777,37 @@ export default function DashboardDeriv() {
                   />
                 </div>
               </div>
-              <div>
-                <label className="text-xs text-slate-300 font-semibold mb-1 block">Multiplicateur Martingale</label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="1"
-                  value={botMartingale}
-                  onChange={(e) => setBotMartingale(e.target.value)}
-                  className="bg-slate-950 border-slate-700 text-white font-mono"
-                />
+              {/* CONTRÔLE STRICT DE LA MARTINGALE */}
+              <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/70 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-xs text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={useBotMartingale}
+                    onChange={e => setUseBotMartingale(e.target.checked)}
+                    className="rounded accent-emerald-500 w-4 h-4"
+                  />
+                  <span>Activer la Martingale en cas de perte</span>
+                </label>
+                <p className="text-[10px] text-slate-400">
+                  {useBotMartingale
+                    ? 'La mise augmentera uniquement selon le multiplicateur défini ci-dessous.'
+                    : 'Martingale désactivée : la mise reste strictement constante (pas de saut brusque à 10$).'}
+                </p>
+
+                {useBotMartingale && (
+                  <div>
+                    <label className="text-xs text-slate-300 font-semibold mb-1 block">Multiplicateur Martingale</label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="1.1"
+                      max="5"
+                      value={botMartingale}
+                      onChange={(e) => setBotMartingale(e.target.value)}
+                      className="bg-slate-900 border-slate-700 text-white font-mono text-xs"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

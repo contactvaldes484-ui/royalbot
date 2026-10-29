@@ -368,7 +368,9 @@ export default function Landing() {
     subscriptionAPI.getPlans().then(({ data }) => setPlans(data.plans || [])).catch(() => {})
   }, [])
 
-  const sortedPlans = [...plans].sort((a, b) => (a.tier || 0) - (b.tier || 0))
+  const sortedPlans = [...plans]
+    .filter(p => p.category === 'deriv' || p.broker === 'deriv' || p.slug?.startsWith('deriv'))
+    .sort((a, b) => (a.tier || 0) - (b.tier || 0))
 
   const ps = platformSettings || {}
   const heroBadge = ps.heroBadge || '⚡ Pôle d\'Excellence : Robots Deriv SmartTrader & Indices Synthétiques 24/7'
@@ -642,15 +644,15 @@ export default function Landing() {
             initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}
           >
             <motion.div variants={fadeUp}>
-              <Badge variant="outline" className="mb-4 px-3 py-1">
-                <Star className="h-3 w-3 mr-1 text-yellow-500" /> 5 plans pour chaque profil
+              <Badge variant="outline" className="mb-4 px-3 py-1 text-emerald-400 border-emerald-500/30">
+                <Star className="h-3 w-3 mr-1 text-emerald-400" /> Formule Unique Tout-en-Un : Deriv Brokers
               </Badge>
             </motion.div>
             <motion.h2 variants={fadeUp} className="text-3xl md:text-4xl font-bold mb-4">
-              Nos <span className="gradient-text">Plans Robots Crypto Binance</span>
+              Plan Unique <span className="gradient-text">Deriv Brokers &amp; Accès Global</span>
             </motion.h2>
             <motion.p variants={fadeUp} className="text-lg text-muted-foreground max-w-2xl mx-auto mb-6">
-              Du Gratuit à l'Institutionnel — choisissez le plan qui correspond à vos ambitions de trading.
+              Connectez simplement votre compte Deriv et débloquez l'accès à tous les robots de la plateforme (Deriv SmartTrader, Binance Crypto &amp; Bybit Multi-Marchés) avec 7 jours d'essai gratuits ou accès à vie offert via affiliation.
             </motion.p>
 
             <motion.div variants={fadeUp} className="inline-flex items-center gap-1 p-1 rounded-xl bg-background border">

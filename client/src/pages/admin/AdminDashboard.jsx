@@ -40,21 +40,17 @@ export function AdminLayout() {
   const menuItems = [
     { icon: LayoutDashboard, label: 'Vue d\'ensemble', href: '/admin', badge: null },
     { icon: Users,           label: 'Utilisateurs',    href: '/admin/users', badge: null },
-    { icon: CreditCard,      label: 'Abonnements',     href: '/admin/subscriptions', badge: null },
-    { icon: Gift,            label: 'Plans',           href: '/admin/plans', badge: null },
-    { icon: Bot,             label: 'Robots',          href: '/admin/bots', badge: null },
-    { icon: Coins,           label: 'Commandes',       href: '/admin/orders', badge: null },
-    { icon: DollarSign,      label: 'Vendeurs',        href: '/admin/vendors', badge: null },
-    { icon: Wallet,          label: 'Retraits',        href: '/admin/withdrawals', badge: null },
-    { icon: BarChart3,       label: 'Revenus',         href: '/admin/revenue', badge: null },
-    { icon: Shield,          label: 'SÃ©curitÃ©',        href: '/admin/security', badge: null },
-    { icon: Bell,            label: 'Notifications',   href: '/admin/notifications', badge: null },
-    { icon: MessageCircle,    label: 'Groupes',         href: '/admin/groups', badge: null },
-    { icon: Trophy,           label: 'Copy Trading',    href: '/admin/copy-trading', badge: null },
-    { icon: MessageCircle,    label: 'Avis robots',     href: '/admin/reviews', badge: null },
-    { icon: Brain,            label: 'IA Forex',        href: '/admin/forex-ai', badge: null },
-    { icon: Bitcoin,          label: 'Binance & Bybit', href: '/admin/binance', badge: null },
     { icon: Zap,              label: 'Robots Deriv SmartTrader', href: '/admin/deriv', badge: 'Dédié' },
+    { icon: Bitcoin,          label: 'Binance & Bybit', href: '/admin/binance', badge: null },
+    { icon: Bot,             label: 'Marketplace & Robots', href: '/admin/bots', badge: null },
+    { icon: Gift,            label: 'Plans & Tarifs',  href: '/admin/plans', badge: null },
+    { icon: CreditCard,      label: 'Abonnements',     href: '/admin/subscriptions', badge: null },
+    { icon: Coins,           label: 'Commandes',       href: '/admin/orders', badge: null },
+    { icon: BarChart3,       label: 'Revenus',         href: '/admin/revenue', badge: null },
+    { icon: Shield,          label: 'Sécurité',        href: '/admin/security', badge: null },
+    { icon: Bell,            label: 'Notifications',   href: '/admin/notifications', badge: null },
+    { icon: MessageCircle,    label: 'Groupes VIP',     href: '/admin/groups', badge: null },
+    { icon: MessageCircle,    label: 'Avis robots',     href: '/admin/reviews', badge: null },
     { icon: ImageIcon,        label: 'Marketing',       href: '/admin/screenshots', badge: null },
     { icon: Settings,          label: 'Paramètres',      href: '/admin/settings', badge: null },
   ]
@@ -64,9 +60,9 @@ export function AdminLayout() {
     return location.pathname.startsWith(href)
   }
 
-  const SidebarContent = () => (
+  const renderSidebarContent = () => (
     <>
-      <div className="flex h-16 items-center px-5 border-b border-white/10">
+      <div className="flex h-16 items-center px-5 border-b border-white/10 shrink-0">
         <Link to="/admin" className="flex items-center gap-3" onClick={() => setMobileOpen(false)}>
           {pLogo ? (
             <img src={pLogo} alt={pName} className="h-9 w-9 rounded-xl object-cover shadow-lg" />
@@ -81,7 +77,7 @@ export function AdminLayout() {
           </div>
         </Link>
       </div>
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto min-h-0">
         <p className="text-[10px] font-semibold text-violet-300/60 uppercase tracking-widest px-3 mb-2">Menu Principal</p>
         {menuItems.map(item => (
           <Link
@@ -100,22 +96,27 @@ export function AdminLayout() {
               <item.icon className={`h-4 w-4 ${isActive(item.href) ? 'text-white' : ''}`} />
             </div>
             <span>{item.label}</span>
-            {isActive(item.href) && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />}
+            {item.badge && (
+              <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-bold">
+                {item.badge}
+              </span>
+            )}
+            {isActive(item.href) && !item.badge && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />}
           </Link>
         ))}
       </nav>
-      <div className="px-3 pb-4 space-y-1 border-t border-white/10 pt-3">
+      <div className="px-3 pb-4 space-y-1 border-t border-white/10 pt-3 shrink-0">
         <button onClick={toggleTheme} className="flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-violet-200/70 hover:bg-white/5 hover:text-white transition-all">
           <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
             {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </div>
-          ThÃ¨me
+          Thème
         </button>
         <button onClick={logout} className="flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-red-400/80 hover:bg-red-500/10 hover:text-red-400 transition-all">
           <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
             <LogOut className="h-4 w-4" />
           </div>
-          DÃ©connexion
+          Déconnexion
         </button>
       </div>
     </>
@@ -124,16 +125,16 @@ export function AdminLayout() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop Sidebar */}
-      <aside className="w-72 flex-col bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950 hidden md:flex">
-        <SidebarContent />
+      <aside className="w-72 flex-col bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950 hidden md:flex h-full">
+        {renderSidebarContent()}
       </aside>
 
       {/* Mobile overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <aside className="absolute left-0 top-0 bottom-0 w-72 flex flex-col bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950 shadow-2xl">
-            <SidebarContent />
+          <aside className="absolute left-0 top-0 bottom-0 w-72 flex flex-col bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950 shadow-2xl h-full">
+            {renderSidebarContent()}
           </aside>
         </div>
       )}
@@ -2424,6 +2425,12 @@ export function AdminSettings() {
     derivWsUrl: 'wss://ws.derivws.com/websockets/v3',
     derivTrialDays: 7,
     derivReferralLink: '',
+    binanceReferralLink: '',
+    bybitReferralLink: '',
+    freeTrialDays: 7,
+    freeTrialEnabled: true,
+    allRobotsFree: false,
+    subscriptionsEnabled: true,
   })
   const [showSecrets, setShowSecrets] = useState({})
   const toggleSecret = (field) => setShowSecrets(prev => ({ ...prev, [field]: !prev[field] }))
@@ -2476,6 +2483,12 @@ export function AdminSettings() {
             derivWsUrl: s.derivWsUrl || 'wss://ws.derivws.com/websockets/v3',
             derivTrialDays: s.derivTrialDays !== undefined ? s.derivTrialDays : 7,
             derivReferralLink: s.derivReferralLink || '',
+            binanceReferralLink: s.binanceReferralLink || '',
+            bybitReferralLink: s.bybitReferralLink || '',
+            freeTrialDays: s.freeTrialDays !== undefined ? s.freeTrialDays : 7,
+            freeTrialEnabled: s.freeTrialEnabled !== undefined ? s.freeTrialEnabled : true,
+            allRobotsFree: s.allRobotsFree !== undefined ? s.allRobotsFree : false,
+            subscriptionsEnabled: s.subscriptionsEnabled !== undefined ? s.subscriptionsEnabled : true,
           })
         }
       } catch (err) {
@@ -3125,36 +3138,126 @@ export function AdminSettings() {
                   </p>
                 </div>
 
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">Nombre de jours d'essai gratuit Deriv</label>
-                  <Input type="number" min="1" max="90" value={form.derivTrialDays} onChange={e => update('derivTrialDays', parseInt(e.target.value, 10) || 7)}
-                    placeholder="7" className="font-mono text-xs" />
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Durée d'accès gratuit offerte aux nouveaux utilisateurs (défaut : 7 jours).
-                  </p>
+                {/* Free Trial & Subscription Global Controls */}
+                <div className="p-4 rounded-xl bg-slate-950/60 border border-violet-500/30 space-y-4">
+                  <h4 className="text-sm font-bold text-violet-300">Gestion de la Période d'Essai &amp; Abonnements</h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">Durée de l'essai gratuit (jours)</label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="90"
+                        value={form.freeTrialDays}
+                        onChange={e => {
+                          const val = parseInt(e.target.value, 10) || 7
+                          update('freeTrialDays', val)
+                          update('derivTrialDays', val)
+                        }}
+                        className="font-mono text-xs"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Appliqué aux robots Deriv SmartTrader, Binance et Bybit (défaut : 7 jours).
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold">
+                        <input
+                          type="checkbox"
+                          checked={form.freeTrialEnabled}
+                          onChange={e => update('freeTrialEnabled', e.target.checked)}
+                          className="rounded accent-emerald-500 w-4 h-4"
+                        />
+                        <span>Période d'essai gratuit active</span>
+                      </label>
+                      <p className="text-[10px] text-muted-foreground -mt-1 ml-6">
+                        Si décoché, l'essai gratuit est désactivé et l'utilisateur doit souscrire ou utiliser votre lien affilié dès le début.
+                      </p>
+
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-emerald-400">
+                        <input
+                          type="checkbox"
+                          checked={form.allRobotsFree}
+                          onChange={e => update('allRobotsFree', e.target.checked)}
+                          className="rounded accent-emerald-500 w-4 h-4"
+                        />
+                        <span>Rendre tous les robots 100% gratuits (Aucun abonnement requis)</span>
+                      </label>
+                      <p className="text-[10px] text-muted-foreground -mt-1 ml-6">
+                        Permet de mettre temporairement ou définitivement tous les robots en libre accès.
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-sm font-medium">Lien de Parrainage & Affiliation Deriv (Inscription des Nouveaux Utilisateurs)</label>
-                    {form.derivReferralLink && (
-                      <a
-                        href={form.derivReferralLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-emerald-500 hover:underline flex items-center gap-1"
-                      >
-                        Tester le lien ↗
-                      </a>
-                    )}
+                {/* Referral links */}
+                <div className="space-y-4 pt-2">
+                  <h4 className="text-sm font-bold text-cyan-300">Liens de Parrainage Officiels (Inscription Membres)</h4>
+
+                  {/* Deriv Link */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-sm font-medium">Lien Partenaire Deriv</label>
+                      {form.derivReferralLink && (
+                        <a href={form.derivReferralLink} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-500 hover:underline flex items-center gap-1 font-semibold">
+                          Tester le lien ↗
+                        </a>
+                      )}
+                    </div>
+                    <Input
+                      value={form.derivReferralLink}
+                      onChange={e => update('derivReferralLink', e.target.value)}
+                      placeholder="https://track.deriv.com/_..."
+                      className="font-mono text-xs"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Lien utilisé pour l'inscription Deriv gratuite à vie.
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Input value={form.derivReferralLink} onChange={e => update('derivReferralLink', e.target.value)}
-                      placeholder="https://track.deriv.com/_..." className="font-mono text-xs flex-1" />
+
+                  {/* Binance Link */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-sm font-medium">Lien Partenaire Binance</label>
+                      {form.binanceReferralLink && (
+                        <a href={form.binanceReferralLink} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-500 hover:underline flex items-center gap-1 font-semibold">
+                          Tester le lien ↗
+                        </a>
+                      )}
+                    </div>
+                    <Input
+                      value={form.binanceReferralLink}
+                      onChange={e => update('binanceReferralLink', e.target.value)}
+                      placeholder="https://accounts.binance.com/register?ref=..."
+                      className="font-mono text-xs"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Lien d'affiliation Binance pour rattacher les utilisateurs à votre compte partenaire.
+                    </p>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Ce lien est automatiquement affiché sur la page de Connexion et d'Inscription ("S'inscrire sur Deriv") pour rattacher chaque nouvel inscrit à votre compte partenaire.
-                  </p>
+
+                  {/* Bybit Link */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-sm font-medium">Lien Partenaire Bybit</label>
+                      {form.bybitReferralLink && (
+                        <a href={form.bybitReferralLink} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-500 hover:underline flex items-center gap-1 font-semibold">
+                          Tester le lien ↗
+                        </a>
+                      )}
+                    </div>
+                    <Input
+                      value={form.bybitReferralLink}
+                      onChange={e => update('bybitReferralLink', e.target.value)}
+                      placeholder="https://partner.bybit.com/b/..."
+                      className="font-mono text-xs"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Lien d'affiliation Bybit pour rattacher les utilisateurs à votre compte partenaire.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

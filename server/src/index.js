@@ -414,7 +414,7 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 6000 })
             symbols: ['R_100', 'R_75', 'R_50', 'R_25', 'R_10'],
             strategyType: 'digit_analyzer',
             description: 'Sniper algorithmique 1-tick basé sur l\'épuisement statistique des petits chiffres (rebond Mean Reversion) et le momentum haussier.',
-            defaultSettings: { initialStake: 1, maxStake: 30, stopLoss: 20, takeProfit: 50, duration: 1, durationUnit: 't', barrier: '2', martingaleMultiplier: 3.2, maxMartingaleSteps: 2 },
+            defaultSettings: { initialStake: 1, maxStake: 30, stopLoss: 20, takeProfit: 50, duration: 1, durationUnit: 't', barrier: '2', martingaleEnabled: false, martingaleMultiplier: 1, maxMartingaleSteps: 2 },
             winRate: '78-84%',
             badge: 'Sniper 1-Tick Rentable',
             order: 1,

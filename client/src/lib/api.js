@@ -117,6 +117,8 @@ export const tradeAPI = {
   getAll: (params) => api.get('/trades', { params }),
   getById: (id) => api.get(`/trades/${id}`),
   getStats: (params) => api.get('/trades/stats/summary', { params }),
+  deleteTrade: (id) => api.delete(`/trades/${id}`),
+  clearTrades: (params) => api.delete('/trades', { params }),
 }
 
 // Subscriptions

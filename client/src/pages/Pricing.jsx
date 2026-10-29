@@ -37,9 +37,12 @@ function PlanCard({ plan, billingCycle, currentPlanSlug, onSelect, settings }) {
     ? settings?.derivReferralLink
     : settings?.binanceReferralLink || settings?.bybitReferralLink
 
-  const isPlanDisabled = plan.isActive === false
+  const isAllFree = Boolean(settings?.allRobotsFree)
+  const isPlanDisabled = plan.isActive === false || (settings?.subscriptionsEnabled === false && !isAllFree && !isFree)
   const canUseReferral = !isPlanDisabled && plan.referralEligible !== false && Boolean(referralLink)
-  const canUsePaid = !isPlanDisabled && plan.allowPaidSubscription !== false
+  const canUsePaid = !isPlanDisabled && plan.allowPaidSubscription !== false && settings?.subscriptionsEnabled !== false
+  const trialDays = settings?.freeTrialDays ?? (settings?.derivTrialDays || 7)
+  const trialEnabled = settings?.freeTrialEnabled !== false
 
   return (
     <motion.div variants={fadeUp} className="h-full">
@@ -67,9 +70,14 @@ function PlanCard({ plan, billingCycle, currentPlanSlug, onSelect, settings }) {
             <div className={`inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${plan.color || 'from-slate-500 to-slate-600'}`}>
               <Icon className="h-6 w-6 text-white" />
             </div>
-            {isDeriv && !isPlanDisabled && (
+            {trialEnabled && trialDays > 0 && !isPlanDisabled && (
               <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-[10px] flex items-center gap-1">
-                <Clock className="w-3 h-3" /> 7J Essai Offert
+                <Clock className="w-3 h-3" /> {trialDays}J Essai Offert
+              </Badge>
+            )}
+            {isAllFree && (
+              <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-[10px] flex items-center gap-1">
+                <Sparkles className="w-3 h-3" /> 100% Gratuit
               </Badge>
             )}
           </div>
@@ -79,14 +87,14 @@ function PlanCard({ plan, billingCycle, currentPlanSlug, onSelect, settings }) {
 
           <div className="mb-5">
             <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-bold">{formatPrice(price)}</span>
-              {price > 0 && (
+              <span className="text-4xl font-bold">{isAllFree ? 'Gratuit' : formatPrice(price)}</span>
+              {!isAllFree && price > 0 && (
                 <span className="text-sm text-muted-foreground">
                   / {billingCycle === 'yearly' ? 'an' : 'mois'}
                 </span>
               )}
             </div>
-            {monthlyEquivalent && (
+            {!isAllFree && monthlyEquivalent && (
               <p className="text-xs text-muted-foreground mt-1">
                 ≈ ${monthlyEquivalent}/mois — économisez {Math.round((1 - plan.priceYearly / (plan.priceMonthly * 12)) * 100)}%
               </p>
@@ -150,7 +158,7 @@ function PlanCard({ plan, billingCycle, currentPlanSlug, onSelect, settings }) {
 export default function Pricing() {
   const navigate = useNavigate()
   const { user, isAuthenticated } = useStore()
-  const [selectedCategory, setSelectedCategory] = useState('crypto') // 'crypto' | 'deriv'
+  const [selectedCategory, setSelectedCategory] = useState('deriv') // 'deriv' par défaut pour le plan tout-en-un
   const [plans, setPlans] = useState([])
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -195,38 +203,36 @@ export default function Pricing() {
     navigate(`/dashboard/subscription?plan=${plan.slug}&cycle=${billingCycle}`)
   }
 
+  const isAllFree = Boolean(settings?.allRobotsFree)
+
   return (
     <div className="min-h-screen py-20">
-      <SEO title="Tarifs & Plans" path="/pricing" description="Choisissez votre formule de trading sur Binance, Bybit ou Deriv. Gratuit via parrainage ou abonnement flexible." />
+      <SEO title="Tarifs & Plans" path="/pricing" description="Choisissez votre formule de trading sur Deriv, Binance et Bybit. Gratuit via parrainage ou abonnement flexible." />
 
       <div className="container mx-auto px-4">
         <motion.div className="text-center max-w-3xl mx-auto mb-10" initial="hidden" animate="visible" variants={stagger}>
           <motion.div variants={fadeUp}>
             <Badge variant="outline" className="mb-4 px-3 py-1 text-emerald-400 border-emerald-500/40">
-              <Sparkles className="h-3 w-3 mr-1" /> Double Formule : Partenaire ou Abonnement
+              <Sparkles className="h-3 w-3 mr-1" /> Formule Tout-en-Un : Deriv, Binance & Bybit
             </Badge>
           </motion.div>
           <motion.h1 variants={fadeUp} className="text-4xl md:text-5xl font-black mb-4">
-            Choisissez votre <span className="gradient-text">univers de trading</span>
+            Un abonnement unique pour <span className="gradient-text">tous vos robots</span>
           </motion.h1>
           <motion.p variants={fadeUp} className="text-base text-muted-foreground mb-6">
-            Activez gratuitement vos robots à vie en créant votre compte via nos liens partenaires, ou optez pour un abonnement mensuel sans engagement.
+            Connectez votre compte Deriv pour trader 24/7 sur les indices synthétiques, ou liez vos clés API Binance & Bybit. Bénéficiez de 7 jours d'essai offerts ou débloquez l'accès à vie via notre lien partenaire.
           </motion.p>
 
-          {/* SÉLECTEUR DE CATÉGORIE : CRYPTO VS DERIV */}
+          {isAllFree && (
+            <motion.div variants={fadeUp} className="mb-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm font-semibold max-w-xl mx-auto flex items-center justify-center gap-2">
+              <Sparkles className="w-5 h-5" />
+              Offre Spéciale : Tous les robots sont 100% gratuits actuellement !
+            </motion.div>
+          )}
+
+          {/* SÉLECTEUR DE FORMULE */}
           <motion.div variants={fadeUp} className="flex justify-center mb-6">
             <div className="inline-flex p-1.5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl">
-              <button
-                onClick={() => setSelectedCategory('crypto')}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition ${
-                  selectedCategory === 'crypto'
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <TrendingUp className="w-4 h-4" />
-                Binance & Bybit (Crypto/Forex)
-              </button>
               <button
                 onClick={() => setSelectedCategory('deriv')}
                 className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition ${
@@ -236,7 +242,18 @@ export default function Pricing() {
                 }`}
               >
                 <Zap className="w-4 h-4" />
-                Deriv (SmartTrader & Synthétiques)
+                Plan Deriv Brokers (Tout-en-Un)
+              </button>
+              <button
+                onClick={() => setSelectedCategory('crypto')}
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition ${
+                  selectedCategory === 'crypto'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <TrendingUp className="w-4 h-4" />
+                Options Dédiées Binance / Bybit
               </button>
             </div>
           </motion.div>
