@@ -18,11 +18,10 @@ export default function Navbar() {
 
   const navLinks = [
     { label: 'Accueil', href: '/' },
-    { label: 'Robots', href: '/robots' },
+    { label: 'Robots Deriv & Crypto', href: '/robots' },
     { label: 'Marchés', href: '/markets' },
-    { label: 'Tarifs', href: '/pricing' },
+    { label: 'Tarifs & Essai 7j', href: '/pricing' },
     { label: 'Leaderboard', href: '/leaderboard' },
-    { label: 'Copy Trading', href: '/copy-trading' },
     { label: 'Blog', href: '/blog' },
     { label: 'FAQ', href: '/faq' },
     { label: 'Contact', href: '/contact' },

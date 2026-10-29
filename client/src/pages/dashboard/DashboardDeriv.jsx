@@ -7,6 +7,7 @@ import { Badge } from '../../components/ui/badge'
 import { derivAPI, settingsAPI } from '../../lib/api'
 import { startDerivOAuth } from '../../lib/derivOAuth'
 import useStore from '../../store/useStore'
+import ManualTradingWorkstation from '../../components/deriv/ManualTradingWorkstation'
 import {
   TrendingUp, TrendingDown, Bot, Play, Square, Pause, ShieldCheck,
   AlertTriangle, RefreshCw, Key, ExternalLink, Activity, Sparkles, CheckCircle2,
@@ -150,27 +151,31 @@ export default function DashboardDeriv() {
     }
   }
 
-  async function handleExecuteManualTrade(side = null) {
-    if (!selectedAccount) return alert('Veuillez d\'abord connecter un compte Deriv.')
+  async function handleExecuteManualTrade(tradeParams = {}) {
+    if (!selectedAccount) throw new Error('Veuillez d\'abord connecter un compte Deriv.')
     setExecutingTrade(true)
     setTradeMessage('')
     try {
-      const type = side || contractType
+      const type = tradeParams.contractType || contractType
       const res = await derivAPI.manualTrade({
         accountId: selectedAccount._id,
-        symbol: selectedSymbol,
+        symbol: tradeParams.symbol || selectedSymbol,
         contractType: type,
-        amount: Number(stake),
-        duration: Number(duration),
-        durationUnit: 't',
-        barrier: type.startsWith('DIGIT') ? barrier : undefined,
+        amount: Number(tradeParams.amount !== undefined ? tradeParams.amount : stake),
+        duration: Number(tradeParams.duration !== undefined ? tradeParams.duration : duration),
+        durationUnit: tradeParams.durationUnit || 't',
+        barrier: tradeParams.barrier !== undefined ? tradeParams.barrier : (type.startsWith('DIGIT') ? barrier : undefined),
       })
       if (res.data?.success) {
         setTradeMessage(`Contrat #${res.data.trade?.contractId} acheté avec succès ! En attente du résultat...`)
-        setTimeout(loadSessionsAndTrades, 4000)
+        setTimeout(loadSessionsAndTrades, 2500)
+        return res.data
       }
+      throw new Error(res.data?.error || 'Achat de contrat échoué')
     } catch (err) {
-      alert(err.response?.data?.error || err.message)
+      const msg = err.response?.data?.error || err.message
+      alert(msg)
+      throw new Error(msg)
     } finally {
       setExecutingTrade(false)
     }
@@ -460,255 +465,16 @@ export default function DashboardDeriv() {
         </button>
       </div>
 
-      {/* ── CONTENU ONGLET 1 : TRADING MANUEL SMARTTRADER ──────────────── */}
+      {/* ── CONTENU ONGLET 1 : TRADING MANUEL SMARTTRADER (4 MODES DYNAMIQUES) ──── */}
       {activeTab === 'manual' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Panneau Graphique & Live Ticks */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card className="bg-slate-900/80 border-slate-800 shadow-xl">
-              <CardHeader className="flex flex-row items-center justify-between pb-3">
-                <div>
-                  <CardTitle className="text-lg text-white flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-emerald-400" />
-                    Graphique SmartTrader en Direct
-                  </CardTitle>
-                  <CardDescription className="text-xs text-slate-400">
-                    Flux de prix officiel Deriv WebSocket ({selectedSymbol})
-                  </CardDescription>
-                </div>
-                <select
-                  value={selectedSymbol}
-                  onChange={(e) => setSelectedSymbol(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 text-white text-xs rounded-xl px-3 py-2"
-                >
-                  {symbols.map(s => (
-                    <option key={s.symbol} value={s.symbol}>{s.display_name}</option>
-                  ))}
-                </select>
-              </CardHeader>
-              <CardContent>
-                {/* Visualiseur de Graphique Ticks */}
-                <div className="h-64 w-full bg-slate-950 rounded-xl border border-slate-800/80 p-4 flex flex-col justify-between relative overflow-hidden">
-                  <div className="flex justify-between items-center text-xs text-slate-400 border-b border-slate-900 pb-2">
-                    <span className="font-mono text-emerald-400 font-bold">{selectedSymbol}</span>
-                    <span className="flex items-center gap-1 text-emerald-400">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                      Live Feed
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-center my-auto">
-                    <div className="text-center">
-                      <div className="text-4xl font-mono font-black text-white tracking-wider">
-                        {selectedSymbol === 'R_100' ? '1,428.65' : '842.10'}
-                      </div>
-                      <div className="text-xs text-emerald-400 font-mono mt-1 font-semibold">
-                        ▲ +0.48% (Dernier tick officiel)
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-10 gap-1 pt-2 border-t border-slate-900">
-                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(d => (
-                      <div
-                        key={d}
-                        className={`text-center py-1 rounded text-[11px] font-mono font-bold ${
-                          String(d) === barrier ? 'bg-emerald-500 text-black' : 'bg-slate-900 text-slate-400'
-                        }`}
-                      >
-                        {d}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Historique des ordres récents */}
-            <Card className="bg-slate-900/80 border-slate-800">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base text-white">Contrats Récents Exécutés</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left">
-                    <thead className="text-slate-400 border-b border-slate-800">
-                      <tr>
-                        <th className="pb-2">Contrat #</th>
-                        <th className="pb-2">Symbole</th>
-                        <th className="pb-2">Type</th>
-                        <th className="pb-2">Mise</th>
-                        <th className="pb-2">Statut</th>
-                        <th className="pb-2">Profit</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/60 font-mono">
-                      {trades.slice(0, 5).map(t => (
-                        <tr key={t._id}>
-                          <td className="py-2.5 text-slate-300">#{t.contractId?.slice(-6)}</td>
-                          <td className="py-2.5 font-bold text-white">{t.symbol}</td>
-                          <td className="py-2.5 text-slate-300">{t.contractType}</td>
-                          <td className="py-2.5">${t.stake}</td>
-                          <td className="py-2.5">
-                            <Badge className={t.status === 'won' ? 'bg-emerald-500/20 text-emerald-300' : t.status === 'lost' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-700'}>
-                              {t.status?.toUpperCase()}
-                            </Badge>
-                          </td>
-                          <td className={`py-2.5 font-bold ${t.profit > 0 ? 'text-emerald-400' : t.profit < 0 ? 'text-rose-400' : 'text-slate-300'}`}>
-                            {t.profit ? `${t.profit > 0 ? '+' : ''}$${t.profit.toFixed(2)}` : 'En cours'}
-                          </td>
-                        </tr>
-                      ))}
-                      {trades.length === 0 && (
-                        <tr>
-                          <td colSpan="6" className="py-6 text-center text-slate-500">
-                            Aucun trade exécuté pour le moment.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Formulaire de Passation d'Ordres SmartTrader */}
-          <div className="space-y-6">
-            <Card className="bg-slate-900/80 border-slate-800 shadow-xl">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg text-white">Passation d'Ordre Direct</CardTitle>
-                <CardDescription className="text-xs text-slate-400">
-                  Sélectionnez le type de contrat et vos paramètres
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 mb-1 block">Type de Contrat</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setContractType('DIGITOVER')}
-                      className={`p-2.5 rounded-xl text-xs font-bold border transition ${
-                        contractType === 'DIGITOVER'
-                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
-                          : 'border-slate-800 bg-slate-950 text-slate-400'
-                      }`}
-                    >
-                      Digit Over
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setContractType('DIGITUNDER')}
-                      className={`p-2.5 rounded-xl text-xs font-bold border transition ${
-                        contractType === 'DIGITUNDER'
-                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
-                          : 'border-slate-800 bg-slate-950 text-slate-400'
-                      }`}
-                    >
-                      Digit Under
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setContractType('CALL')}
-                      className={`p-2.5 rounded-xl text-xs font-bold border transition ${
-                        contractType === 'CALL'
-                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
-                          : 'border-slate-800 bg-slate-950 text-slate-400'
-                      }`}
-                    >
-                      Rise / Hausse
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setContractType('PUT')}
-                      className={`p-2.5 rounded-xl text-xs font-bold border transition ${
-                        contractType === 'PUT'
-                          ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
-                          : 'border-slate-800 bg-slate-950 text-slate-400'
-                      }`}
-                    >
-                      Fall / Baisse
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 mb-1 block">Mise (Stake $)</label>
-                    <Input
-                      type="number"
-                      step="0.5"
-                      min="0.35"
-                      value={stake}
-                      onChange={(e) => setStake(e.target.value)}
-                      className="bg-slate-950 border-slate-700 text-white font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 mb-1 block">Durée (Ticks)</label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={duration}
-                      onChange={(e) => setDuration(e.target.value)}
-                      className="bg-slate-950 border-slate-700 text-white font-mono"
-                    />
-                  </div>
-                </div>
-
-                {contractType.startsWith('DIGIT') && (
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 mb-1 block">Dernier Chiffre (Barrière)</label>
-                    <div className="grid grid-cols-5 gap-1.5">
-                      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(d => (
-                        <button
-                          key={d}
-                          type="button"
-                          onClick={() => setBarrier(String(d))}
-                          className={`py-2 rounded-lg text-xs font-mono font-bold transition ${
-                            barrier === String(d)
-                              ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'
-                              : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
-                          }`}
-                        >
-                          {d}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 flex justify-between items-center text-xs">
-                  <span className="text-slate-400">Gain Potentiel Estimé</span>
-                  <span className="text-emerald-400 font-bold font-mono text-sm">
-                    +${(stake * 0.95).toFixed(2)} USD
-                  </span>
-                </div>
-
-                {tradeMessage && (
-                  <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/30 text-xs text-emerald-300">
-                    {tradeMessage}
-                  </div>
-                )}
-
-                <Button
-                  onClick={() => handleExecuteManualTrade()}
-                  disabled={executingTrade || !selectedAccount}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-6 rounded-xl shadow-lg shadow-emerald-600/20 text-sm"
-                >
-                  {executingTrade ? (
-                    <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-                  ) : (
-                    <Zap className="w-5 h-5 mr-2" />
-                  )}
-                  {executingTrade ? 'Exécution en cours...' : `Acheter Contrat (${contractType})`}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        <ManualTradingWorkstation
+          selectedAccount={selectedAccount}
+          symbols={symbols}
+          onExecuteTrade={handleExecuteManualTrade}
+          trades={trades}
+          derivLiveTrades={derivLiveTrades}
+          onRefreshData={() => loadData(true)}
+        />
       )}
 
       {/* ── CONTENU ONGLET 2 : ROBOTS AUTOMATIQUES DERIV ───────────────── */}

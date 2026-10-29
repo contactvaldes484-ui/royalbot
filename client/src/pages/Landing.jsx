@@ -371,10 +371,10 @@ export default function Landing() {
   const sortedPlans = [...plans].sort((a, b) => (a.tier || 0) - (b.tier || 0))
 
   const ps = platformSettings || {}
-  const heroBadge = ps.heroBadge || 'Plateforme Multi-Marchés : Binance, Bybit & Deriv'
-  const heroTitle = ps.heroTitle || 'Le Trading Automatisé & Manuel Réinventé : Binance, Bybit & Deriv'
-  const heroHighlight = ps.heroHighlight || 'Binance, Bybit & Deriv'
-  const heroSubtitle = ps.heroSubtitle || 'La seule plateforme qui combine robots crypto Binance & Bybit (avec le Forex), trading manuel SmartTrader en direct, et robots illimités sur Deriv. 7 Jours d\'essai gratuit offerts sur Deriv !'
+  const heroBadge = ps.heroBadge || '⚡ Pôle d\'Excellence : Robots Deriv SmartTrader & Indices Synthétiques 24/7'
+  const heroTitle = ps.heroTitle || 'Trading Automatisé Deriv : Robots Haute Performance 24/7'
+  const heroHighlight = ps.heroHighlight || 'Robots Haute Performance 24/7'
+  const heroSubtitle = ps.heroSubtitle || 'Déployez les robots Deriv les plus rentables (Digit Over 2 Sniper, Differ Hunter, Quantum Parité) et tradez sur les indices synthétiques avec notre terminal manuel complet (Rise/Fall, Accumulators, Matches/Differs, Over/Under). 7 jours d\'essai 100% gratuits ! Compatible également Binance & Bybit.'
 
   const defaultStats = [
     { value: '10000', label: 'Traders actifs', suffix: '+', prefix: '' },
@@ -385,14 +385,14 @@ export default function Landing() {
   const stats = (ps.stats && ps.stats.length > 0) ? ps.stats : defaultStats
 
   const features = [
-    { icon: Bot, title: 'Trading Automatisé', desc: 'Exécution automatique de trades crypto sur Binance 24/7.' },
+    { icon: Bot, title: 'Trading Automatisé Deriv & Crypto', desc: 'Exécution d\'algorithmes haute fréquence sur indices synthétiques et crypto 24/7.' },
     { icon: BarChart3, title: 'Analytics Avancés', desc: 'Dashboard complet avec equity curve, win rate et stats par contrat.' },
-    { icon: Shield, title: 'Risk Management', desc: 'Stop loss, take profit, anti-loss protection et pause drawdown.' },
-    { icon: Users, title: 'Copy Trading', desc: 'Copiez les meilleurs traders de la plateforme automatiquement.' },
-    { icon: Globe, title: 'Multi Cryptos', desc: 'BTC, ETH, BNB, SOL, XRP… toutes les paires USDT sur Binance.' },
-    { icon: Lock, title: 'Sécurité Maximale', desc: 'JWT Auth, 2FA, encryption des tokens, rate limiting.' },
-    { icon: Clock, title: 'Temps Réel', desc: 'WebSocket pour les ticks, trades et notifications en temps réel.' },
-    { icon: Smartphone, title: 'Mobile First', desc: 'Interface responsive optimisée pour mobile et desktop.' },
+    { icon: Shield, title: 'Risk Management', desc: 'Stop loss, take profit, anti-loss protection et gestion Martingale intelligente.' },
+    { icon: Zap, title: 'Deriv SmartTrader Pro', desc: 'Terminal manuel Rise/Fall, Accumulators, Matches/Differs et Over/Under.' },
+    { icon: Globe, title: 'Multi Marchés 24/7', desc: 'Volatility 100/75/50, Boom & Crash, Step Index, et cryptos Binance.' },
+    { icon: Lock, title: 'Sécurité Maximale', desc: 'OAuth 2.0 officiel Deriv, JWT Auth, encryption AES-256, zéro retrait tiers.' },
+    { icon: Clock, title: 'Temps Réel & Live Ticks', desc: 'Flux WebSocket direct pour les ticks, contrats et notifications en direct.' },
+    { icon: Smartphone, title: 'Mobile First', desc: 'Interface responsive optimisée pour smartphone, tablette et desktop.' },
   ]
 
   const jsonLd = {
@@ -449,18 +449,19 @@ export default function Landing() {
               </motion.p>
               
               <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-4">
-                <Button variant="gradient" size="xl" asChild>
-                  <Link to="/robots">
-                    Commencer gratuitement <ArrowRight className="ml-2 h-4 w-4" />
+                <Button size="xl" className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-600/30 text-base" asChild>
+                  <Link to="/dashboard/deriv">
+                    <Zap className="mr-2 h-5 w-5" /> Lancer un Robot Deriv (Essai 7j)
                   </Link>
                 </Button>
                 <Button variant="outline" size="xl" asChild>
-                  <Link to="/robots">Voir les robots</Link>
+                  <Link to="/robots">Découvrir les Stratégies Deriv</Link>
                 </Button>
               </motion.div>
 
-              <motion.p variants={fadeUp} className="mt-4 text-sm text-muted-foreground">
-                100% gratuit. Tous les robots sont accessibles sans paiement.
+              <motion.p variants={fadeUp} className="mt-4 text-sm text-slate-400 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span>Indices synthétiques actifs 24h/24 & 7j/7 sans interruption de week-end.</span>
               </motion.p>
             </motion.div>
 
@@ -512,14 +513,62 @@ export default function Landing() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {/* CARTE 1 : BINANCE */}
+            {/* CARTE 1 : DERIV EN AVANT (#1 RECOMMANDÉ) */}
+            <div className="p-8 rounded-3xl bg-slate-900/95 border-2 border-emerald-500 hover:border-emerald-400 transition-all shadow-2xl shadow-emerald-500/20 flex flex-col justify-between group hover:scale-[1.03] relative overflow-hidden ring-1 ring-emerald-500/50">
+              <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[10px] font-black px-4 py-1.5 rounded-bl-xl uppercase tracking-wider">
+                Recommandé #1 · 7 Jours Gratuits
+              </div>
+              <div>
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mb-6">
+                  <span className="text-2xl font-black text-emerald-400">DV</span>
+                </div>
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-[10px] mb-2 font-bold">
+                  ⚡ SmartTrader & Robots Synthétiques 24/7
+                </Badge>
+                <h3 className="text-2xl font-extrabold text-white mb-2">Deriv Broker</h3>
+                <p className="text-xs text-slate-300 mb-6 leading-relaxed">
+                  Le broker le plus populaire pour les indices synthétiques. Profitez de nos robots automatiques haute performance (Digit Over 2, Differ Hunter) et du terminal de trading manuel (Rise/Fall, Accumulators).
+                </p>
+                <ul className="space-y-2.5 text-xs text-slate-200 mb-8">
+                  <li className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="font-medium">Robots Sniper Digits (Over/Under, Differs, Even/Odd)</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="font-medium">Marchés ouverts 24h/24, 7j/7 (sans pause le week-end)</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="font-medium">7 Jours d'essai 100% gratuit avec vos soldes Deriv</span>
+                  </li>
+                </ul>
+              </div>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => startDerivOAuth(ps.derivAppId || '34HkkJSIK047dAEWEgXML')}
+                  className="w-full inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/30 transition text-sm cursor-pointer"
+                >
+                  <Zap className="w-4 h-4 mr-1.5" /> Démarrer sur Deriv (Essai Offert)
+                </button>
+                <Link
+                  to="/dashboard/deriv"
+                  className="w-full inline-flex items-center justify-center text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold py-1"
+                >
+                  Ouvrir le terminal Deriv SmartTrader →
+                </Link>
+              </div>
+            </div>
+
+            {/* CARTE 2 : BINANCE */}
             <div className="p-8 rounded-3xl bg-slate-900/90 border border-amber-500/30 hover:border-amber-500 transition-all shadow-xl flex flex-col justify-between group hover:scale-[1.02]">
               <div>
                 <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-6">
                   <span className="text-2xl font-black text-amber-400">BN</span>
                 </div>
                 <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-[10px] mb-2">
-                  Exchange #1 Mondial
+                  Exchange #1 Crypto
                 </Badge>
                 <h3 className="text-2xl font-extrabold text-white mb-2">Binance Crypto</h3>
                 <p className="text-xs text-slate-400 mb-6 leading-relaxed">
@@ -532,11 +581,11 @@ export default function Landing() {
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>Sécurité maximale (zéro permission de retrait)</span>
+                    <span>Sécurité maximale (clés API sans droit de retrait)</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>Copy trading automatique disponible</span>
+                    <span>Robots Spot & Futures 24/7</span>
                   </li>
                 </ul>
               </div>
@@ -547,7 +596,7 @@ export default function Landing() {
               </Button>
             </div>
 
-            {/* CARTE 2 : BYBIT */}
+            {/* CARTE 3 : BYBIT */}
             <div className="p-8 rounded-3xl bg-slate-900/90 border border-blue-500/30 hover:border-blue-500 transition-all shadow-xl flex flex-col justify-between group hover:scale-[1.02]">
               <div>
                 <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center mb-6">
@@ -558,7 +607,7 @@ export default function Landing() {
                 </Badge>
                 <h3 className="text-2xl font-extrabold text-white mb-2">Bybit Multi-Marchés</h3>
                 <p className="text-xs text-slate-400 mb-6 leading-relaxed">
-                  Mêmes robots ultra-performants que Binance, avec l'avantage exclusif de trader également le Forex et les métaux précieux.
+                  Mêmes robots ultra-performants que Binance, avec l'avantage de trader également les paires Forex et les métaux précieux.
                 </p>
                 <ul className="space-y-2.5 text-xs text-slate-300 mb-8">
                   <li className="flex items-center gap-2">
@@ -580,54 +629,6 @@ export default function Landing() {
                   Démarrer sur Bybit <ArrowRight className="w-4 h-4 ml-1.5" />
                 </Link>
               </Button>
-            </div>
-
-            {/* CARTE 3 : DERIV */}
-            <div className="p-8 rounded-3xl bg-slate-900/90 border-2 border-emerald-500 hover:border-emerald-400 transition-all shadow-2xl shadow-emerald-500/10 flex flex-col justify-between group hover:scale-[1.03] relative overflow-hidden">
-              <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[10px] font-black px-4 py-1 rounded-bl-xl uppercase tracking-wider">
-                7 Jours Offerts
-              </div>
-              <div>
-                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mb-6">
-                  <span className="text-2xl font-black text-emerald-400">DV</span>
-                </div>
-                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-[10px] mb-2">
-                  SmartTrader & Synthétiques
-                </Badge>
-                <h3 className="text-2xl font-extrabold text-white mb-2">Deriv Broker</h3>
-                <p className="text-xs text-slate-400 mb-6 leading-relaxed">
-                  Trading manuel avec graphiques temps réel et robots automatiques illimités sur les indices synthétiques disponibles 24/7.
-                </p>
-                <ul className="space-y-2.5 text-xs text-slate-300 mb-8">
-                  <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Contrats Digits (Over/Under, Even/Odd...)</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Indices Volatility, Boom & Crash, Step</span>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>7 Jours d'essai gratuit sur n'importe quel compte</span>
-                  </li>
-                </ul>
-              </div>
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => startDerivOAuth(ps.derivAppId || '34HkkJSIK047dAEWEgXML')}
-                  className="w-full inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/30 transition text-sm cursor-pointer"
-                >
-                  Tester Deriv (Essai Gratuit) <ArrowRight className="w-4 h-4 ml-1.5" />
-                </button>
-                <Link
-                  to="/dashboard/deriv"
-                  className="w-full inline-flex items-center justify-center text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold py-1"
-                >
-                  Déjà connecté ? Ouvrir le terminal Deriv →
-                </Link>
-              </div>
             </div>
           </div>
         </div>

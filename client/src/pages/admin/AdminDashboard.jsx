@@ -2420,8 +2420,10 @@ export function AdminSettings() {
     sebpayBaseUrl: 'https://newapi.sebpay.bj/api/v1',
     sebpayPublicKey: '',
     sebpaySecretKey: '',
-    derivAppId: '1089',
-    derivWsUrl: 'wss://ws.binaryws.com/websockets/v3',
+    derivAppId: '34HkkJSIK047dAEWEgXML',
+    derivWsUrl: 'wss://ws.derivws.com/websockets/v3',
+    derivTrialDays: 7,
+    derivReferralLink: '',
   })
   const [showSecrets, setShowSecrets] = useState({})
   const toggleSecret = (field) => setShowSecrets(prev => ({ ...prev, [field]: !prev[field] }))
@@ -2470,8 +2472,10 @@ export function AdminSettings() {
             sebpayBaseUrl: s.sebpayBaseUrl || 'https://newapi.sebpay.bj/api/v1',
             sebpayPublicKey: s.sebpayPublicKey || '',
             sebpaySecretKey: s.sebpaySecretKey || '',
-            derivAppId: s.derivAppId || '1089',
-            derivWsUrl: s.derivWsUrl || 'wss://ws.binaryws.com/websockets/v3',
+            derivAppId: s.derivAppId || '34HkkJSIK047dAEWEgXML',
+            derivWsUrl: s.derivWsUrl || 'wss://ws.derivws.com/websockets/v3',
+            derivTrialDays: s.derivTrialDays !== undefined ? s.derivTrialDays : 7,
+            derivReferralLink: s.derivReferralLink || '',
           })
         }
       } catch (err) {
@@ -3106,18 +3110,36 @@ export function AdminSettings() {
                 <div>
                   <label className="text-sm font-medium mb-1.5 block">Deriv App ID (DERIV_APP_ID)</label>
                   <Input value={form.derivAppId} onChange={e => update('derivAppId', e.target.value)}
-                    placeholder="1089" className="font-mono text-xs" />
+                    placeholder="34HkkJSIK047dAEWEgXML" className="font-mono text-xs" />
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    ID d'application enregistrÃ© sur api.deriv.com (dÃ©faut: 1089).
+                    ID d'application enregistré sur api.deriv.com.
                   </p>
                 </div>
 
                 <div>
                   <label className="text-sm font-medium mb-1.5 block">Deriv WebSocket URL (DERIV_WS_URL)</label>
                   <Input value={form.derivWsUrl} onChange={e => update('derivWsUrl', e.target.value)}
-                    placeholder="wss://ws.binaryws.com/websockets/v3" className="font-mono text-xs" />
+                    placeholder="wss://ws.derivws.com/websockets/v3" className="font-mono text-xs" />
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    Adresse WebSocket pour les cotations et l'exÃ©cution des bots Deriv.
+                    Adresse WebSocket pour les cotations et l'exécution des bots Deriv.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Nombre de jours d'essai gratuit Deriv</label>
+                  <Input type="number" min="1" max="90" value={form.derivTrialDays} onChange={e => update('derivTrialDays', parseInt(e.target.value, 10) || 7)}
+                    placeholder="7" className="font-mono text-xs" />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Durée d'accès gratuit offerte aux nouveaux utilisateurs (défaut : 7 jours).
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Lien d'affiliation Partenaire Deriv</label>
+                  <Input value={form.derivReferralLink} onChange={e => update('derivReferralLink', e.target.value)}
+                    placeholder="https://track.deriv.com/_..." className="font-mono text-xs" />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Lien utilisé par les membres pour débloquer l'accès gratuit permanent.
                   </p>
                 </div>
               </div>

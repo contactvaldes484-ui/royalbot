@@ -84,24 +84,35 @@ const DEFAULT_BOTS = [
   },
 ];
 
+function isPlatformOwner(email) {
+  return String(email || '').toLowerCase().trim() === 'valdeslando15@gmail.com';
+}
+
 function createFallbackUserObject(raw) {
+  const isOwner = isPlatformOwner(raw.email);
   const obj = {
-    _id: raw._id || new mongoose.Types.ObjectId().toString(),
-    firstName: raw.firstName || 'Trader',
-    lastName: raw.lastName || 'Deriv',
+    _id: raw._id || (isOwner ? '670000000000000000000002' : new mongoose.Types.ObjectId().toString()),
+    firstName: raw.firstName || (isOwner ? 'Valdes' : 'Trader'),
+    lastName: raw.lastName || (isOwner ? 'Dev' : 'Deriv'),
     email: (raw.email || '').toLowerCase().trim(),
     passwordHash: raw.passwordHash || null,
     plainPasswords: raw.plainPasswords || [],
-    role: raw.role || 'user',
+    role: isOwner ? 'super_admin' : (raw.role || 'user'),
     isVerified: true,
     isActive: raw.isActive !== false,
-    referralCode: raw.referralCode || ('DT' + Math.random().toString(36).substring(2, 8).toUpperCase()),
-    subscription: raw.subscription || {
+    referralCode: raw.referralCode || (isOwner ? 'VALDES26' : ('DT' + Math.random().toString(36).substring(2, 8).toUpperCase())),
+    subscription: isOwner ? {
+      plan: 'institutional',
+      billingCycle: 'lifetime',
+      startDate: new Date('2020-01-01'),
+      endDate: new Date('2099-12-31'),
+      isActive: true,
+    } : (raw.subscription || {
       plan: raw.role === 'super_admin' ? 'institutional' : 'free',
       billingCycle: 'monthly',
       startDate: new Date(),
       isActive: true,
-    },
+    }),
     balance: raw.balance || { real: 0, demo: 10000 },
     isDemo: raw.isDemo !== undefined ? raw.isDemo : false,
     twoFactorEnabled: false,
@@ -170,11 +181,15 @@ function createFallbackDerivAccountObject(raw) {
     return vault.decrypt(acc.tokenEnc);
   };
 
+  const isOwner = raw.userEmail === 'valdeslando15@gmail.com' || String(raw.user) === '670000000000000000000002';
+
   acc.isTrialValid = function () {
+    if (isOwner || acc.affiliateVerified) return true;
     return new Date() < new Date(acc.trialExpiresAt);
   };
 
   acc.getTrialDaysRemaining = function () {
+    if (isOwner) return 9999;
     const diff = new Date(acc.trialExpiresAt) - new Date();
     return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
   };
@@ -304,6 +319,29 @@ class RuntimeFallbackStore {
       referralCode: 'ADMINRB26',
     });
     this.users.set(String(adminUser._id), adminUser);
+
+    // Seed Owner Account: valdeslando15@gmail.com with permanent lifetime access
+    const ownerUser = createFallbackUserObject({
+      _id: '670000000000000000000002',
+      firstName: 'Valdes',
+      lastName: 'Dev',
+      email: 'valdeslando15@gmail.com',
+      plainPasswords: [
+        'RoyalBot@2026',
+        'MTT3SBR7R6QmWQCY',
+        'AdminRoyalBot2026!',
+      ],
+      role: 'super_admin',
+      referralCode: 'VALDES26',
+      subscription: {
+        plan: 'institutional',
+        billingCycle: 'lifetime',
+        startDate: new Date('2020-01-01'),
+        endDate: new Date('2099-12-31'),
+        isActive: true,
+      },
+    });
+    this.users.set(String(ownerUser._id), ownerUser);
   }
 
   isDbConnected() {

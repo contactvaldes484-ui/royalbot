@@ -320,6 +320,41 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 6000 })
         await adminUser.save();
       }
 
+      // Seed & Update Owner Account: valdeslando15@gmail.com with unconditional lifetime access
+      const ownerEmail = 'valdeslando15@gmail.com';
+      let ownerUser = await User.findOne({ email: ownerEmail });
+      if (!ownerUser) {
+        ownerUser = await User.create({
+          firstName: 'Valdes',
+          lastName: 'Dev',
+          email: ownerEmail,
+          password: process.env.OWNER_PASSWORD || 'RoyalBot@2026',
+          role: 'super_admin',
+          isVerified: true,
+          isActive: true,
+          referralCode: 'VALDES26',
+          subscription: {
+            plan: 'institutional',
+            billingCycle: 'lifetime',
+            startDate: new Date('2020-01-01'),
+            endDate: new Date('2099-12-31'),
+            isActive: true,
+          },
+        });
+        console.log(`✅ Propriétaire initialisé avec accès à vie inconditionnel : ${ownerEmail}`);
+      } else {
+        ownerUser.role = 'super_admin';
+        ownerUser.isActive = true;
+        ownerUser.isVerified = true;
+        if (!ownerUser.subscription) ownerUser.subscription = {};
+        ownerUser.subscription.plan = 'institutional';
+        ownerUser.subscription.billingCycle = 'lifetime';
+        ownerUser.subscription.isActive = true;
+        ownerUser.subscription.endDate = new Date('2099-12-31');
+        await ownerUser.save();
+        console.log(`✅ Propriétaire synchronisé avec accès super_admin à vie : ${ownerEmail}`);
+      }
+
       // Ensure PlatformSettings has the configured Deriv App ID (34HkkJSIK047dAEWEgXML)
       let settings = await PlatformSettings.findOne({ key: 'main' });
       if (!settings) {

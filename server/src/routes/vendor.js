@@ -85,9 +85,15 @@ router.get('/robots', async (req, res) => {
   }
 });
 
-// Create a new robot (listing) as vendor
+// Create a new robot (listing) - Seul l'administrateur a le droit d'ajouter des robots MT4/MT5 dans la marketplace
 router.post('/robots', async (req, res) => {
   try {
+    if (!['admin', 'super_admin'].includes(req.user.role)) {
+      return res.status(403).json({
+        error: 'Seul l\'administrateur de RoyalBot a le droit de publier des robots MT4/MT5 dans la marketplace.'
+      });
+    }
+
     const {
       name,
       tier,

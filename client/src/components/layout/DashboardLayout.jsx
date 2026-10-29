@@ -17,27 +17,28 @@ export default function DashboardLayout() {
 
   if (!isAuthenticated) return <Navigate to="/login" replace />
 
-  const isVendor = !!user?.vendor?.isVendor
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
+  const isDerivConnected =
+    localStorage.getItem('deriv_oauth_connected') === 'true' ||
+    Boolean(user?.derivAccount) ||
+    Boolean(user?.subscription?.plan?.startsWith('deriv')) ||
+    user?.tradingPreferences?.primaryBroker === 'deriv'
+
+  // Si l'utilisateur est connecté via Deriv ou a souscrit à un plan Deriv, masquer Binance & Bybit
+  const showBinance = isAdmin || !isDerivConnected
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
     { icon: Zap, label: 'Deriv SmartTrader', href: '/dashboard/deriv', highlight: true },
-    { icon: Bitcoin, label: 'Binance & Bybit', href: '/dashboard/binance', highlight: true },
+    showBinance ? { icon: Bitcoin, label: 'Binance & Bybit', href: '/dashboard/binance', highlight: true } : null,
     { icon: BarChart3, label: 'Analytics', href: '/dashboard/analytics' },
     { icon: History, label: 'Historique', href: '/dashboard/trades' },
-    { icon: Wallet, label: 'Retraits', href: '/dashboard/withdrawals' },
     { icon: MessageCircle, label: 'Groupes', href: '/dashboard/groups', highlight: true },
-    { icon: Brain, label: 'IA Forex', href: '/dashboard/forex-ai', highlight: true },
-    { icon: Radar, label: 'Scanner Marché', href: '/dashboard/forex-scanner' },
-    { icon: Bell, label: 'Alertes IA', href: '/dashboard/forex-alerts' },
-    { icon: Copy, label: 'Copy Trading', href: '/dashboard/copy-trading', highlight: true },
-    { icon: Crown, label: 'Devenir Master', href: '/dashboard/become-master' },
-    { icon: DollarSign, label: 'Mes Commissions', href: '/dashboard/master-earnings' },
-    isVendor ? { icon: Bot, label: 'Mes robots (vendeur)', href: '/dashboard/vendor-robots', highlight: true } : { icon: Bot, label: 'Devenir vendeur', href: '/dashboard/vendor-apply', highlight: true },
-    isVendor ? { icon: DollarSign, label: 'Revenus vendeur', href: '/dashboard/vendor-earnings' } : null,
+    isAdmin ? { icon: Bot, label: 'Gestion Marketplace (Admin)', href: '/admin/bots', highlight: true } : null,
     { icon: CreditCard, label: 'Mon accès', href: '/dashboard/subscription' },
     { icon: Settings, label: 'Paramètres', href: '/dashboard/settings' },
     { icon: BookOpen, label: 'Guide', href: '/dashboard/guide', highlight: false },
+    isAdmin ? { icon: Crown, label: 'Administration', href: '/admin', highlight: true } : null,
   ].filter(Boolean)
 
   const isActive = (href) => {
