@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 
 export default function DashboardDeriv() {
-  const { user, derivLiveTrades } = useStore()
+  const { user, derivLiveTrades, derivStreamClearedAt } = useStore()
   const [activeTab, setActiveTab] = useState('manual') // 'manual' | 'robots'
   const [accounts, setAccounts] = useState([])
   const [selectedAccountId, setSelectedAccountId] = useState('')
@@ -68,16 +68,24 @@ export default function DashboardDeriv() {
 
   const allTrades = React.useMemo(() => {
     const map = new Map()
+    const cutoff = derivStreamClearedAt ? new Date(derivStreamClearedAt).getTime() : 0
+
     for (const t of (derivLiveTrades || [])) {
-      if (t.contractId) map.set(String(t.contractId), t)
+      if (!t.contractId) continue
+      const tTime = new Date(t.openedAt || t._receivedAt || t.createdAt || Date.now()).getTime()
+      if (cutoff && tTime < cutoff) continue
+      map.set(String(t.contractId), t)
     }
+
     for (const t of (trades || [])) {
-      if (t.contractId && !map.has(String(t.contractId))) {
-        map.set(String(t.contractId), t)
-      }
+      if (!t.contractId || map.has(String(t.contractId))) continue
+      const tTime = new Date(t.openedAt || t._receivedAt || t.createdAt || Date.now()).getTime()
+      if (cutoff && tTime < cutoff) continue
+      map.set(String(t.contractId), t)
     }
+
     return Array.from(map.values()).sort((a, b) => new Date(b.openedAt || b._receivedAt) - new Date(a.openedAt || a._receivedAt))
-  }, [trades, derivLiveTrades])
+  }, [trades, derivLiveTrades, derivStreamClearedAt])
 
   useEffect(() => {
     loadData()
@@ -113,7 +121,10 @@ export default function DashboardDeriv() {
       }
       setBots(botsRes.data?.bots || [])
       setSessions(sessRes.data?.sessions || [])
-      setTrades(tradesRes.data?.trades || [])
+      const rawTrades = tradesRes.data?.trades || []
+      const cutoff = useStore.getState().derivStreamClearedAt ? new Date(useStore.getState().derivStreamClearedAt).getTime() : 0
+      const filtered = cutoff ? rawTrades.filter(t => new Date(t.openedAt || t.createdAt).getTime() >= cutoff) : rawTrades
+      setTrades(filtered)
     } catch (err) {
       console.error(err)
     } finally {
@@ -130,7 +141,10 @@ export default function DashboardDeriv() {
       ])
       if (accRes.data?.accounts) setAccounts(accRes.data.accounts)
       setSessions(sessRes.data?.sessions || [])
-      setTrades(tradesRes.data?.trades || [])
+      const rawTrades = tradesRes.data?.trades || []
+      const cutoff = useStore.getState().derivStreamClearedAt ? new Date(useStore.getState().derivStreamClearedAt).getTime() : 0
+      const filtered = cutoff ? rawTrades.filter(t => new Date(t.openedAt || t.createdAt).getTime() >= cutoff) : rawTrades
+      setTrades(filtered)
     } catch (_) {}
   }
 
@@ -198,9 +212,10 @@ export default function DashboardDeriv() {
     if (!selectedAccount || !selectedBotForStart) return
     setStartingBot(true)
     try {
-      // Vider automatiquement le flux en direct avant le démarrage d'une nouvelle session
+      // Vider automatiquement le flux en direct du robot précédent avant le démarrage d'une nouvelle session
       useStore.getState().clearDerivLiveTrades?.()
       setTrades([])
+      derivAPI.clearTrades?.().catch(() => {})
 
       const res = await derivAPI.startSession({
         accountId: selectedAccount._id,
@@ -577,10 +592,13 @@ export default function DashboardDeriv() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
+                    onClick={async () => {
                       if (window.confirm('Voulez-vous vider le flux des contrats en direct ?')) {
                         useStore.getState().clearDerivLiveTrades?.()
                         setTrades([])
+                        try {
+                          await derivAPI.clearTrades?.()
+                        } catch (_) {}
                       }
                     }}
                     className="h-7 text-xs border-rose-500/30 text-rose-400 hover:bg-rose-500/10"
@@ -778,7 +796,7 @@ export default function DashboardDeriv() {
                 </div>
               </div>
               {/* CONTRÔLE STRICT DE LA MARTINGALE */}
-              <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/70 space-y-2">
+              <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/70 space-y-2.5">
                 <label className="flex items-center gap-2 cursor-pointer font-bold text-xs text-slate-200">
                   <input
                     type="checkbox"
@@ -786,26 +804,35 @@ export default function DashboardDeriv() {
                     onChange={e => setUseBotMartingale(e.target.checked)}
                     className="rounded accent-emerald-500 w-4 h-4"
                   />
-                  <span>Activer la Martingale en cas de perte</span>
+                  <span>Activer le multiplicateur Martingale après perte</span>
                 </label>
-                <p className="text-[10px] text-slate-400">
+                <p className="text-[11px] text-slate-400 leading-relaxed">
                   {useBotMartingale
-                    ? 'La mise augmentera uniquement selon le multiplicateur défini ci-dessous.'
-                    : 'Martingale désactivée : la mise reste strictement constante (pas de saut brusque à 10$).'}
+                    ? `Si activé : après une perte, le multiplicateur s'applique 1 seule fois (mise : ${(Number(botStake || 1) * Number(botMartingale || 1)).toFixed(2)}). Si ce trade gagne, la mise revient immédiatement au prix initial (${botStake || 1}).`
+                    : 'Martingale désactivée : la mise reste strictement fixe au prix initial (aucune augmentation après perte).'}
                 </p>
 
                 {useBotMartingale && (
-                  <div>
-                    <label className="text-xs text-slate-300 font-semibold mb-1 block">Multiplicateur Martingale</label>
+                  <div className="pt-1">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs text-slate-300 font-semibold block">Multiplicateur Martingale (ex: 2, 3, 5)</label>
+                      <span className="text-[11px] font-mono text-emerald-400 font-bold">
+                        {`Mise après perte : ${(Number(botStake || 1) * Number(botMartingale || 1)).toFixed(2)}`}
+                      </span>
+                    </div>
                     <Input
                       type="number"
                       step="0.1"
                       min="1.1"
-                      max="5"
+                      max="100"
                       value={botMartingale}
                       onChange={(e) => setBotMartingale(e.target.value)}
                       className="bg-slate-900 border-slate-700 text-white font-mono text-xs"
+                      placeholder="ex: 5"
                     />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      {`Appliqué 1 fois après chaque perte. Retour immédiat à ${botStake || 1} dès que le trade suivant est gagné.`}
+                    </p>
                   </div>
                 )}
               </div>

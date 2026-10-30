@@ -16,7 +16,7 @@ const DEFAULT_BOTS = [
     symbols: ['R_100', 'R_75', 'R_50', 'R_25', 'R_10'],
     strategyType: 'digit_analyzer',
     description: 'Sniper algorithmique 1-tick basé sur l\'épuisement statistique des petits chiffres (rebond Mean Reversion) et le momentum haussier.',
-    defaultSettings: { initialStake: 1, maxStake: 30, stopLoss: 20, takeProfit: 50, duration: 1, durationUnit: 't', barrier: '2', martingaleEnabled: false, martingaleMultiplier: 1, maxMartingaleSteps: 2 },
+    defaultSettings: { initialStake: 1, maxStake: 30, stopLoss: 20, takeProfit: 50, duration: 1, durationUnit: 't', barrier: '2', martingaleEnabled: false, martingaleMultiplier: 1, maxMartingaleSteps: 1 },
     winRate: '78-84%',
     badge: 'Sniper 1-Tick Rentable',
     isActive: true,
@@ -31,7 +31,7 @@ const DEFAULT_BOTS = [
     symbols: ['R_100', 'R_50', '1HZ100V'],
     strategyType: 'digit_analyzer',
     description: 'Analyse statistique des 30 derniers ticks pour déterminer le chiffre froid le moins représenté et parier sur sa différence.',
-    defaultSettings: { initialStake: 2, maxStake: 50, stopLoss: 30, takeProfit: 60, duration: 1, durationUnit: 't', barrier: '5', martingaleMultiplier: 1.5, maxMartingaleSteps: 2 },
+    defaultSettings: { initialStake: 2, maxStake: 50, stopLoss: 30, takeProfit: 60, duration: 1, durationUnit: 't', barrier: '5', martingaleEnabled: false, martingaleMultiplier: 1, maxMartingaleSteps: 1 },
     winRate: '95-99%',
     badge: 'Ultra Haute Précision',
     isActive: true,
@@ -46,7 +46,7 @@ const DEFAULT_BOTS = [
     symbols: ['R_25', 'R_50', 'R_75'],
     strategyType: 'even_odd_pattern',
     description: 'Détection d\'anomalies et séries consécutives de parité pour sniper le rebond inverse en 1 tick.',
-    defaultSettings: { initialStake: 1, maxStake: 40, stopLoss: 25, takeProfit: 50, duration: 1, durationUnit: 't', martingaleMultiplier: 2, maxMartingaleSteps: 3 },
+    defaultSettings: { initialStake: 1, maxStake: 40, stopLoss: 25, takeProfit: 50, duration: 1, durationUnit: 't', martingaleEnabled: false, martingaleMultiplier: 1, maxMartingaleSteps: 1 },
     winRate: '72-76%',
     badge: 'Flux Quantique',
     isActive: true,
@@ -61,7 +61,7 @@ const DEFAULT_BOTS = [
     symbols: ['R_75', 'R_100'],
     strategyType: 'trend_following',
     description: 'Suivi de tendance momentum par alignement EMA(5)/EMA(13) et confirmation RSI(7) sur 5 ticks.',
-    defaultSettings: { initialStake: 1, maxStake: 35, stopLoss: 20, takeProfit: 45, duration: 5, durationUnit: 't', martingaleMultiplier: 2, maxMartingaleSteps: 3 },
+    defaultSettings: { initialStake: 1, maxStake: 35, stopLoss: 20, takeProfit: 45, duration: 5, durationUnit: 't', martingaleEnabled: false, martingaleMultiplier: 1, maxMartingaleSteps: 1 },
     winRate: '72-78%',
     badge: 'Momentum IA',
     isActive: true,
@@ -76,7 +76,7 @@ const DEFAULT_BOTS = [
     symbols: ['BOOM1000', 'CRASH1000'],
     strategyType: 'tick_volatility',
     description: 'Chasseur de pics de volatilité et rebonds post-spike sur Boom 1000 et Crash 1000.',
-    defaultSettings: { initialStake: 2, maxStake: 50, stopLoss: 30, takeProfit: 70, duration: 5, durationUnit: 't', martingaleMultiplier: 2, maxMartingaleSteps: 3 },
+    defaultSettings: { initialStake: 2, maxStake: 50, stopLoss: 30, takeProfit: 70, duration: 5, durationUnit: 't', martingaleEnabled: false, martingaleMultiplier: 1, maxMartingaleSteps: 1 },
     winRate: '75-80%',
     badge: 'Spike Hunter',
     isActive: true,
@@ -846,11 +846,12 @@ class RuntimeFallbackStore {
         const BinanceTrade = require('../models/BinanceTrade');
         const Trade = require('../models/Trade');
 
-        if (category === 'all' || category === 'deriv_manual') {
-          await DerivTrade.deleteMany({ user: userId, ...(category === 'deriv_manual' ? { isManual: true } : {}) }).catch(() => {});
-        }
-        if (category === 'all' || category === 'deriv_robot') {
-          await DerivTrade.deleteMany({ user: userId, ...(category === 'deriv_robot' ? { isManual: false } : {}) }).catch(() => {});
+        if (category === 'all' || category === 'deriv') {
+          await DerivTrade.deleteMany({ user: userId }).catch(() => {});
+        } else if (category === 'deriv_manual') {
+          await DerivTrade.deleteMany({ user: userId, isManual: true }).catch(() => {});
+        } else if (category === 'deriv_robot') {
+          await DerivTrade.deleteMany({ user: userId, isManual: false }).catch(() => {});
         }
         if (category === 'all' || category === 'binance') {
           await BinanceTrade.deleteMany({ user: userId, ...(category === 'binance' ? { exchange: 'binance' } : {}) }).catch(() => {});
@@ -865,7 +866,7 @@ class RuntimeFallbackStore {
     }
     for (const [key, t] of this.derivTrades.entries()) {
       if (String(t.user) === String(userId)) {
-        if (category === 'all') {
+        if (category === 'all' || category === 'deriv') {
           this.derivTrades.delete(key);
         } else if (category === 'deriv_manual' && t.isManual) {
           this.derivTrades.delete(key);

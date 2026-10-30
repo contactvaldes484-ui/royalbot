@@ -564,4 +564,13 @@ router.get('/trades', authenticate, async (req, res) => {
   }
 });
 
+router.delete('/trades', authenticate, async (req, res) => {
+  try {
+    await fallbackStore.clearTrades(req.user._id, 'deriv');
+    res.json({ success: true, message: 'Flux des contrats Deriv vidé avec succès.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

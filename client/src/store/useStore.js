@@ -120,11 +120,12 @@ const useStore = create((set, get) => ({
   liveTrades: [],      // Real-time trades from bot
   liveEvents: [],      // Real-time events (skips, pauses, etc.)
   derivLiveTrades: [], // Real-time Deriv contracts/trades
+  derivStreamClearedAt: null,
   mt5Ticks: {},        // { symbol: { bid, ask, candle } } — live MT5 ticks
   mt5Positions: [],    // Live MT5 open positions
   copyEvents: [],      // Copy Trading: live copy trade events
   copyEarningsTotal: 0, // Real-time accumulated commissions earned this session
-  clearDerivLiveTrades: () => set({ derivLiveTrades: [] }),
+  clearDerivLiveTrades: () => set({ derivLiveTrades: [], derivStreamClearedAt: Date.now() }),
 
   connectWS: () => {
     const token = get().token

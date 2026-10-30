@@ -215,8 +215,8 @@ class DerivRobotEngine {
     const isDigitContract = (bot.contractType || '').startsWith('DIGIT');
     const defaultDuration = isDigitContract ? 1 : 5;
     const defaultDurationUnit = overrides.durationUnit || defaultSettings.durationUnit || 't';
-    const userMartingaleMultiplier = Number(overrides.martingaleMultiplier);
-    const hasExplicitMartingale = (overrides.martingaleEnabled === true) || (userMartingaleMultiplier > 1);
+    const userMartingaleMultiplier = Number(overrides.martingaleMultiplier || 1);
+    const hasExplicitMartingale = Boolean(overrides.martingaleEnabled) && userMartingaleMultiplier > 1;
 
     const settings = {
       initialStake:         Number(overrides.initialStake || defaultSettings.initialStake || 1),
@@ -228,7 +228,7 @@ class DerivRobotEngine {
       barrier:              overrides.barrier !== undefined ? overrides.barrier : (defaultSettings.barrier !== undefined ? defaultSettings.barrier : (isDigitContract ? '2' : undefined)),
       martingaleEnabled:    hasExplicitMartingale,
       martingaleMultiplier: hasExplicitMartingale ? userMartingaleMultiplier : 1,
-      maxMartingaleSteps:   Number(overrides.maxMartingaleSteps || defaultSettings.maxMartingaleSteps || 3),
+      maxMartingaleSteps:   1, // Règle stricte : 1 seule application du multiplicateur après perte
     };
 
     const session = await fallbackStore.createDerivSession({
@@ -482,20 +482,30 @@ class DerivRobotEngine {
             updatedSession.stats.totalTrades += 1;
             updatedSession.stats.netProfit = +(updatedSession.stats.netProfit + profit).toFixed(2);
 
+            const hasActiveMartingale = updatedSession.settings.martingaleEnabled === true && Number(updatedSession.settings.martingaleMultiplier) > 1;
+
             if (isWon) {
               updatedSession.stats.wins += 1;
               updatedSession.stats.consecutiveLosses = 0;
+              // Règle : Si le trade gagne (mise de base ou multiplicateur), retour immédiat au prix initial
               updatedSession.stats.currentStake = updatedSession.settings.initialStake;
             } else {
               updatedSession.stats.losses += 1;
               updatedSession.stats.consecutiveLosses += 1;
-              const hasActiveMartingale = updatedSession.settings.martingaleEnabled === true && Number(updatedSession.settings.martingaleMultiplier) > 1;
-              if (hasActiveMartingale && updatedSession.stats.consecutiveLosses <= (updatedSession.settings.maxMartingaleSteps || 3)) {
-                const nextStake = +(updatedSession.stats.currentStake * updatedSession.settings.martingaleMultiplier).toFixed(2);
+
+              // Règle : Le multiplicateur s'applique UNE SEULE FOIS après une perte sur la mise de base (consecutiveLosses === 1).
+              if (hasActiveMartingale && updatedSession.stats.consecutiveLosses === 1) {
+                const multiplier = Number(updatedSession.settings.martingaleMultiplier);
+                const nextStake = +(updatedSession.settings.initialStake * multiplier).toFixed(2);
                 updatedSession.stats.currentStake = Math.min(nextStake, updatedSession.settings.maxStake || 50);
               } else {
-                // Martingale désactivée ou non saisie par l'utilisateur : mise constante sans saut à 10$ !
+                // Si la Martingale est désactivée OU si le trade du multiplicateur a déjà été exécuté une fois :
+                // on repasse strictement à la mise initiale sans s'emballer
                 updatedSession.stats.currentStake = updatedSession.settings.initialStake;
+                if (hasActiveMartingale && updatedSession.stats.consecutiveLosses >= 2) {
+                  // Réinitialiser les pertes consécutives pour que la prochaine perte normale redéclenche le multiplicateur 1 fois
+                  updatedSession.stats.consecutiveLosses = 0;
+                }
               }
             }
 

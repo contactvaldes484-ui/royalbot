@@ -294,6 +294,10 @@ export default function DashboardBots() {
           startDerivOAuth(derivAppId)
           return
         }
+        // Vider automatiquement le flux en direct du robot précédent
+        useStore.getState().clearDerivLiveTrades?.()
+        derivAPI.clearTrades?.().catch(() => {})
+
         await derivAPI.startSession({
           accountId: derivAccount._id,
           botId: selectedBotForStart._id,
@@ -608,26 +612,35 @@ export default function DashboardBots() {
                     onChange={e => setUseMartingale(e.target.checked)}
                     className="rounded accent-emerald-500 w-4 h-4"
                   />
-                  <span>Activer la Martingale en cas de perte</span>
+                  <span>Activer le multiplicateur Martingale après perte</span>
                 </label>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
                   {useMartingale
-                    ? 'La mise sera multipliée uniquement selon le multiplicateur défini ci-dessous.'
-                    : 'Martingale désactivée : la mise reste strictement constante (aucune augmentation après perte !)'}
+                    ? `Si activé : après une perte, le multiplicateur s'applique 1 seule fois (mise : ${(Number(stake || 1) * Number(martingaleMultiplier || 1)).toFixed(2)}). Si ce trade gagne, la mise revient immédiatement au prix initial (${stake || 1}).`
+                    : 'Martingale désactivée : la mise reste strictement fixe au prix initial (aucune augmentation après perte).'}
                 </p>
 
                 {useMartingale && (
-                  <div>
-                    <label className="font-semibold block mb-1">Multiplicateur Martingale</label>
+                  <div className="pt-1">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="font-semibold block text-xs">Multiplicateur Martingale (ex: 2, 3, 5)</label>
+                      <span className="text-[11px] font-mono text-emerald-500 font-bold">
+                        {`Mise après perte : ${(Number(stake || 1) * Number(martingaleMultiplier || 1)).toFixed(2)}`}
+                      </span>
+                    </div>
                     <Input
                       type="number"
                       min="1.1"
-                      max="5"
+                      max="100"
                       step="0.1"
                       value={martingaleMultiplier}
-                      onChange={e => setMartingaleMultiplier(parseFloat(e.target.value) || 2)}
+                      onChange={e => setMartingaleMultiplier(e.target.value)}
                       className="font-mono text-xs"
+                      placeholder="ex: 5"
                     />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {`Appliqué 1 fois après chaque perte. Retour immédiat à ${stake || 1} dès que le trade suivant est gagné.`}
+                    </p>
                   </div>
                 )}
               </div>

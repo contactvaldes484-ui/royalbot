@@ -403,6 +403,7 @@ export const derivAPI = {
   resumeSession: (id) => api.post(`/deriv/sessions/${id}/resume`),
   getSessions: () => api.get('/deriv/sessions'),
   getTrades: () => api.get('/deriv/trades'),
+  clearTrades: () => api.delete('/deriv/trades'),
 }
 
 // Admin Deriv
