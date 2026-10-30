@@ -75,6 +75,12 @@ const platformSettingsSchema = new mongoose.Schema({
   sebpayPublicKey: { type: String, default: '' },       // SebPay Public Key (pk_live_...)
   sebpaySecretKey: { type: String, default: '' },       // SebPay Secret Key (sk_live_...)
 
+  // iKeePay Payment Gateway (Mobile Money & Card Inline Checkout)
+  ikeepayEnabled: { type: Boolean, default: false },
+  ikeepayPublicKey: { type: String, default: '' },       // pk_live_...
+  ikeepaySecretKey: { type: String, default: '' },       // sk_live_...
+  ikeepayCurrency: { type: String, default: 'USD' },      // USD or XOF
+
   // SEO
   metaTitle: { type: String, default: 'RoyalBot — Trading Automatisé' },
   metaDescription: { type: String, default: 'Plateforme de robots de trading automatisés multi-marchés pour Deriv, Binance et Bybit.' },

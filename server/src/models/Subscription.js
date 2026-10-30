@@ -12,11 +12,15 @@ const subscriptionSchema = new mongoose.Schema({
   currency: { type: String, default: 'USD' },
   paymentMethod: {
     type: String,
-    enum: ['stripe', 'usdt_tron', 'binance_pay', 'crypto', 'mobile_money', 'card', 'manual', 'admin_grant'],
+    enum: ['stripe', 'usdt_tron', 'binance_pay', 'crypto', 'mobile_money', 'card', 'manual', 'admin_grant', 'ikeepay'],
     default: 'manual'
   },
   paymentId: { type: String },
   paymentStatus: { type: String, enum: ['pending', 'confirmed', 'failed', 'refunded'], default: 'pending', index: true },
+
+  // iKeePay details
+  ikeepayOrderId: { type: String },
+  ikeepayRef: { type: String },
 
   // Crypto details
   cryptoTxHash: { type: String },

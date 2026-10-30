@@ -312,6 +312,10 @@ class RuntimeFallbackStore {
       derivWsUrl: process.env.DERIV_WS_URL || 'wss://ws.derivws.com/websockets/v3',
       derivReferralLink: process.env.DERIV_AFFILIATE_URL || '',
       derivPartnerId: '',
+      ikeepayEnabled: false,
+      ikeepayPublicKey: '',
+      ikeepaySecretKey: '',
+      ikeepayCurrency: 'USD',
     };
 
     // Seed Super Admin in memory immediately

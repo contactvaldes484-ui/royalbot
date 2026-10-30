@@ -128,6 +128,7 @@ export const subscriptionAPI = {
   getCurrent: () => api.get('/subscriptions/current'),
   subscribe: (data) => api.post('/subscriptions/subscribe', data),
   verifyUsdt: (id, txHash) => api.post(`/subscriptions/${id}/verify-usdt`, { txHash }),
+  verifyIkeepay: (data) => api.post('/subscriptions/ikeepay/verify', data),
   getPaymentOptions: () => api.get('/subscriptions/payment-options'),
   getMobileOperators: (country) => api.get('/subscriptions/mobile-operators', { params: { country } }),
   cancel: (data) => api.post('/subscriptions/cancel', data),

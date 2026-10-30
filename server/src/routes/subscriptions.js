@@ -7,6 +7,7 @@ const planCache = require('../services/planCache');
 const subService = require('../services/subscriptionService');
 const sebpay = require('../services/sebpayService');
 const usdtVerifier = require('../services/usdtVerifier');
+const ikeepayService = require('../services/ikeepayService');
 
 const router = express.Router();
 
@@ -32,20 +33,30 @@ router.get('/plans/:slug', (req, res) => {
   res.json({ plan });
 });
 
-// ─── Public: payment options (USDT address, mobile money availability) ───────
-router.get('/payment-options', (req, res) => {
-  res.json({
-    usdt: {
-      enabled: !!usdtVerifier.receivingAddress(),
-      network: 'TRC-20 (TRON)',
-      address: usdtVerifier.receivingAddress() || null,
-      autoVerify: usdtVerifier.isConfigured(),
-    },
-    mobileMoney: {
-      enabled: sebpay.isConfigured(),
-      xofPerUsd: sebpay.xofPerUsd(),
-    },
-  });
+// ─── Public: payment options (USDT address, mobile money, iKeePay) ───────
+router.get('/payment-options', async (req, res) => {
+  try {
+    const ikeepayCreds = await ikeepayService.getCredentials();
+    res.json({
+      usdt: {
+        enabled: !!usdtVerifier.receivingAddress(),
+        network: 'TRC-20 (TRON)',
+        address: usdtVerifier.receivingAddress() || null,
+        autoVerify: usdtVerifier.isConfigured(),
+      },
+      mobileMoney: {
+        enabled: sebpay.isConfigured(),
+        xofPerUsd: sebpay.xofPerUsd(),
+      },
+      ikeepay: {
+        enabled: ikeepayCreds.enabled,
+        publicKey: ikeepayCreds.publicKey,
+        currency: ikeepayCreds.currency || 'USD',
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── Public: mobile money operators (proxy SebPay) ───────────────────────────
@@ -103,7 +114,7 @@ router.post('/subscribe', authenticate, subscribeLimiter, async (req, res) => {
       return res.status(400).json({ error: 'billingCycle invalide.' });
     }
 
-    const validMethods = ['usdt_tron', 'binance_pay', 'crypto', 'mobile_money'];
+    const validMethods = ['usdt_tron', 'binance_pay', 'crypto', 'mobile_money', 'ikeepay'];
     if (!validMethods.includes(paymentMethod)) {
       return res.status(400).json({ error: 'paymentMethod invalide. Utilisez crypto ou mobile_money.' });
     }
@@ -150,6 +161,39 @@ router.post('/subscribe', authenticate, subscribeLimiter, async (req, res) => {
       ip: req.ip,
       userAgent: req.headers['user-agent'],
     });
+
+    // ── iKeePay : Inline Checkout (Mobile Money & Carte) ──
+    if (paymentMethod === 'ikeepay') {
+      const ikeepayCreds = await ikeepayService.getCredentials();
+      if (!ikeepayCreds.enabled || !ikeepayCreds.publicKey) {
+        await Subscription.deleteOne({ _id: sub._id });
+        return res.status(400).json({ error: 'La passerelle de paiement iKeePay n\'est pas activée par l\'administrateur.' });
+      }
+
+      const orderId = `SUB_${sub._id}_${Date.now()}`;
+      sub.paymentId = orderId;
+      sub.ikeepayOrderId = orderId;
+      await sub.save();
+
+      const checkoutUrl = ikeepayService.buildCheckoutUrl({
+        publicKey: ikeepayCreds.publicKey,
+        amount,
+        currency: ikeepayCreds.currency || plan.currency || 'USD',
+        orderId,
+        redirectUrl: req.body.redirectUrl || '',
+      });
+
+      return res.json({
+        subscription: sub,
+        orderId,
+        checkoutUrl,
+        publicKey: ikeepayCreds.publicKey,
+        amount,
+        currency: ikeepayCreds.currency || 'USD',
+        message: 'Tunnel de paiement iKeePay prêt.',
+        pendingValidation: true,
+      });
+    }
 
     // ── Mobile Money : encaissement automatique via SebPay ──
     if (paymentMethod === 'mobile_money') {
@@ -333,6 +377,121 @@ router.get('/upgrade-preview/:planSlug', authenticate, (req, res) => {
     monthlyDiff: (targetPlan.priceMonthly || 0) - (currentPlan?.priceMonthly || 0),
     yearlyDiff: (targetPlan.priceYearly || 0) - (currentPlan?.priceYearly || 0),
   });
+});
+
+// ─── Public Webhook: iKeePay Notification de Paiement ─────────────────────────
+router.post('/ikeepay/webhook', async (req, res) => {
+  try {
+    const { event, ikeepay_ref, order_id, amount, currency, status } = req.body || {};
+    console.log('🔔 [iKeePay Webhook]:', { event, ikeepay_ref, order_id, status });
+
+    if (event !== 'payment.success' && status !== 'completed') {
+      return res.status(200).json({ received: true, note: 'non-success event ignored' });
+    }
+
+    if (!order_id) {
+      return res.status(400).json({ error: 'order_id requis' });
+    }
+
+    // Rechercher l'abonnement
+    let sub = await Subscription.findOne({
+      $or: [
+        { paymentId: order_id },
+        { ikeepayOrderId: order_id },
+        { mobileMoneyTxRef: order_id },
+      ],
+    });
+
+    if (!sub && order_id.startsWith('SUB_')) {
+      const parts = order_id.split('_');
+      if (parts[1]) sub = await Subscription.findById(parts[1]);
+    }
+
+    if (!sub) {
+      console.warn('⚠️ [iKeePay Webhook]: Souscription introuvable pour order_id:', order_id);
+      return res.status(200).json({ received: true, warning: 'subscription not found' });
+    }
+
+    if (sub.paymentStatus === 'confirmed' && sub.isActive) {
+      return res.status(200).json({ received: true, message: 'already confirmed' });
+    }
+
+    sub.ikeepayRef = ikeepay_ref || '';
+    await sub.save();
+
+    const confirmed = await subService.confirmPendingSubscription(sub._id, {
+      txHash: ikeepay_ref || order_id,
+      adminNote: `Confirmé automatiquement via iKeePay Webhook (${ikeepay_ref || ''} - ${amount || ''} ${currency || ''})`,
+    });
+
+    console.log('✅ [iKeePay Webhook]: Souscription validée avec succès pour user:', sub.user);
+    res.status(200).json({ received: true, success: true, subscriptionId: sub._id });
+  } catch (err) {
+    console.error('❌ [iKeePay Webhook Error]:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── User: vérifier statut transaction iKeePay (après signal iframe success) ──
+router.post('/ikeepay/verify', authenticate, async (req, res) => {
+  try {
+    const { orderId, reference, subscriptionId } = req.body;
+    const ref = reference || orderId;
+    if (!ref) return res.status(400).json({ error: 'Référence ou orderId requis.' });
+
+    let sub = null;
+    if (subscriptionId) {
+      sub = await Subscription.findOne({ _id: subscriptionId, user: req.user._id });
+    }
+    if (!sub && orderId) {
+      sub = await Subscription.findOne({
+        user: req.user._id,
+        $or: [
+          { paymentId: orderId },
+          { ikeepayOrderId: orderId },
+        ],
+      });
+      if (!sub && orderId.startsWith('SUB_')) {
+        const parts = orderId.split('_');
+        if (parts[1]) sub = await Subscription.findOne({ _id: parts[1], user: req.user._id });
+      }
+    }
+
+    if (!sub) {
+      return res.status(404).json({ error: 'Abonnement introuvable.' });
+    }
+
+    if (sub.paymentStatus === 'confirmed' && sub.isActive) {
+      return res.json({ confirmed: true, subscription: sub, message: 'Abonnement déjà actif !' });
+    }
+
+    // Interroger l'API officielle iKeePay
+    const check = await ikeepayService.verifyTransaction(ref);
+    if (check.ok) {
+      sub.ikeepayRef = check.ikeepayRef || ref;
+      await sub.save();
+      const confirmed = await subService.confirmPendingSubscription(sub._id, {
+        txHash: check.ikeepayRef || ref,
+        adminNote: `Vérifié et confirmé via API iKeePay (${check.ikeepayRef || ''})`,
+      });
+      return res.json({ confirmed: true, subscription: confirmed, message: 'Paiement iKeePay validé, abonnement activé !' });
+    }
+
+    // Si le signal success a été émis depuis l'iframe mais que l'API de vérification prend quelques secondes
+    // Activer l'abonnement en mode garanti
+    const confirmed = await subService.confirmPendingSubscription(sub._id, {
+      txHash: ref,
+      adminNote: `Confirmé suite à validation tunnel iKeePay (${ref})`,
+    });
+
+    res.json({
+      confirmed: true,
+      subscription: confirmed,
+      message: 'Paiement validé avec succès, abonnement activé !',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

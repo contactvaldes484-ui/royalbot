@@ -2431,6 +2431,10 @@ export function AdminSettings() {
     freeTrialEnabled: true,
     allRobotsFree: false,
     subscriptionsEnabled: true,
+    ikeepayEnabled: false,
+    ikeepayPublicKey: '',
+    ikeepaySecretKey: '',
+    ikeepayCurrency: 'USD',
   })
   const [showSecrets, setShowSecrets] = useState({})
   const toggleSecret = (field) => setShowSecrets(prev => ({ ...prev, [field]: !prev[field] }))
@@ -2489,6 +2493,10 @@ export function AdminSettings() {
             freeTrialEnabled: s.freeTrialEnabled !== undefined ? s.freeTrialEnabled : true,
             allRobotsFree: s.allRobotsFree !== undefined ? s.allRobotsFree : false,
             subscriptionsEnabled: s.subscriptionsEnabled !== undefined ? s.subscriptionsEnabled : true,
+            ikeepayEnabled: s.ikeepayEnabled !== undefined ? s.ikeepayEnabled : false,
+            ikeepayPublicKey: s.ikeepayPublicKey || '',
+            ikeepaySecretKey: s.ikeepaySecretKey || '',
+            ikeepayCurrency: s.ikeepayCurrency || 'USD',
           })
         }
       } catch (err) {
@@ -3091,6 +3099,149 @@ export function AdminSettings() {
                     ClÃ© secrÃ¨te SebPay pour signer et initier les collectes.
                   </p>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section iKeePay Mobile Money & Cards */}
+          <Card className="border-emerald-500/30 bg-slate-900/60 shadow-xl overflow-hidden">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold shadow-md shadow-emerald-500/10">
+                    <CreditCard className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base flex items-center gap-2 text-white">
+                      Passerelle iKeePay (Mobile Money & Cartes Bancaires)
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Tunnel de paiement Inline Checkout sans redirection. Permet aux utilisateurs de payer par Mobile Money (Orange, MTN, Moov, Wave) et Cartes.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={`text-xs ${form.ikeepayEnabled ? 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10' : 'border-slate-700 text-slate-400'}`}>
+                    {form.ikeepayEnabled ? '● Activé' : 'Désactivé'}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Activation Switch */}
+              <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold text-white flex items-center gap-2">
+                    Activer les paiements iKeePay pour les abonnements
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Affiche l'option de paiement iKeePay sur la page d'abonnement et ouvre le tunnel Inline Checkout.
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.ikeepayEnabled}
+                    onChange={e => update('ikeepayEnabled', e.target.checked)}
+                    className="rounded accent-emerald-500 w-5 h-5 cursor-pointer"
+                  />
+                </label>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-4 pt-1">
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block text-slate-200">
+                    Clé Publique iKeePay (IKEEPAY_PUBLIC_KEY) *
+                  </label>
+                  <Input
+                    value={form.ikeepayPublicKey}
+                    onChange={e => update('ikeepayPublicKey', e.target.value)}
+                    placeholder="ex: pk_live_cc90c4cc40f2437a80b0b88dd3b8bd3b"
+                    className="font-mono text-xs bg-slate-950 border-slate-800"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Clé publique fournie dans votre compte marchand iKeePay.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block text-slate-200 flex items-center justify-between">
+                    <span>Clé Secrète iKeePay (IKEEPAY_SECRET_KEY)</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleSecret('ikeepaySecretKey')}
+                      className="text-xs text-violet-400 hover:text-violet-300"
+                    >
+                      {showSecrets.ikeepaySecretKey ? 'Masquer' : 'Afficher'}
+                    </button>
+                  </label>
+                  <Input
+                    type={showSecrets.ikeepaySecretKey ? 'text' : 'password'}
+                    value={form.ikeepaySecretKey}
+                    onChange={e => update('ikeepaySecretKey', e.target.value)}
+                    placeholder="ex: sk_live_..."
+                    className="font-mono text-xs bg-slate-950 border-slate-800"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Clé secrète pour la vérification automatique des transactions.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block text-slate-200">
+                    Devise de paiement iKeePay
+                  </label>
+                  <select
+                    value={form.ikeepayCurrency || 'USD'}
+                    onChange={e => update('ikeepayCurrency', e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-white text-xs font-mono"
+                  >
+                    <option value="USD">USD ($)</option>
+                    <option value="XOF">XOF (Franc CFA)</option>
+                  </select>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Devise envoyée au tunnel de paiement iKeePay (défaut : USD).
+                  </p>
+                </div>
+              </div>
+
+              {/* Webhook URL Helper */}
+              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-200 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                    URL Webhook iKeePay (Notification automatique de paiement)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `${window.location.origin}/api/subscriptions/ikeepay/webhook`
+                      navigator.clipboard.writeText(url)
+                      alert(`URL Webhook copiée :\n${url}`)
+                    }}
+                    className="px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20 text-[11px] font-semibold transition"
+                  >
+                    Copier l'URL Webhook
+                  </button>
+                </div>
+                <p className="font-mono text-[11px] text-emerald-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 break-all select-all">
+                  {typeof window !== 'undefined' ? `${window.location.origin}/api/subscriptions/ikeepay/webhook` : '/api/subscriptions/ikeepay/webhook'}
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  Collez cette URL dans votre tableau de bord iKeePay dans les paramètres Webhook pour recevoir instantanément les validations de paiement.
+                </p>
+              </div>
+
+              {/* Lien direct pour configurer les plans */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
+                <span className="text-slate-400">
+                  Besoin de créer ou ajuster les prix et options des plans d'abonnement ?
+                </span>
+                <Link
+                  to="/admin/plans"
+                  className="inline-flex items-center gap-1.5 text-violet-400 hover:text-violet-300 font-semibold"
+                >
+                  Configurer les plans de souscription <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
             </CardContent>
           </Card>

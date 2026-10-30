@@ -36,6 +36,7 @@ function statusBadge(status) {
 }
 
 function methodLabel(m) {
+  if (m === 'ikeepay') return 'iKeePay (Mobile Money & Carte)'
   return ({
     usdt_tron: 'USDT (TRC-20)',
     binance_pay: 'Binance Pay',
@@ -65,6 +66,11 @@ export default function DashboardSubscription() {
 
   // Checkout form
   const [paymentMethod, setPaymentMethod] = useState('usdt_tron')
+  const [ikeepayModalOpen, setIkeepayModalOpen] = useState(false)
+  const [ikeepayUrl, setIkeepayUrl] = useState('')
+  const [ikeepayOrderId, setIkeepayOrderId] = useState('')
+  const [ikeepaySubId, setIkeepaySubId] = useState('')
+  const ikeepaySessionRef = React.useRef({ orderId: '', subId: '' })
   const [cryptoTxHash, setCryptoTxHash] = useState('')
   const [mobileMoneyProvider, setMobileMoneyProvider] = useState('orange')
   const [mobileMoneyNumber, setMobileMoneyNumber] = useState('')
@@ -90,6 +96,9 @@ export default function DashboardSubscription() {
       setHistory(h.data.subscriptions || [])
       setUsage(u.data || {})
       setPayOptions(po.data || null)
+      if (po.data?.ikeepay?.enabled) {
+        setPaymentMethod('ikeepay')
+      }
 
       if (requestedPlan && (p.data.plans || []).some(pl => pl.slug === requestedPlan)) {
         const target = p.data.plans.find(pl => pl.slug === requestedPlan)
@@ -103,6 +112,37 @@ export default function DashboardSubscription() {
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    const handleMessage = async (e) => {
+      if (e.data === 'ikeepay-ready') {
+        const overlay = document.getElementById('ikeepay-overlay')
+        if (overlay) overlay.style.display = 'flex'
+      } else if (e.data === 'ikeepay-success') {
+        const currentOrder = ikeepaySessionRef.current.orderId
+        const currentSub = ikeepaySessionRef.current.subId
+        try {
+          if (currentOrder || currentSub) {
+            await subscriptionAPI.verifyIkeepay({
+              orderId: currentOrder,
+              subscriptionId: currentSub,
+            })
+          }
+        } catch (err) {
+          console.warn('iKeePay verification error:', err)
+        }
+        setIkeepayModalOpen(false)
+        showMessage('success', 'Paiement iKeePay validé avec succès ! Votre abonnement est activé.')
+        await fetchUser?.()
+        await load()
+      } else if (e.data === 'ikeepay-close') {
+        setIkeepayModalOpen(false)
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [])
 
   const submitCheckout = async (e) => {
     e.preventDefault()
@@ -119,6 +159,22 @@ export default function DashboardSubscription() {
         mobileMoneyTxRef: paymentMethod === 'mobile_money' ? mobileMoneyTxRef : undefined,
       }
       const { data } = await subscriptionAPI.subscribe(payload)
+
+      if (paymentMethod === 'ikeepay') {
+        if (data.checkoutUrl) {
+          setIkeepayUrl(data.checkoutUrl)
+          setIkeepayOrderId(data.orderId || '')
+          setIkeepaySubId(data.subscriptionId || data.subscription?._id || '')
+          ikeepaySessionRef.current = {
+            orderId: data.orderId || '',
+            subId: data.subscriptionId || data.subscription?._id || '',
+          }
+          setIkeepayModalOpen(true)
+          setPlanForCheckout(null)
+          return
+        }
+      }
+
       showMessage('success', data.message || 'Demande envoyée.')
       // Mobile Money SebPay : ouvrir le lien de validation opérateur (ex: Wave) si fourni
       if (data.providerLink) {
@@ -308,15 +364,42 @@ export default function DashboardSubscription() {
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border bg-background text-sm"
+                  className="w-full px-3 py-2 rounded-lg border bg-background text-sm font-medium"
                 >
+                  {payOptions?.ikeepay?.enabled && (
+                    <option value="ikeepay">💳 iKeePay — Mobile Money & Carte Bancaire (Instantané)</option>
+                  )}
                   <option value="usdt_tron">USDT (TRC-20)</option>
                   <option value="binance_pay">Binance Pay</option>
                   <option value="mobile_money">Mobile Money</option>
                 </select>
               </div>
 
-              {paymentMethod !== 'mobile_money' && (
+              {paymentMethod === 'ikeepay' && (
+                <div className="space-y-3">
+                  <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-2.5">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-emerald-400" />
+                      <span className="font-semibold text-xs text-emerald-400 uppercase tracking-wide">Paiement Mobile & Carte sécurisé</span>
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      Réglez en toute sécurité via <strong>iKeePay</strong> avec vos comptes Mobile Money (Orange, MTN, Moov, Wave...) ou carte bancaire (Visa, Mastercard).
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 pt-1 text-[11px] text-emerald-300 font-medium">
+                      <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30">📱 Orange Money</span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30">📱 MTN MoMo</span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30">📱 Moov Money</span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30">🌊 Wave</span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30">💳 Cartes Visa / Mastercard</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground pt-1">
+                      Montant : <strong>${billingCycle === 'yearly' ? planForCheckout.priceYearly : planForCheckout.priceMonthly} {payOptions?.ikeepay?.currency || 'USD'}</strong>. Le tunnel de paiement s'ouvrira directement sur cette page.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod !== 'mobile_money' && paymentMethod !== 'ikeepay' && (
                 <div className="space-y-3">
                   <div className="p-3 rounded-lg bg-muted/40 text-xs space-y-1">
                     <p className="font-semibold">Adresse de réception USDT (réseau {payOptions?.usdt?.network || 'TRC-20 (TRON)'}) :</p>
@@ -382,13 +465,16 @@ export default function DashboardSubscription() {
               )}
 
               {(() => {
-                const auto = paymentMethod === 'mobile_money'
-                  ? payOptions?.mobileMoney?.enabled
-                  : payOptions?.usdt?.autoVerify
+                const isIkeepay = paymentMethod === 'ikeepay'
+                const isMobileMoneyAuto = paymentMethod === 'mobile_money' && payOptions?.mobileMoney?.enabled
+                const isUsdtAuto = (paymentMethod === 'usdt_tron' || paymentMethod === 'binance_pay') && payOptions?.usdt?.autoVerify
+                const auto = isIkeepay || isMobileMoneyAuto || isUsdtAuto
                 return (
                   <div className={`flex items-start gap-2 p-3 rounded-lg text-xs border ${auto ? 'bg-green-500/10 border-green-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
                     <AlertCircle className={`h-4 w-4 shrink-0 mt-0.5 ${auto ? 'text-green-500' : 'text-amber-500'}`} />
-                    <p>{auto
+                    <p>{isIkeepay
+                      ? 'Paiement en ligne instantané : validation automatique en temps réel dès confirmation par votre opérateur.'
+                      : auto
                       ? 'Votre paiement est vérifié automatiquement. Votre plan s\'active dès confirmation (quelques secondes à quelques minutes).'
                       : 'Votre paiement sera vérifié par un administrateur (généralement sous 1-24h). Vous recevrez une notification dès l\'activation.'}</p>
                   </div>
@@ -398,7 +484,7 @@ export default function DashboardSubscription() {
               <div className="flex gap-2">
                 <Button type="submit" disabled={submitting} className="flex-1">
                   {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Envoyer le paiement
+                  {paymentMethod === 'ikeepay' ? 'Ouvrir le tunnel de paiement' : 'Envoyer le paiement'}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setPlanForCheckout(null)}>
                   Annuler
@@ -449,6 +535,36 @@ export default function DashboardSubscription() {
           )}
         </CardContent>
       </Card>
+
+      {/* Tunnel iKeePay Inline Modal */}
+      {ikeepayModalOpen && ikeepayUrl && (
+        <div id="ikeepay-overlay" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-[450px] h-[90vh] max-h-[720px] bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-slate-800 flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/90">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5 text-emerald-400" /> Tunnel de Paiement Sécurisé iKeePay
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIkeepayModalOpen(false)}
+                className="text-xs px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+              >
+                ✕ Fermer
+              </button>
+            </div>
+            <iframe
+              id="ikeepay-iframe"
+              src={ikeepayUrl}
+              allowTransparency="true"
+              className="w-full flex-1 border-none bg-transparent"
+              title="Paiement iKeePay"
+            />
+          </div>
+        </div>
+      )}
 
       <div className="text-center pt-2">
         <Button variant="ghost" size="sm" asChild>

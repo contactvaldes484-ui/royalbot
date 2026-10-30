@@ -578,6 +578,7 @@ router.put('/settings', async (req, res) => {
       'usdtTronAddress', 'trongridApiKey',
       'binancePayId', 'binancePayMerchantId', 'binancePayApiKey', 'binancePaySecretKey', 'binancePayEmail',
       'sebpayBaseUrl', 'sebpayPublicKey', 'sebpaySecretKey',
+      'ikeepayEnabled', 'ikeepayPublicKey', 'ikeepaySecretKey', 'ikeepayCurrency',
       'metaTitle', 'metaDescription',
     ];
 
