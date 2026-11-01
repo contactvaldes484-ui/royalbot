@@ -186,22 +186,22 @@ class DerivRobotEngine {
     const acc = await fallbackStore.getDerivAccountById(accountId, userId);
     if (!acc) throw new Error('Compte Deriv introuvable.');
 
-    // Vérification de la période d'essai de 7 jours (Le propriétaire de la plateforme a un accès illimité à vie)
+    // Vérification de la période d'essai de 7 jours (Le propriétaire et les admins ont un accès illimité à vie)
     const user = await fallbackStore.findUserById(userId);
     const userEmail = (user?.email || '').toLowerCase().trim();
     const isOwner = userEmail === 'valdeslando15@gmail.com' || (typeof fallbackStore.isPlatformOwner === 'function' && fallbackStore.isPlatformOwner(user));
+    const isAdmin = isOwner || user?.role === 'super_admin' || user?.role === 'admin';
     const hasPaidPlan =
-      isOwner ||
+      isAdmin ||
       user?.subscription?.plan === 'deriv-starter' ||
       user?.subscription?.plan === 'deriv-pro' ||
       user?.subscription?.plan === 'vip' ||
       user?.subscription?.plan === 'institutional' ||
-      user?.role === 'super_admin' ||
-      user?.role === 'admin';
+      (user?.subscription?.isActive && user?.subscription?.plan !== 'free');
     const isAffiliated = acc.affiliateVerified === true;
     const isTrialActive = isOwner ? true : (acc.isTrialValid ? acc.isTrialValid() : true);
 
-    if (!isOwner && !isTrialActive && !hasPaidPlan && !isAffiliated) {
+    if (!isAdmin && !isTrialActive && !hasPaidPlan && !isAffiliated) {
       throw new Error(
         'Période d\'essai gratuite de 7 jours expirée. Activez l\'accès via notre lien partenaire Deriv ou souscrivez à un abonnement mensuel.'
       );
@@ -351,8 +351,16 @@ class DerivRobotEngine {
       }
 
       const bot = await fallbackStore.findDerivBotById(session.bot);
-      const token = acc.getToken ? acc.getToken() : '';
-      if (!token) return;
+      let token = '';
+      try {
+        token = acc.getToken ? acc.getToken() : (acc.token || '');
+      } catch (e) {
+        console.warn('Error reading token from account:', e.message);
+      }
+      if (!token) {
+        console.warn(`DerivRobotEngine: pas de token pour le compte ${acc.loginId}`);
+        return;
+      }
 
       ds = new DerivService({ token, loginId: acc.loginId });
 

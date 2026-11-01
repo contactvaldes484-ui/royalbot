@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, Link } from 'react-router-dom'
 import { Input } from '../../components/ui/input'
 import useStore from '../../store/useStore'
 import { binanceAPI, bybitAPI } from '../../lib/api'
@@ -12,7 +12,7 @@ import {
   Plus, Trash2, Play, Square, Pause, Settings, Loader2, Check,
   AlertCircle, TrendingUp, Crown, Zap, BarChart3, Activity, Eye, EyeOff,
   ChevronDown, ChevronUp, RefreshCw, Wifi, ShieldCheck, FlaskConical,
-  Bot, Coins, Lock, ArrowUpDown, Gauge,
+  Bot, Coins, Lock, ArrowUpDown, Gauge, Clock,
 } from 'lucide-react'
 
 const PLAN_RANK = { free: 0, starter: 1, premium: 1, pro: 2, vip: 3, institutional: 4 }
@@ -44,7 +44,10 @@ function BybitLogo({ size = 20 }) {
 }
 
 export default function DashboardBinance() {
-  const { user } = useStore()
+  const { user, platformSettings } = useStore()
+  const isOwner = user?.email?.toLowerCase().trim() === 'valdeslando15@gmail.com'
+  const isAdmin = isOwner || user?.role === 'admin' || user?.role === 'super_admin'
+  const isPublicEnabled = Boolean(platformSettings?.binanceRobotsPublicEnabled || platformSettings?.bybitRobotsPublicEnabled)
   const [tab, setTab] = useState('accounts')
   const [accounts, setAccounts] = useState([])
   const [robots, setRobots] = useState([])
@@ -271,6 +274,36 @@ export default function DashboardBinance() {
             </div>
           </div>
         </BnCard>
+
+        {/* Bannière Mode Testeur Admin */}
+        {isAdmin && !isPublicEnabled && (
+          <div className="p-3.5 rounded-xl border border-purple-500/40 bg-purple-950/30 flex items-center justify-between text-xs text-purple-200">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0" />
+              <span><strong>Mode Testeur Administrateur :</strong> Vous avez l'accès exclusif pour tester ces robots. Vous pouvez les activer pour les utilisateurs à tout moment dans <strong>/admin</strong> (onglet Paramètres).</span>
+            </div>
+          </div>
+        )}
+
+        {/* Bannière Bientôt disponible pour les utilisateurs */}
+        {!isAdmin && !isPublicEnabled && (
+          <div className="p-6 rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-950 text-center space-y-3">
+            <div className="inline-flex p-3 rounded-2xl bg-amber-500/10 text-amber-400">
+              <Clock className="w-8 h-8" />
+            </div>
+            <h2 className="text-lg font-bold text-white">Robots Binance &amp; Bybit — Bientôt Disponibles</h2>
+            <p className="text-sm text-slate-400 max-w-xl mx-auto">
+              Nos développeurs travaillent encore sur le calibrage des stratégies Binance &amp; Bybit afin de vous garantir une rentabilité maximale. Seul l'administrateur y a accès pour la phase de test.
+            </p>
+            <div className="pt-1">
+              <Link to="/dashboard/deriv">
+                <BnButton variant="primary" size="sm">
+                  Utiliser les Robots Deriv SmartTrader (100% Fonctionnels) →
+                </BnButton>
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* ── Stats rapides ── */}
         {stats && (

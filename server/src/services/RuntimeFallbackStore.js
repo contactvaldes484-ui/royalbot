@@ -316,6 +316,9 @@ class RuntimeFallbackStore {
       ikeepayPublicKey: '',
       ikeepaySecretKey: '',
       ikeepayCurrency: 'USD',
+      binanceRobotsPublicEnabled: false,
+      bybitRobotsPublicEnabled: false,
+      aiScannerUrl: 'https://tradingkit.com/',
     };
 
     // Seed Super Admin in memory immediately

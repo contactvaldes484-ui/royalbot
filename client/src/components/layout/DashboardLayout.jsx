@@ -17,13 +17,17 @@ export default function DashboardLayout() {
 
   if (!isAuthenticated) return <Navigate to="/login" replace />
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
+  const isOwner = user?.email?.toLowerCase().trim() === 'valdeslando15@gmail.com'
+  const isAdmin = isOwner || user?.role === 'admin' || user?.role === 'super_admin'
+
+  const aiScannerUrl = platformSettings?.aiScannerUrl || 'https://tradingkit.com/'
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
     { icon: Bot, label: 'Robots de Trading', href: '/dashboard/bots', highlight: true },
     { icon: Zap, label: 'Deriv SmartTrader', href: '/dashboard/deriv', highlight: true },
     { icon: Bitcoin, label: 'Binance & Bybit', href: '/dashboard/binance' },
+    { icon: Radar, label: 'Scanner IA', href: aiScannerUrl, external: true, highlight: true },
     { icon: BarChart3, label: 'Analytics', href: '/dashboard/analytics' },
     { icon: History, label: 'Historique', href: '/dashboard/trades' },
     { icon: MessageCircle, label: 'Groupes', href: '/dashboard/groups' },
@@ -82,28 +86,52 @@ export default function DashboardLayout() {
 
         {/* Nav */}
         <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
-          {menuItems.map(item => (
-            <Link
-              key={item.href}
-              to={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                isActive(item.href)
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : item.highlight
-                  ? 'text-blue-500 hover:bg-blue-500/10'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-              } ${collapsed ? 'justify-center px-2' : ''}`}
-              title={collapsed ? item.label : undefined}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              {!collapsed && (
-                <span className="flex-1">{item.label}</span>
-              )}
-              {!collapsed && item.highlight && (
-                <span className="text-[9px] bg-blue-500 text-white px-1 py-0.5 rounded font-bold">NEW</span>
-              )}
-            </Link>
-          ))}
+          {menuItems.map(item => {
+            if (item.external) {
+              return (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 ${collapsed ? 'justify-center px-2' : ''}`}
+                  title={item.label}
+                >
+                  <item.icon className="h-4 w-4 shrink-0 text-cyan-400" />
+                  {!collapsed && (
+                    <span className="flex-1 font-medium">{item.label}</span>
+                  )}
+                  {!collapsed && (
+                    <span className="text-[9px] bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-1.5 py-0.5 rounded font-extrabold uppercase">
+                      IA
+                    </span>
+                  )}
+                </a>
+              )
+            }
+            return (
+              <Link
+                key={item.href}
+                to={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                  isActive(item.href)
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : item.highlight
+                    ? 'text-blue-500 hover:bg-blue-500/10'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                } ${collapsed ? 'justify-center px-2' : ''}`}
+                title={collapsed ? item.label : undefined}
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                {!collapsed && (
+                  <span className="flex-1">{item.label}</span>
+                )}
+                {!collapsed && item.highlight && (
+                  <span className="text-[9px] bg-blue-500 text-white px-1 py-0.5 rounded font-bold">NEW</span>
+                )}
+              </Link>
+            )
+          })}
         </nav>
 
         {/* Bottom */}

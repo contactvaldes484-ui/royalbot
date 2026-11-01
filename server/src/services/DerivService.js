@@ -152,10 +152,13 @@ class DerivService {
       // Fallback sur le WebSocket v3 standard (note: /websockets/v3 requiert un app_id numérique, ex: 1089)
       if (!targetWsUrl) {
         const numericAppId = /^\d+$/.test(String(this.appId)) ? String(this.appId) : '1089';
-        const baseWs = this.customWsUrl || 'wss://ws.derivws.com/websockets/v3';
-        targetWsUrl = baseWs.includes('app_id=')
-          ? baseWs
-          : `${baseWs.replace(/\/$/, '')}?app_id=${numericAppId}`;
+        let baseWs = (this.customWsUrl || 'wss://ws.derivws.com/websockets/v3').trim();
+        if (baseWs.includes('app_id=')) {
+          baseWs = baseWs.replace(/app_id=[^&]+/, `app_id=${numericAppId}`);
+          targetWsUrl = baseWs;
+        } else {
+          targetWsUrl = `${baseWs.replace(/\/$/, '')}?app_id=${numericAppId}`;
+        }
       }
 
       return new Promise((resolve, reject) => {

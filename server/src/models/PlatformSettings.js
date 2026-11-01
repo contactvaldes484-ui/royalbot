@@ -63,6 +63,13 @@ const platformSettingsSchema = new mongoose.Schema({
   // Broker Integration (Legacy)
   brokerSignupUrl: { type: String, default: '' },
 
+  // Contrôle d'accès des Robots Brokers (Binance / Bybit en test développeur)
+  binanceRobotsPublicEnabled: { type: Boolean, default: false }, // Seul l'admin y a accès si faux ("Bientôt" pour les users)
+  bybitRobotsPublicEnabled: { type: Boolean, default: false },   // Seul l'admin y a accès si faux ("Bientôt" pour les users)
+
+  // Scanner IA (URL personnalisable par l'administrateur)
+  aiScannerUrl: { type: String, default: 'https://tradingkit.com/' },
+
   // Payment gateways & Crypto settings (Configured by Admin)
   usdtTronAddress: { type: String, default: '' },      // USDT TRC-20 wallet address
   trongridApiKey: { type: String, default: '' },       // TronGrid API key for auto on-chain verification

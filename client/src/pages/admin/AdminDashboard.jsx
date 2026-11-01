@@ -2435,6 +2435,9 @@ export function AdminSettings() {
     ikeepayPublicKey: '',
     ikeepaySecretKey: '',
     ikeepayCurrency: 'USD',
+    binanceRobotsPublicEnabled: false,
+    bybitRobotsPublicEnabled: false,
+    aiScannerUrl: 'https://tradingkit.com/',
   })
   const [showSecrets, setShowSecrets] = useState({})
   const toggleSecret = (field) => setShowSecrets(prev => ({ ...prev, [field]: !prev[field] }))
@@ -2497,6 +2500,9 @@ export function AdminSettings() {
             ikeepayPublicKey: s.ikeepayPublicKey || '',
             ikeepaySecretKey: s.ikeepaySecretKey || '',
             ikeepayCurrency: s.ikeepayCurrency || 'USD',
+            binanceRobotsPublicEnabled: s.binanceRobotsPublicEnabled !== undefined ? s.binanceRobotsPublicEnabled : false,
+            bybitRobotsPublicEnabled: s.bybitRobotsPublicEnabled !== undefined ? s.bybitRobotsPublicEnabled : false,
+            aiScannerUrl: s.aiScannerUrl || 'https://tradingkit.com/',
           })
         }
       } catch (err) {
@@ -3287,6 +3293,90 @@ export function AdminSettings() {
                   <p className="text-[10px] text-muted-foreground mt-1">
                     Adresse WebSocket pour les cotations et l'exécution des bots Deriv.
                   </p>
+                </div>
+
+                {/* Contrôle d'accès des Robots Binance & Bybit (Mode Testeur Admin) */}
+                <div className="p-4 rounded-xl bg-slate-950/70 border border-amber-500/30 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-amber-300 flex items-center gap-2">
+                      <Bitcoin className="h-4 w-4 text-amber-400" /> Accès aux Robots Binance & Bybit (Phase Développeurs)
+                    </h4>
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded font-mono font-bold">
+                      Restrictions Utilisateurs
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Les développeurs effectuent actuellement des tests sur les robots Binance et Bybit. Seuls les administrateurs peuvent y accéder et les tester. Dès que vos tests sont concluants, activez les interrupteurs ci-dessous pour ouvrir les robots au public.
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-800 bg-slate-900/60 cursor-pointer hover:border-slate-700 transition">
+                      <input
+                        type="checkbox"
+                        checked={form.binanceRobotsPublicEnabled}
+                        onChange={e => update('binanceRobotsPublicEnabled', e.target.checked)}
+                        className="rounded accent-amber-500 w-4 h-4 mt-0.5"
+                      />
+                      <div>
+                        <span className="text-xs font-semibold block text-white">Activer publiquement les Robots Binance Crypto</span>
+                        <span className="text-[11px] text-muted-foreground block mt-0.5">
+                          {form.binanceRobotsPublicEnabled
+                            ? '✅ Accessible à tous les utilisateurs autorisés'
+                            : '🔒 Réservé à l'administrateur ("Bientôt" affiché aux utilisateurs)'}
+                        </span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-800 bg-slate-900/60 cursor-pointer hover:border-slate-700 transition">
+                      <input
+                        type="checkbox"
+                        checked={form.bybitRobotsPublicEnabled}
+                        onChange={e => update('bybitRobotsPublicEnabled', e.target.checked)}
+                        className="rounded accent-orange-500 w-4 h-4 mt-0.5"
+                      />
+                      <div>
+                        <span className="text-xs font-semibold block text-white">Activer publiquement les Robots Bybit Multi-Marchés</span>
+                        <span className="text-[11px] text-muted-foreground block mt-0.5">
+                          {form.bybitRobotsPublicEnabled
+                            ? '✅ Accessible à tous les utilisateurs autorisés'
+                            : '🔒 Réservé à l'administrateur ("Bientôt" affiché aux utilisateurs)'}
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Configuration du Scanner IA */}
+                <div className="p-4 rounded-xl bg-slate-950/70 border border-cyan-500/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-cyan-300 flex items-center gap-2">
+                      <Radar className="h-4 w-4 text-cyan-400" /> Redirection Fonctionnalité « Scanner IA »
+                    </h4>
+                    <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded font-mono font-bold">
+                      Lien Externe
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Définissez l'URL vers laquelle les utilisateurs sont redirigés lorsqu'ils cliquent sur le bouton « Scanner IA » dans la barre latérale.
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={form.aiScannerUrl}
+                      onChange={e => update('aiScannerUrl', e.target.value)}
+                      placeholder="https://tradingkit.com/"
+                      className="font-mono text-xs flex-1"
+                    />
+                    {form.aiScannerUrl && (
+                      <a
+                        href={form.aiScannerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-2 text-xs font-semibold rounded-lg bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 border border-cyan-500/40 inline-flex items-center gap-1.5 shrink-0"
+                      >
+                        Tester le lien ↗
+                      </a>
+                    )}
+                  </div>
                 </div>
 
                 {/* Free Trial & Subscription Global Controls */}

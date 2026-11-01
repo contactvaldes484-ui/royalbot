@@ -237,9 +237,14 @@ export default function DashboardBots() {
   const isBybitConnected = bybitAccounts.length > 0 || binanceAccounts.some(a => a.exchange === 'bybit')
 
   const derivAccount = derivAccounts[0]
-  const isTrialValid = derivAccount?.isTrialValid !== false
-  const trialDaysRemaining = derivAccount?.trialDaysRemaining ?? 7
-  const isOwner = user?.email === 'valdeslando15@gmail.com' || user?.role === 'admin' || user?.role === 'super_admin'
+  const isOwner = user?.email?.toLowerCase().trim() === 'valdeslando15@gmail.com'
+  const isAdmin = isOwner || user?.role === 'admin' || user?.role === 'super_admin'
+  const isTrialValid = isOwner || derivAccount?.isTrialValid !== false
+  const trialDaysRemaining = isOwner ? 9999 : (derivAccount?.trialDaysRemaining ?? 7)
+  const binancePublic = Boolean(platformSettings?.binanceRobotsPublicEnabled)
+  const bybitPublic = Boolean(platformSettings?.bybitRobotsPublicEnabled)
+  const canAccessBinance = isAdmin || binancePublic
+  const canAccessBybit = isAdmin || bybitPublic
 
   useEffect(() => {
     loadData()
@@ -387,52 +392,96 @@ export default function DashboardBots() {
 
         {/* Binance Status */}
         <div className={`p-3.5 rounded-xl border flex items-center justify-between ${
-          isBinanceConnected ? 'bg-amber-500/10 border-amber-500/30' : 'bg-card border-border'
+          !canAccessBinance
+            ? 'bg-muted/20 border-dashed border-border'
+            : isBinanceConnected ? 'bg-amber-500/10 border-amber-500/30' : 'bg-card border-border'
         }`}>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-400 font-bold">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${
+              !canAccessBinance ? 'bg-muted text-muted-foreground' : 'bg-amber-500/20 text-amber-400'
+            }`}>
               <Bitcoin className="h-4 w-4" />
             </div>
             <div>
               <div className="text-xs font-bold flex items-center gap-1.5">
                 Binance Crypto
-                {isBinanceConnected && <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />}
+                {canAccessBinance && isBinanceConnected && <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />}
+                {!canAccessBinance && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                    Bientôt
+                  </span>
+                )}
+                {isAdmin && !binancePublic && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    Accès Test Admin
+                  </span>
+                )}
               </div>
               <div className="text-[11px] text-muted-foreground">
-                {isBinanceConnected ? 'Clés API actives (Spot/Futures)' : 'API non connectée'}
+                {!canAccessBinance
+                  ? 'En cours de finalisation par nos développeurs'
+                  : isBinanceConnected ? 'Clés API actives (Spot/Futures)' : 'API non connectée'}
               </div>
             </div>
           </div>
-          <Link to="/dashboard/binance">
-            <Button size="sm" variant={isBinanceConnected ? 'outline' : 'default'} className="h-7 text-xs">
-              {isBinanceConnected ? 'Gérer' : 'Connecter'}
+          {canAccessBinance ? (
+            <Link to="/dashboard/binance">
+              <Button size="sm" variant={isBinanceConnected ? 'outline' : 'default'} className="h-7 text-xs">
+                {isAdmin && !binancePublic ? 'Tester (Admin)' : (isBinanceConnected ? 'Gérer' : 'Connecter')}
+              </Button>
+            </Link>
+          ) : (
+            <Button size="sm" disabled className="h-7 text-xs opacity-60 cursor-not-allowed bg-muted text-muted-foreground border">
+              Bientôt
             </Button>
-          </Link>
+          )}
         </div>
 
         {/* Bybit Status */}
         <div className={`p-3.5 rounded-xl border flex items-center justify-between ${
-          isBybitConnected ? 'bg-orange-500/10 border-orange-500/30' : 'bg-card border-border'
+          !canAccessBybit
+            ? 'bg-muted/20 border-dashed border-border'
+            : isBybitConnected ? 'bg-orange-500/10 border-orange-500/30' : 'bg-card border-border'
         }`}>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${
+              !canAccessBybit ? 'bg-muted text-muted-foreground' : 'bg-orange-500/20 text-orange-400'
+            }`}>
               <Layers className="h-4 w-4" />
             </div>
             <div>
               <div className="text-xs font-bold flex items-center gap-1.5">
                 Bybit Multi-Marchés
-                {isBybitConnected && <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />}
+                {canAccessBybit && isBybitConnected && <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />}
+                {!canAccessBybit && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded font-bold bg-orange-500/10 text-orange-400 border border-orange-500/30">
+                    Bientôt
+                  </span>
+                )}
+                {isAdmin && !bybitPublic && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    Accès Test Admin
+                  </span>
+                )}
               </div>
               <div className="text-[11px] text-muted-foreground">
-                {isBybitConnected ? 'Clés API actives (Forex/Commodities)' : 'API non connectée'}
+                {!canAccessBybit
+                  ? 'En cours de finalisation par nos développeurs'
+                  : isBybitConnected ? 'Clés API actives (Forex/Commodities)' : 'API non connectée'}
               </div>
             </div>
           </div>
-          <Link to="/dashboard/binance">
-            <Button size="sm" variant={isBybitConnected ? 'outline' : 'default'} className="h-7 text-xs">
-              {isBybitConnected ? 'Gérer' : 'Connecter'}
+          {canAccessBybit ? (
+            <Link to="/dashboard/binance">
+              <Button size="sm" variant={isBybitConnected ? 'outline' : 'default'} className="h-7 text-xs">
+                {isAdmin && !bybitPublic ? 'Tester (Admin)' : (isBybitConnected ? 'Gérer' : 'Connecter')}
+              </Button>
+            </Link>
+          ) : (
+            <Button size="sm" disabled className="h-7 text-xs opacity-60 cursor-not-allowed bg-muted text-muted-foreground border">
+              Bientôt
             </Button>
-          </Link>
+          )}
         </div>
       </div>
 
@@ -459,6 +508,11 @@ export default function DashboardBots() {
         >
           <Bitcoin className="h-4 w-4" />
           <span>Robots Binance Crypto ({binanceBots.length})</span>
+          {!canAccessBinance && (
+            <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-amber-500/20 text-amber-300">
+              Bientôt
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab('bybit')}
@@ -470,8 +524,61 @@ export default function DashboardBots() {
         >
           <Layers className="h-4 w-4" />
           <span>Robots Bybit Multi-Marchés ({bybitBots.length})</span>
+          {!canAccessBybit && (
+            <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-orange-500/20 text-orange-300">
+              Bientôt
+            </span>
+          )}
         </button>
       </div>
+
+      {/* Bannière Mode Testeur Admin */}
+      {isAdmin && (activeTab === 'binance' || activeTab === 'bybit') && (
+        <div className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-500/30 flex items-center justify-between text-xs text-purple-200">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0" />
+            <span><strong>Mode Test Administrateur :</strong> Vous avez l'accès exclusif pour tester ces robots. Vous pouvez les activer pour les utilisateurs depuis les Paramètres du Dashboard Administrateur.</span>
+          </div>
+          <Link to="/admin" className="text-purple-300 underline font-semibold shrink-0 ml-2">
+            Gérer l'activation
+          </Link>
+        </div>
+      )}
+
+      {/* Bannière Bientôt disponible pour les utilisateurs */}
+      {!canAccessBinance && activeTab === 'binance' && (
+        <div className="p-8 rounded-2xl bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-950 border border-amber-500/30 text-center space-y-3">
+          <div className="inline-flex p-3 rounded-2xl bg-amber-500/10 text-amber-400">
+            <Clock className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-bold text-white">Robots Binance Crypto — Bientôt disponibles</h3>
+          <p className="text-sm text-slate-400 max-w-xl mx-auto">
+            Nos développeurs travaillent activement sur l'optimisation des stratégies et le filtrage des algorithmes Binance pour garantir une rentabilité optimale. Seul l'administrateur a actuellement accès à cette section pour les phases de test.
+          </p>
+          <div className="pt-2">
+            <Button onClick={() => setActiveTab('deriv')} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs">
+              <Zap className="w-3.5 h-3.5 mr-1.5" /> Utiliser les Robots Deriv SmartTrader (100% Actifs)
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!canAccessBybit && activeTab === 'bybit' && (
+        <div className="p-8 rounded-2xl bg-gradient-to-r from-orange-950/40 via-slate-900 to-slate-950 border border-orange-500/30 text-center space-y-3">
+          <div className="inline-flex p-3 rounded-2xl bg-orange-500/10 text-orange-400">
+            <Clock className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-bold text-white">Robots Bybit Multi-Marchés — Bientôt disponibles</h3>
+          <p className="text-sm text-slate-400 max-w-xl mx-auto">
+            L'intégration des robots Bybit sur le Forex, Métaux et Indices est en cours de test par l'équipe technique. Seul l'administrateur a actuellement accès à cette section pour tester et calibrer les robots avant leur activation publique.
+          </p>
+          <div className="pt-2">
+            <Button onClick={() => setActiveTab('deriv')} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs">
+              <Zap className="w-3.5 h-3.5 mr-1.5" /> Utiliser les Robots Deriv SmartTrader (100% Actifs)
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* ── ROBOTS GRID ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

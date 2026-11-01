@@ -83,7 +83,7 @@ export default function ManualTradingWorkstation({
 
   useEffect(() => {
     let active = true
-    const appId = '34HkkJSIK047dAEWEgXML'
+    const appId = '1089' // ID numérique officiel Deriv pour l'accès aux flux WebSocket temps réel
     const wsUrl = `wss://ws.derivws.com/websockets/v3?app_id=${appId}&l=FR&brand=deriv`
 
     function connect() {
@@ -93,13 +93,28 @@ export default function ManualTradingWorkstation({
 
         ws.onopen = () => {
           if (!active) return ws.close()
-          ws.send(JSON.stringify({ ticks: selectedSymbol }))
+          // Récupération de l'historique initial + souscription automatique aux ticks en direct
+          ws.send(JSON.stringify({
+            ticks_history: selectedSymbol,
+            end: 'latest',
+            count: 60,
+            style: 'ticks',
+            subscribe: 1,
+          }))
         }
 
         ws.onmessage = (event) => {
           if (!active) return
           try {
             const data = JSON.parse(event.data)
+            // Historique des 60 derniers ticks réels
+            if (data.history?.prices && Array.isArray(data.history.prices) && data.history.prices.length > 0) {
+              const prices = data.history.prices.map(Number)
+              setPriceHistory(prices)
+              const last = prices[prices.length - 1]
+              if (last !== undefined) setCurrentQuote(last)
+            }
+            // Flux de ticks temps réel en continu
             if (data.tick?.quote !== undefined) {
               const q = Number(data.tick.quote)
               setCurrentQuote(q)
@@ -108,8 +123,8 @@ export default function ManualTradingWorkstation({
                 return next
               })
               setDirectionHistory(prev => {
-                const last = priceHistory[priceHistory.length - 1] || q
-                const dir = q >= last ? 'up' : 'down'
+                const last = prev[prev.length - 1]
+                const dir = q >= (priceHistory[priceHistory.length - 1] || q) ? 'up' : 'down'
                 return [...prev.slice(-15), dir]
               })
               if (activeAccumulator) {
@@ -121,7 +136,7 @@ export default function ManualTradingWorkstation({
 
         ws.onerror = () => {}
         ws.onclose = () => {
-          if (active) setTimeout(connect, 3000)
+          if (active) setTimeout(connect, 2500)
         }
       } catch (_) {}
     }
@@ -139,13 +154,18 @@ export default function ManualTradingWorkstation({
         if (activeAccumulator) setSurvivedTicks(s => s + 1)
         return next
       })
-    }, 1500)
+    }, 1200)
 
     return () => {
       active = false
       clearInterval(fallbackTimer)
       if (wsRef.current) {
-        try { wsRef.current.close() } catch (_) {}
+        try {
+          if (wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ forget_all: 'ticks' }))
+          }
+          wsRef.current.close()
+        } catch (_) {}
       }
     }
   }, [selectedSymbol, activeAccumulator])
@@ -207,11 +227,12 @@ export default function ManualTradingWorkstation({
   const sparklinePath = useMemo(() => {
     if (priceHistory.length < 2) return ''
     const min = Math.min(...priceHistory)
-    const max = Math.max(...priceHistory) || min + 1
+    const max = Math.max(...priceHistory)
+    const span = (max - min) === 0 ? 0.001 : (max - min)
     const w = 120, h = 32
     return priceHistory.slice(-25).map((p, i, arr) => {
       const x = (i / (arr.length - 1)) * w
-      const y = h - ((p - min) / (max - min)) * (h - 6) - 3
+      const y = h - ((p - min) / span) * (h - 6) - 3
       return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`
     }).join(' ')
   }, [priceHistory])
@@ -243,11 +264,12 @@ export default function ManualTradingWorkstation({
     const points = priceHistory.slice(-35)
     if (points.length < 2) return { linePath: '', areaPath: '', min: 0, max: 1, lastPoint: { x: 0, y: 0 } }
     const min = Math.min(...points)
-    const max = Math.max(...points) || min + 0.01
+    const max = Math.max(...points)
+    const span = (max - min) === 0 ? 0.001 : (max - min)
     const w = 700, h = 260
     const coords = points.map((p, i) => {
       const x = (i / (points.length - 1)) * (w - 70) + 15
-      const y = h - ((p - min) / (max - min)) * (h - 60) - 30
+      const y = h - ((p - min) / span) * (h - 60) - 30
       return { x, y, p }
     })
     const linePath = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ')

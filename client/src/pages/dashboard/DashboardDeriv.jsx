@@ -60,11 +60,13 @@ export default function DashboardDeriv() {
   const [startingBot, setStartingBot] = useState(false)
 
   const selectedAccount = accounts.find(a => a._id === selectedAccountId) || accounts[0]
-  const isTrialValid = selectedAccount?.isTrialValid !== false
-  const trialDays = selectedAccount?.trialDaysRemaining ?? 7
+  const isOwner = user?.email?.toLowerCase().trim() === 'valdeslando15@gmail.com'
+  const isAdmin = isOwner || user?.role === 'admin' || user?.role === 'super_admin'
+  const isTrialValid = isOwner || selectedAccount?.isTrialValid !== false
+  const trialDays = isOwner ? 9999 : (selectedAccount?.trialDaysRemaining ?? 7)
   const isAffiliated = selectedAccount?.affiliateVerified === true
-  const hasPaidPlan = user?.subscription?.plan?.startsWith('deriv') || user?.subscription?.plan === 'vip'
-  const canRunRobots = isTrialValid || isAffiliated || hasPaidPlan
+  const hasPaidPlan = isAdmin || user?.subscription?.plan?.startsWith('deriv') || user?.subscription?.plan === 'vip' || user?.subscription?.plan === 'institutional' || (user?.subscription?.isActive && user?.subscription?.plan !== 'free')
+  const canRunRobots = isAdmin || isTrialValid || isAffiliated || hasPaidPlan
 
   const allTrades = React.useMemo(() => {
     const map = new Map()
