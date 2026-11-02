@@ -1,4 +1,4 @@
-const CACHE_NAME = 'RoyalBot-v1';
+const CACHE_NAME = 'RoyalBot-v2';
 const STATIC_ASSETS = [
   '/',
   '/dashboard',

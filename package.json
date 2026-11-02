@@ -4,9 +4,11 @@
   "description": "SaaS platform for automated Deriv, Binance and Bybit trading bots",
   "private": true,
   "scripts": {
+    "build": "cd client && npm install && npm run build",
+    "vercel-build": "cd client && npm install && npm run build",
+    "build:client": "cd client && npm install && npm run build",
+    "build:server": "cd server && npm install",
     "start": "cd server && npm start",
-    "build": "cd server && npm install",
-    "postinstall": "cd server && npm install",
     "client": "cd client && npm start",
     "server": "cd server && npm run dev",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
