@@ -3322,7 +3322,7 @@ export function AdminSettings() {
                         <span className="text-[11px] text-muted-foreground block mt-0.5">
                           {form.binanceRobotsPublicEnabled
                             ? '✅ Accessible à tous les utilisateurs autorisés'
-                            : '🔒 Réservé à l'administrateur ("Bientôt" affiché aux utilisateurs)'}
+                            : '🔒 Réservé à l\'administrateur ("Bientôt" affiché aux utilisateurs)'}
                         </span>
                       </div>
                     </label>
@@ -3339,7 +3339,7 @@ export function AdminSettings() {
                         <span className="text-[11px] text-muted-foreground block mt-0.5">
                           {form.bybitRobotsPublicEnabled
                             ? '✅ Accessible à tous les utilisateurs autorisés'
-                            : '🔒 Réservé à l'administrateur ("Bientôt" affiché aux utilisateurs)'}
+                            : '🔒 Réservé à l\'administrateur ("Bientôt" affiché aux utilisateurs)'}
                         </span>
                       </div>
                     </label>
@@ -3350,7 +3350,7 @@ export function AdminSettings() {
                 <div className="p-4 rounded-xl bg-slate-950/70 border border-cyan-500/30 space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-bold text-cyan-300 flex items-center gap-2">
-                      <Radar className="h-4 w-4 text-cyan-400" /> Redirection Fonctionnalité « Scanner IA »
+                      <Activity className="h-4 w-4 text-cyan-400" /> Redirection Fonctionnalité « Scanner IA »
                     </h4>
                     <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded font-mono font-bold">
                       Lien Externe

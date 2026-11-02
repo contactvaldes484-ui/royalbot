@@ -5,7 +5,7 @@ import { BinanceLogo } from '../binance/BinanceKit'
 import {
   LayoutDashboard, Bot, BarChart3, History, Wallet, Settings,
   CreditCard, Users, ChevronLeft, ChevronRight, LogOut, Crown,
-  Sun, Moon, Monitor, BookOpen, MessageCircle, Copy, DollarSign, Brain, Radar, Bell, Bitcoin, Zap
+  Sun, Moon, Monitor, BookOpen, MessageCircle, Copy, DollarSign, Brain, Activity, Bell, Bitcoin, Zap
 } from 'lucide-react'
 
 export default function DashboardLayout() {
@@ -27,7 +27,7 @@ export default function DashboardLayout() {
     { icon: Bot, label: 'Robots de Trading', href: '/dashboard/bots', highlight: true },
     { icon: Zap, label: 'Deriv SmartTrader', href: '/dashboard/deriv', highlight: true },
     { icon: Bitcoin, label: 'Binance & Bybit', href: '/dashboard/binance' },
-    { icon: Radar, label: 'Scanner IA', href: aiScannerUrl, external: true, highlight: true },
+    { icon: Activity, label: 'Scanner IA', href: aiScannerUrl, external: true, highlight: true },
     { icon: BarChart3, label: 'Analytics', href: '/dashboard/analytics' },
     { icon: History, label: 'Historique', href: '/dashboard/trades' },
     { icon: MessageCircle, label: 'Groupes', href: '/dashboard/groups' },
