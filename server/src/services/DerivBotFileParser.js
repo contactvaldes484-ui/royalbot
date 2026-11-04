@@ -81,29 +81,36 @@ class DerivBotFileParser {
       symbol = symbolMatch[1].trim();
     }
 
-    // 2. Extraction du Contract Type (DIGITOVER, DIGITUNDER, CALL, PUT, DIGITEVEN, DIGITODD...)
+    // 2. Extraction du Contract Type (RUNLOW, RUNHIGH, DIGITOVER, DIGITUNDER, CALL, PUT, DIGITEVEN, DIGITODD...)
     let contractType = 'DIGITOVER';
-    const contractMatch = xmlStr.match(/<field\s+name=["']TYPE_LIST["']>([^<]+)<\/field>/i)
-      || xmlStr.match(/<field\s+name=["']PURCHASE_LIST["']>([^<]+)<\/field>/i)
-      || xmlStr.match(/<field\s+name=["']TRADETYPE_LIST["']>([^<]+)<\/field>/i);
-    if (contractMatch && contractMatch[1]) {
-      contractType = this._normalizeContractType(contractMatch[1].trim());
+    const purchaseMatch = xmlStr.match(/<field\s+name=["']PURCHASE_LIST["']>([^<]+)<\/field>/i);
+    const typeMatch = xmlStr.match(/<field\s+name=["']TYPE_LIST["']>([^<]+)<\/field>/i)
+      || xmlStr.match(/<field\s+name=["']TRADETYPE_LIST["']>([^<]+)<\/field>/i)
+      || xmlStr.match(/<field\s+name=["']TRADETYPECAT_LIST["']>([^<]+)<\/field>/i);
+
+    if (purchaseMatch && purchaseMatch[1]) {
+      contractType = this._normalizeContractType(purchaseMatch[1].trim());
+    } else if (typeMatch && typeMatch[1]) {
+      contractType = this._normalizeContractType(typeMatch[1].trim());
     }
 
     // 3. Extraction de la durée et unité
-    let duration = 5;
+    let duration = (contractType === 'RUNLOW' || contractType === 'RUNHIGH') ? 2 : 5;
     let durationUnit = 't';
     const durUnitMatch = xmlStr.match(/<field\s+name=["']DURATIONTYPE_LIST["']>([^<]+)<\/field>/i);
     if (durUnitMatch && durUnitMatch[1]) durationUnit = durUnitMatch[1].trim();
 
     const durValMatch = xmlStr.match(/name=["']DURATION["'][^>]*>[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i);
-    if (durValMatch && durValMatch[1]) duration = parseInt(durValMatch[1]) || 5;
+    if (durValMatch && durValMatch[1]) duration = parseInt(durValMatch[1]) || duration;
 
-    // 4. Extraction de la barrière / prédiction (pour les Digits)
-    let barrier = '2';
-    const predMatch = xmlStr.match(/name=["'](?:PREDICTION|BARRIEROFFSET|BARRIER)["'][^>]*>[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i)
-      || xmlStr.match(/<field\s+name=["']PREDICTION["']>([^<]+)<\/field>/i);
-    if (predMatch && predMatch[1]) barrier = predMatch[1].trim();
+    // 4. Extraction de la barrière / prédiction (uniquement pour les contrats à barrière comme DIGIT)
+    let barrier = undefined;
+    if (contractType.startsWith('DIGIT')) {
+      barrier = '2';
+      const predMatch = xmlStr.match(/name=["'](?:PREDICTION|BARRIEROFFSET|BARRIER)["'][^>]*>[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i)
+        || xmlStr.match(/<field\s+name=["']PREDICTION["']>([^<]+)<\/field>/i);
+      if (predMatch && predMatch[1]) barrier = predMatch[1].trim();
+    }
 
     // 5. Extraction du Stake initial
     let initialStake = 1;
@@ -130,6 +137,7 @@ class DerivBotFileParser {
     if (contractType.startsWith('DIGIT')) strategyType = 'digit_analyzer';
     else if (contractType === 'CALL' || contractType === 'PUT') strategyType = 'trend_following';
     else if (contractType.includes('EVEN') || contractType.includes('ODD')) strategyType = 'even_odd_pattern';
+    else if (contractType === 'RUNLOW' || contractType === 'RUNHIGH') strategyType = 'runs_momentum';
 
     return {
       name,
@@ -145,7 +153,7 @@ class DerivBotFileParser {
         takeProfit,
         duration,
         durationUnit,
-        barrier,
+        barrier: contractType.startsWith('DIGIT') ? (barrier || '2') : undefined,
         martingaleMultiplier,
         maxMartingaleSteps: 4,
         cooldownSeconds: 2,
@@ -168,6 +176,9 @@ class DerivBotFileParser {
 
   _normalizeContractType(type) {
     const u = String(type || '').toUpperCase();
+    if (u.includes('RUNLOW') || u.includes('ONLY_DOWN') || u.includes('RUN_LOW') || u === 'FALLING') return 'RUNLOW';
+    if (u.includes('RUNHIGH') || u.includes('ONLY_UP') || u.includes('RUN_HIGH') || u === 'RISING') return 'RUNHIGH';
+    if (u.includes('RUN') || u === 'BOTH' || u.includes('UP-DOWN') || u.includes('UP_DOWN')) return 'RUNLOW';
     if (u.includes('OVER') || u === 'MATCHES_OVER') return 'DIGITOVER';
     if (u.includes('UNDER')) return 'DIGITUNDER';
     if (u.includes('MATCH') && !u.includes('DIFF')) return 'DIGITMATCH';

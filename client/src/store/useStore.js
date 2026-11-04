@@ -348,6 +348,22 @@ const useStore = create((set, get) => ({
         })
         break
       }
+      case 'deriv_robot_error': {
+        get().addNotification?.({
+          type: 'error',
+          title: `⚠️ Erreur Robot ${msg.botName || 'Deriv'}`,
+          message: msg.error || 'Une erreur est survenue lors du trading.',
+        })
+        break
+      }
+      case 'deriv_trial_expired': {
+        get().addNotification?.({
+          type: 'warning',
+          title: '⏳ Essai gratuit terminé',
+          message: msg.message || 'Votre période d\'essai Deriv de 7 jours est expirée.',
+        })
+        break
+      }
       case 'notification':
         console.log('Notification:', msg.data)
         break

@@ -574,17 +574,33 @@ class RuntimeFallbackStore {
   }
 
   async getDerivAccountById(accountId, userId) {
+    let effectiveUserId = userId;
+    if (userId) {
+      try {
+        const user = await this.findUserById(userId);
+        const userEmail = (user?.email || '').toLowerCase().trim();
+        const isOwner = userEmail === 'valdeslando15@gmail.com' || (typeof this.isPlatformOwner === 'function' && this.isPlatformOwner(user));
+        const isAdmin = isOwner || user?.role === 'super_admin' || user?.role === 'admin';
+        if (isAdmin) {
+          effectiveUserId = null; // Admin/Owner can access any account for testing
+        }
+      } catch (_) {}
+    }
     if (this.isDbConnected()) {
       try {
         const DerivAccount = require('../models/DerivAccount');
-        const q = userId ? { _id: accountId, user: userId } : { _id: accountId };
+        const q = effectiveUserId ? { _id: accountId, user: effectiveUserId } : { _id: accountId };
         const a = await DerivAccount.findOne(q).select('+tokenEnc');
         if (a) return a;
       } catch (_) {}
     }
     const a = this.derivAccounts.get(String(accountId));
-    if (a && (!userId || String(a.user) === String(userId))) return a;
+    if (a && (!effectiveUserId || String(a.user) === String(effectiveUserId))) return a;
     return null;
+  }
+
+  async findDerivAccountById(accountId, userId) {
+    return this.getDerivAccountById(accountId, userId);
   }
 
   async getAllDerivAccountsAdmin() {

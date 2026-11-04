@@ -42,6 +42,19 @@ router.get('/stats', async (req, res) => {
       activeSessions
     });
   } catch (err) {
+    if (!fallbackStore.isDbConnected()) {
+      return res.json({
+        totalUsers: fallbackStore.users.size,
+        activeUsers: fallbackStore.users.size,
+        premiumUsers: 1,
+        totalTrades: 0,
+        totalProfit: 0,
+        totalRevenue: 0,
+        totalCommissions: 0,
+        pendingWithdrawals: 0,
+        activeSessions: fallbackStore.derivSessions.size,
+      });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -124,6 +137,19 @@ router.get('/users', async (req, res) => {
 
     res.json({ users, pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / parseInt(limit)) } });
   } catch (err) {
+    if (!fallbackStore.isDbConnected()) {
+      const allUsers = Array.from(fallbackStore.users.values()).map(u => ({
+        _id: u._id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        email: u.email,
+        role: u.role,
+        isActive: u.isActive !== false,
+        subscription: u.subscription,
+        createdAt: u.createdAt,
+      }));
+      return res.json({ users: allUsers, pagination: { page: 1, limit: 100, total: allUsers.length, pages: 1 } });
+    }
     res.status(500).json({ error: err.message });
   }
 });

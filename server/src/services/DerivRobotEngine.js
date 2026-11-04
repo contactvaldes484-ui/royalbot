@@ -164,6 +164,25 @@ class DerivRobotEngine {
       return { shouldTrade: false };
     }
 
+    // ── 6. RUNLOW & RUNHIGH (Only Downs / Only Ups Runs Momentum) ──
+    if (contractType === 'RUNLOW') {
+      const emaFast = this._calcEMA(prices, 4);
+      const emaSlow = this._calcEMA(prices, 8);
+      if ((emaFast && emaSlow && emaFast <= emaSlow) || priceDelta <= 0 || skippedCount >= 1) {
+        return { shouldTrade: true, contractType: 'RUNLOW', barrier: undefined, reason: `Runs momentum down (delta=${priceDelta})` };
+      }
+      return { shouldTrade: false };
+    }
+
+    if (contractType === 'RUNHIGH') {
+      const emaFast = this._calcEMA(prices, 4);
+      const emaSlow = this._calcEMA(prices, 8);
+      if ((emaFast && emaSlow && emaFast >= emaSlow) || priceDelta >= 0 || skippedCount >= 1) {
+        return { shouldTrade: true, contractType: 'RUNHIGH', barrier: undefined, reason: `Runs momentum up (delta=${priceDelta})` };
+      }
+      return { shouldTrade: false };
+    }
+
     return { shouldTrade: true, contractType, barrier };
   }
 
@@ -213,19 +232,44 @@ class DerivRobotEngine {
     const defaultSettings = bot.defaultSettings || {};
     const symbol = overrides.symbol || bot.symbols?.[0] || 'R_100';
     const isDigitContract = (bot.contractType || '').startsWith('DIGIT');
-    const defaultDuration = isDigitContract ? 1 : 5;
+    const isRunsContract = (bot.contractType || '').startsWith('RUN');
+    const defaultDuration = isDigitContract ? 1 : (isRunsContract ? 2 : 5);
     const defaultDurationUnit = overrides.durationUnit || defaultSettings.durationUnit || 't';
     const userMartingaleMultiplier = Number(overrides.martingaleMultiplier || 1);
     const hasExplicitMartingale = Boolean(overrides.martingaleEnabled) && userMartingaleMultiplier > 1;
 
+    // Rafraîchir le solde du compte directement auprès de Deriv
+    let token = '';
+    try {
+      token = acc.getToken ? acc.getToken() : (acc.token || '');
+    } catch (_) {}
+    if (token) {
+      try {
+        const dsCheck = new DerivService({ token, loginId: acc.loginId });
+        const authInfo = await dsCheck.authorize();
+        if (authInfo?.balance !== undefined) {
+          acc.balance = Number(authInfo.balance);
+          acc.lastCheck = new Date();
+          if (acc.save) await acc.save().catch(() => {});
+        }
+        dsCheck.close();
+      } catch (_) {}
+    }
+
+    const initialStakeVal = Number(overrides.initialStake || defaultSettings.initialStake || (isRunsContract ? 0.35 : 1));
+    const currentBalance = Number(acc.balance !== undefined ? acc.balance : 0);
+    if (currentBalance < initialStakeVal) {
+      throw new Error(`Solde insuffisant sur ce compte (${acc.loginId} : $${currentBalance.toFixed(2)} USD). Veuillez basculer sur un compte Démo ou approvisionner votre compte.`);
+    }
+
     const settings = {
-      initialStake:         Number(overrides.initialStake || defaultSettings.initialStake || 1),
+      initialStake:         initialStakeVal,
       maxStake:             Number(overrides.maxStake || defaultSettings.maxStake || 50),
       stopLoss:             Number(overrides.stopLoss || defaultSettings.stopLoss || 20),
       takeProfit:           Number(overrides.takeProfit || defaultSettings.takeProfit || 50),
       duration:             Number(overrides.duration || defaultSettings.duration || defaultDuration),
       durationUnit:         defaultDurationUnit,
-      barrier:              overrides.barrier !== undefined ? overrides.barrier : (defaultSettings.barrier !== undefined ? defaultSettings.barrier : (isDigitContract ? '2' : undefined)),
+      barrier:              isDigitContract ? (overrides.barrier !== undefined ? overrides.barrier : (defaultSettings.barrier !== undefined ? defaultSettings.barrier : '2')) : undefined,
       martingaleEnabled:    hasExplicitMartingale,
       martingaleMultiplier: hasExplicitMartingale ? userMartingaleMultiplier : 1,
       maxMartingaleSteps:   1, // Règle stricte : 1 seule application du multiplicateur après perte
@@ -387,21 +431,57 @@ class DerivRobotEngine {
 
       // Signal validé ! Réinitialiser le compteur de ticks sautés
       this.skippedCounts.set(sessionId, 0);
-      this.busySessions.add(sessionId);
 
       const targetContractType = signal.contractType || session.contractType;
-      const targetBarrier = signal.barrier !== undefined ? signal.barrier : session.settings.barrier;
+      const targetBarrier = targetContractType.startsWith('DIGIT') ? (signal.barrier !== undefined ? signal.barrier : session.settings.barrier) : undefined;
+      const currentStake = Number(session.stats.currentStake || session.settings.initialStake || 0.35);
+
+      // Vérifier le solde disponible
+      const currentAccBalance = Number(acc.balance !== undefined ? acc.balance : 0);
+      if (currentAccBalance < currentStake) {
+        const errMsg = `Solde insuffisant ($${currentAccBalance.toFixed(2)}) pour miser $${currentStake.toFixed(2)}. Basculez sur un compte Démo ou approvisionnez votre compte.`;
+        console.warn(`DerivRobotEngine [${sessionId}]: ${errMsg}`);
+        if (global.broadcastToUser) {
+          global.broadcastToUser(session.user.toString(), {
+            type: 'deriv_robot_error',
+            sessionId,
+            botName: bot?.name || session.botName,
+            error: errMsg,
+          });
+        }
+        await this.pauseSession(sessionId, session.user).catch(() => {});
+        ds.close();
+        return;
+      }
+
+      this.busySessions.add(sessionId);
 
       // Demander proposition
-      const proposal = await ds.getProposal({
-        symbol: session.symbol,
-        contractType: targetContractType,
-        amount: session.stats.currentStake,
-        duration: session.settings.duration,
-        durationUnit: session.settings.durationUnit,
-        barrier: targetContractType.startsWith('DIGIT') ? targetBarrier : undefined,
-        currency: acc.currency || 'USD',
-      });
+      let proposal;
+      try {
+        proposal = await ds.getProposal({
+          symbol: session.symbol,
+          contractType: targetContractType,
+          amount: currentStake,
+          duration: session.settings.duration,
+          durationUnit: session.settings.durationUnit,
+          barrier: targetBarrier,
+          currency: acc.currency || 'USD',
+        });
+      } catch (err) {
+        this.busySessions.delete(sessionId);
+        ds.close();
+        console.warn(`Deriv proposal error [${sessionId}]:`, err.message);
+        if (global.broadcastToUser) {
+          global.broadcastToUser(session.user.toString(), {
+            type: 'deriv_robot_error',
+            sessionId,
+            botName: bot?.name || session.botName,
+            error: `Erreur Deriv (${targetContractType}) : ${err.message}`,
+          });
+        }
+        return;
+      }
 
       if (!proposal?.id) {
         this.busySessions.delete(sessionId);
@@ -410,7 +490,24 @@ class DerivRobotEngine {
       }
 
       // Acheter le contrat
-      const buyRes = await ds.buyContract(proposal.id, proposal.ask_price);
+      let buyRes;
+      try {
+        buyRes = await ds.buyContract(proposal.id, proposal.ask_price);
+      } catch (err) {
+        this.busySessions.delete(sessionId);
+        ds.close();
+        console.warn(`Deriv buy error [${sessionId}]:`, err.message);
+        if (global.broadcastToUser) {
+          global.broadcastToUser(session.user.toString(), {
+            type: 'deriv_robot_error',
+            sessionId,
+            botName: bot?.name || session.botName,
+            error: `Erreur Deriv (achat contrat) : ${err.message}`,
+          });
+        }
+        return;
+      }
+
       if (!buyRes?.contract_id) {
         this.busySessions.delete(sessionId);
         ds.close();
@@ -540,6 +637,17 @@ class DerivRobotEngine {
       if (ds) ds.close();
       this.busySessions.delete(sessionId);
       console.warn(`DerivRobotEngine tick error [${sessionId}]:`, err.message);
+      try {
+        const s = await fallbackStore.findDerivSessionById(sessionId);
+        if (s && global.broadcastToUser) {
+          global.broadcastToUser(s.user.toString(), {
+            type: 'deriv_robot_error',
+            sessionId,
+            botName: s.botName,
+            error: err.message,
+          });
+        }
+      } catch (_) {}
     }
   }
 
