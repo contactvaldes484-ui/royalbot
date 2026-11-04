@@ -82,6 +82,21 @@ const DEFAULT_BOTS = [
     isActive: true,
     order: 5,
   },
+  {
+    _id: '6aea701042375816656c9720',
+    name: 'Unicorn Only Up Down BinaryBot VH 031126',
+    slug: 'unicorn-only-up-down-binarybot-vh-031126-8514',
+    tier: 'all',
+    contractType: 'RUNLOW',
+    symbols: ['R_100'],
+    strategyType: 'runs_momentum',
+    description: 'Robot officiel Deriv importé depuis Unicorn Only Up-Down BinaryBot VH_031126.xml (RUNLOW - Only Downs sur Volatility 100).',
+    defaultSettings: { initialStake: 0.35, maxStake: 8.75, stopLoss: 20, takeProfit: 10, duration: 2, durationUnit: 't', martingaleEnabled: false, martingaleMultiplier: 1, maxMartingaleSteps: 1, cooldownSeconds: 2 },
+    winRate: '80-86%',
+    badge: 'Runs / Only Downs',
+    isActive: true,
+    order: 6,
+  },
 ];
 
 function isPlatformOwner(email) {
