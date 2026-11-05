@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 
 export default function DashboardDeriv() {
-  const { user, derivLiveTrades, derivStreamClearedAt } = useStore()
+  const { user, derivLiveTrades, derivStreamClearedAt, derivSessionStatuses } = useStore()
   const [activeTab, setActiveTab] = useState('manual') // 'manual' | 'robots'
   const [accounts, setAccounts] = useState([])
   const [selectedAccountId, setSelectedAccountId] = useState('')
@@ -512,47 +512,57 @@ export default function DashboardDeriv() {
                 Sessions Robots en Cours d'Exécution
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sessions.filter(s => s.status === 'active').map(s => (
-                  <Card key={s._id} className="bg-slate-900 border-emerald-500/30 shadow-lg relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-2 h-full bg-emerald-500" />
-                    <CardContent className="p-5 space-y-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-[10px]">
-                            EN COURS
-                          </Badge>
-                          <h3 className="font-bold text-white text-base mt-1">{s.botName}</h3>
-                          <div className="text-xs text-slate-400 font-mono">{s.symbol} • {s.contractType}</div>
+                {sessions.filter(s => s.status === 'active').map(s => {
+                  const statusMsg = derivSessionStatuses?.[s._id]
+                  return (
+                    <Card key={s._id} className="bg-slate-900 border-emerald-500/30 shadow-lg relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-2 h-full bg-emerald-500" />
+                      <CardContent className="p-5 space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-[10px]">
+                              EN COURS
+                            </Badge>
+                            <h3 className="font-bold text-white text-base mt-1">{s.botName}</h3>
+                            <div className="text-xs text-slate-400 font-mono">{s.symbol} • {s.contractType}</div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleStopSession(s._id)}
+                            className="h-8 px-2 text-xs"
+                          >
+                            <Square className="w-3.5 h-3.5 mr-1" /> Arrêter
+                          </Button>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleStopSession(s._id)}
-                          className="h-8 px-2 text-xs"
-                        >
-                          <Square className="w-3.5 h-3.5 mr-1" /> Arrêter
-                        </Button>
-                      </div>
 
-                      <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-950 font-mono text-center">
-                        <div>
-                          <div className="text-[10px] text-slate-500">TRADES</div>
-                          <div className="text-xs font-bold text-white">{s.stats?.totalTrades || 0}</div>
-                        </div>
-                        <div>
-                          <div className="text-[10px] text-slate-500">WIN/LOSS</div>
-                          <div className="text-xs font-bold text-emerald-400">{s.stats?.wins || 0} / {s.stats?.losses || 0}</div>
-                        </div>
-                        <div>
-                          <div className="text-[10px] text-slate-500">PNL</div>
-                          <div className={`text-xs font-bold ${s.stats?.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            ${(s.stats?.netProfit || 0).toFixed(2)}
+                        {statusMsg && (
+                          <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-[11px] text-emerald-300 animate-pulse">
+                            <Activity className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                            <span className="truncate">{statusMsg}</span>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-950 font-mono text-center">
+                          <div>
+                            <div className="text-[10px] text-slate-500">TRADES</div>
+                            <div className="text-xs font-bold text-white">{s.stats?.totalTrades || 0}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-slate-500">WIN/LOSS</div>
+                            <div className="text-xs font-bold text-emerald-400">{s.stats?.wins || 0} / {s.stats?.losses || 0}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-slate-500">PNL</div>
+                            <div className={`text-xs font-bold ${s.stats?.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              ${(s.stats?.netProfit || 0).toFixed(2)}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
             </div>
           )}

@@ -283,12 +283,12 @@ function BinanceSection() {
           </motion.div>
 
           <motion.div variants={fadeUp} className="text-center">
-            <Link to="/dashboard/binance"
-              className="inline-flex items-center gap-2 h-12 px-7 rounded-lg font-semibold transition-transform hover:scale-[1.02]"
-              style={{ background: BN.yellow, color: '#0B0E11' }}>
-              <BinanceLogo size={20} /> Connecter mon compte Binance <ArrowRight className="h-4 w-4" />
-            </Link>
-            <p className="text-xs mt-3" style={{ color: BN.sub }}>Compatible Testnet (sans risque) et Live. Tes clés sont chiffrées.</p>
+            <span
+              className="inline-flex items-center gap-2 h-12 px-7 rounded-lg font-semibold bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed opacity-80"
+            >
+              <BinanceLogo size={20} /> Bientôt disponible · Finalisation en cours
+            </span>
+            <p className="text-xs mt-3" style={{ color: BN.sub }}>Les développeurs finalisent actuellement l'intégration Binance &amp; Bybit. Disponible très prochainement.</p>
           </motion.div>
         </motion.div>
       </div>
@@ -564,19 +564,19 @@ export default function Landing() {
             </div>
 
             {/* CARTE 2 : BINANCE */}
-            <div className="p-8 rounded-3xl bg-slate-900/90 border border-amber-500/30 hover:border-amber-500 transition-all shadow-xl flex flex-col justify-between group hover:scale-[1.02]">
+            <div className="p-8 rounded-3xl bg-slate-900/60 border border-slate-800 shadow-xl flex flex-col justify-between opacity-80">
               <div>
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-6">
                   <span className="text-2xl font-black text-amber-400">BN</span>
                 </div>
-                <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-[10px] mb-2">
-                  Exchange #1 Crypto
+                <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 text-[10px] mb-2 font-bold">
+                  🛠️ Bientôt disponible · En cours de tests
                 </Badge>
                 <h3 className="text-2xl font-extrabold text-white mb-2">Binance Crypto</h3>
                 <p className="text-xs text-slate-400 mb-6 leading-relaxed">
-                  Automatisez votre trading Crypto sur Spot & Futures. 16 robots algorithmiques avancés (Trend, SMC, Quant, Kelly).
+                  Automatisez votre trading Crypto sur Spot &amp; Futures. 16 robots algorithmiques avancés (Trend, SMC, Quant, Kelly).
                 </p>
-                <ul className="space-y-2.5 text-xs text-slate-300 mb-8">
+                <ul className="space-y-2.5 text-xs text-slate-400 mb-8">
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-amber-400 shrink-0" />
                     <span>BTC, ETH, SOL, BNB, XRP...</span>
@@ -587,38 +587,36 @@ export default function Landing() {
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>Robots Spot & Futures 24/7</span>
+                    <span>Robots Spot &amp; Futures 24/7</span>
                   </li>
                 </ul>
               </div>
-              <Button asChild className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold py-5 rounded-xl">
-                <Link to="/dashboard/binance">
-                  Démarrer sur Binance <ArrowRight className="w-4 h-4 ml-1.5" />
-                </Link>
+              <Button disabled className="w-full bg-slate-800 text-slate-400 border border-slate-700 font-bold py-5 rounded-xl cursor-not-allowed">
+                <Clock className="w-4 h-4 mr-1.5" /> Bientôt disponible
               </Button>
             </div>
 
             {/* CARTE 3 : BYBIT */}
-            <div className="p-8 rounded-3xl bg-slate-900/90 border border-blue-500/30 hover:border-blue-500 transition-all shadow-xl flex flex-col justify-between group hover:scale-[1.02]">
+            <div className="p-8 rounded-3xl bg-slate-900/60 border border-slate-800 shadow-xl flex flex-col justify-between opacity-80">
               <div>
-                <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-6">
                   <span className="text-2xl font-black text-blue-400">BY</span>
                 </div>
-                <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/40 text-[10px] mb-2">
-                  Crypto + Forex & Matières
+                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px] mb-2 font-bold">
+                  🛠️ Bientôt disponible · En cours de tests
                 </Badge>
                 <h3 className="text-2xl font-extrabold text-white mb-2">Bybit Multi-Marchés</h3>
                 <p className="text-xs text-slate-400 mb-6 leading-relaxed">
                   Mêmes robots ultra-performants que Binance, avec l'avantage de trader également les paires Forex et les métaux précieux.
                 </p>
-                <ul className="space-y-2.5 text-xs text-slate-300 mb-8">
+                <ul className="space-y-2.5 text-xs text-slate-400 mb-8">
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-blue-400 shrink-0" />
                     <span>Crypto Derivatives + Paires Forex (EURUSD...)</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-blue-400 shrink-0" />
-                    <span>Or (XAUUSD) & Matières premières</span>
+                    <span>Or (XAUUSD) &amp; Matières premières</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-blue-400 shrink-0" />
@@ -626,10 +624,8 @@ export default function Landing() {
                   </li>
                 </ul>
               </div>
-              <Button asChild className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-5 rounded-xl">
-                <Link to="/dashboard/binance">
-                  Démarrer sur Bybit <ArrowRight className="w-4 h-4 ml-1.5" />
-                </Link>
+              <Button disabled className="w-full bg-slate-800 text-slate-400 border border-slate-700 font-bold py-5 rounded-xl cursor-not-allowed">
+                <Clock className="w-4 h-4 mr-1.5" /> Bientôt disponible
               </Button>
             </div>
           </div>

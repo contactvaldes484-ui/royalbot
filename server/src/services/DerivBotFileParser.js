@@ -61,6 +61,9 @@ class DerivBotFileParser {
         barrier:              String(data.barrier || data.prediction || '2'),
         martingaleMultiplier: Number(data.martingaleMultiplier || data.multiplier || 2),
         maxMartingaleSteps:   Number(data.maxMartingaleSteps || 4),
+        martiStart:           Number(data.martiStart || 1),
+        martiFactor:          Number(data.martiFactor || data.martingaleMultiplier || 2),
+        virtualHook:          data.virtualHook || { enabled: false, trigger: 3, startWhen: 'loss', stake: 0.5 },
         cooldownSeconds:      Number(data.cooldownSeconds || 2),
       },
       winRate: data.winRate || '78-83%',
@@ -127,10 +130,44 @@ class DerivBotFileParser {
     const tpMatch = xmlStr.match(/(?:take[_\s]?profit|target[_\s]?profit)[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i);
     if (tpMatch && tpMatch[1]) takeProfit = parseFloat(tpMatch[1]) || 50;
 
-    // 7. Martingale
+    // 7. Martingale de base
     let martingaleMultiplier = 2;
     const martMatch = xmlStr.match(/(?:martingale|multiplier|factor)[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i);
     if (martMatch && martMatch[1]) martingaleMultiplier = parseFloat(martMatch[1]) || 2;
+
+    // 8. Virtual Hook (Simulation de pertes virtuelles avant mise réelle pour filtrer les faux signaux)
+    let virtualHook = { enabled: false, trigger: 3, startWhen: 'loss', stake: 0.5 };
+    const hasVh = xmlStr.includes('type="virtualhook"') || xmlStr.includes('name="VH_STATE_LIST"') || xmlStr.includes('main_account');
+    if (hasVh) {
+      const isEnabled = !xmlStr.includes('<field name="VH_STATE_LIST">disabled</field>');
+      const trigMatch = xmlStr.match(/<value\s+name=["']VH_TRIGGER["']>[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i);
+      const whenMatch = xmlStr.match(/<field\s+name=["']VH_STARTWHEN_LIST["']>([^<]+)<\/field>/i);
+      const vhStakeMatch = xmlStr.match(/<value\s+name=["']VH_STAKE["']>[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i);
+
+      virtualHook = {
+        enabled: isEnabled,
+        trigger: trigMatch ? parseInt(trigMatch[1], 10) || 3 : 3,
+        startWhen: whenMatch ? whenMatch[1].trim().toLowerCase() : 'loss',
+        stake: vhStakeMatch ? parseFloat(vhStakeMatch[1]) || 0.5 : 0.5,
+      };
+    }
+
+    // 9. Paramètres de Martingale avancée (Ultimate Trader Bot / Fruitfella / Multi-Loss Recovery)
+    let martiStart = 1;
+    let martiLossLevel = 10;
+    let martiFactor = martingaleMultiplier || 2;
+
+    const arg5Match = xmlStr.match(/<value\s+name=["']ARG5["']>[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i);
+    if (arg5Match) martiStart = parseInt(arg5Match[1], 10) || 1;
+
+    const arg4Match = xmlStr.match(/<value\s+name=["']ARG4["']>[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i);
+    if (arg4Match) martiLossLevel = parseInt(arg4Match[1], 10) || 10;
+
+    const arg3Match = xmlStr.match(/<value\s+name=["']ARG3["']>[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i);
+    if (arg3Match) {
+      const val = parseFloat(arg3Match[1]);
+      if (!isNaN(val) && val > 0) martiFactor = val;
+    }
 
     // Stratégie déduite
     let strategyType = 'digit_analyzer';
@@ -154,8 +191,12 @@ class DerivBotFileParser {
         duration,
         durationUnit,
         barrier: contractType.startsWith('DIGIT') ? (barrier || '2') : undefined,
-        martingaleMultiplier,
-        maxMartingaleSteps: 4,
+        martingaleMultiplier: martiFactor < 1 && martiFactor > 0 ? +(1 + martiFactor).toFixed(2) : martiFactor,
+        martingaleEnabled: true,
+        maxMartingaleSteps: martiLossLevel || 4,
+        martiStart: martiStart || 1,
+        martiFactor: martiFactor,
+        virtualHook: virtualHook,
         cooldownSeconds: 2,
       },
       winRate: '80-86%',
@@ -169,7 +210,10 @@ class DerivBotFileParser {
         initialStake,
         stopLoss,
         takeProfit,
-        martingaleMultiplier,
+        martingaleMultiplier: martiFactor,
+        martiStart,
+        martiLossLevel,
+        virtualHook,
       },
     };
   }

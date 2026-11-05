@@ -7,6 +7,70 @@ class DerivRobotEngine {
     this.active = new Map(); // sessionId -> { handle, accountId }
     this.busySessions = new Set(); // sessionId in flight
     this.skippedCounts = new Map(); // sessionId -> consecutive skipped ticks
+    this.virtualStates = new Map(); // sessionId -> { inVirtualMode, virtualLosses, virtualWins, virtualStreak }
+  }
+
+  /**
+   * Simulation mathématique universelle de contrat Deriv sur l'historique de ticks
+   * Permet d'exécuter le mode Virtual Hook / Paper Trading avant de miser de l'argent réel
+   */
+  _simulateContract(contractType, prices, duration = 1, barrier) {
+    if (!prices || prices.length < duration + 1) return null;
+    const dur = Math.max(1, duration || 1);
+    const currentPrice = prices[prices.length - 1];
+    const entryPrice = prices[prices.length - 1 - dur];
+
+    if (contractType === 'RUNLOW') {
+      // Pour gagner RUNLOW : chaque tick doit être strictement inférieur au précédent
+      for (let i = prices.length - dur; i < prices.length; i++) {
+        if (prices[i] >= prices[i - 1]) return false;
+      }
+      return true;
+    }
+    if (contractType === 'RUNHIGH') {
+      // Pour gagner RUNHIGH : chaque tick doit être strictement supérieur au précédent
+      for (let i = prices.length - dur; i < prices.length; i++) {
+        if (prices[i] <= prices[i - 1]) return false;
+      }
+      return true;
+    }
+    if (contractType === 'CALL' || contractType === 'HIGHER') {
+      return currentPrice > entryPrice;
+    }
+    if (contractType === 'PUT' || contractType === 'LOWER') {
+      return currentPrice < entryPrice;
+    }
+    if (contractType === 'DIGITOVER') {
+      const s = String(currentPrice).replace('.', '');
+      const d = parseInt(s.charAt(s.length - 1), 10) || 0;
+      return d > Number(barrier !== undefined && barrier !== null ? barrier : 2);
+    }
+    if (contractType === 'DIGITUNDER') {
+      const s = String(currentPrice).replace('.', '');
+      const d = parseInt(s.charAt(s.length - 1), 10) || 0;
+      return d < Number(barrier !== undefined && barrier !== null ? barrier : 7);
+    }
+    if (contractType === 'DIGITDIFF') {
+      const s = String(currentPrice).replace('.', '');
+      const d = parseInt(s.charAt(s.length - 1), 10) || 0;
+      return d !== Number(barrier);
+    }
+    if (contractType === 'DIGITMATCH') {
+      const s = String(currentPrice).replace('.', '');
+      const d = parseInt(s.charAt(s.length - 1), 10) || 0;
+      return d === Number(barrier);
+    }
+    if (contractType === 'DIGITEVEN') {
+      const s = String(currentPrice).replace('.', '');
+      const d = parseInt(s.charAt(s.length - 1), 10) || 0;
+      return d % 2 === 0;
+    }
+    if (contractType === 'DIGITODD') {
+      const s = String(currentPrice).replace('.', '');
+      const d = parseInt(s.charAt(s.length - 1), 10) || 0;
+      return d % 2 !== 0;
+    }
+    return false;
   }
 
   /**
@@ -262,6 +326,10 @@ class DerivRobotEngine {
       throw new Error(`Solde insuffisant sur ce compte (${acc.loginId} : $${currentBalance.toFixed(2)} USD). Veuillez basculer sur un compte Démo ou approvisionner votre compte.`);
     }
 
+    const virtualHook = overrides.virtualHook || defaultSettings.virtualHook || { enabled: false, trigger: 3, startWhen: 'loss', stake: 0.5 };
+    const martiStart = Number(overrides.martiStart || defaultSettings.martiStart || 1);
+    const martiFactor = Number(overrides.martiFactor || defaultSettings.martiFactor || userMartingaleMultiplier);
+
     const settings = {
       initialStake:         initialStakeVal,
       maxStake:             Number(overrides.maxStake || defaultSettings.maxStake || 50),
@@ -270,9 +338,12 @@ class DerivRobotEngine {
       duration:             Number(overrides.duration || defaultSettings.duration || defaultDuration),
       durationUnit:         defaultDurationUnit,
       barrier:              isDigitContract ? (overrides.barrier !== undefined ? overrides.barrier : (defaultSettings.barrier !== undefined ? defaultSettings.barrier : '2')) : undefined,
-      martingaleEnabled:    hasExplicitMartingale,
-      martingaleMultiplier: hasExplicitMartingale ? userMartingaleMultiplier : 1,
-      maxMartingaleSteps:   1, // Règle stricte : 1 seule application du multiplicateur après perte
+      martingaleEnabled:    hasExplicitMartingale || Boolean(defaultSettings.martingaleEnabled),
+      martingaleMultiplier: hasExplicitMartingale ? userMartingaleMultiplier : (defaultSettings.martingaleMultiplier || 1),
+      maxMartingaleSteps:   Number(overrides.maxMartingaleSteps || defaultSettings.maxMartingaleSteps || 4),
+      martiStart,
+      martiFactor,
+      virtualHook,
     };
 
     const session = await fallbackStore.createDerivSession({
@@ -318,6 +389,13 @@ class DerivRobotEngine {
   async _spawn(session) {
     const sid = session._id.toString();
     this._clear(sid);
+    const hasVh = Boolean(session.settings?.virtualHook?.enabled);
+    this.virtualStates.set(sid, {
+      inVirtualMode: hasVh,
+      virtualLosses: 0,
+      virtualWins: 0,
+      virtualStreak: 0,
+    });
     const pollInterval = 3500; // Chaque 3.5 secondes pour une réactivité live maximale
     const handle = setInterval(() => this._tick(sid), pollInterval);
     this.active.set(sid, { handle, accountId: session.derivAccount.toString() });
@@ -435,6 +513,76 @@ class DerivRobotEngine {
       const targetContractType = signal.contractType || session.contractType;
       const targetBarrier = targetContractType.startsWith('DIGIT') ? (signal.barrier !== undefined ? signal.barrier : session.settings.barrier) : undefined;
       const currentStake = Number(session.stats.currentStake || session.settings.initialStake || 0.35);
+
+      // ── Gestion du Virtual Hook (Paper trading / Simulation de pertes avant ordre réel) ──
+      const vhConfig = session.settings?.virtualHook;
+      const hasVh = Boolean(vhConfig?.enabled);
+      let vState = this.virtualStates.get(sessionId);
+      if (hasVh && !vState) {
+        vState = { inVirtualMode: true, virtualLosses: 0, virtualWins: 0, virtualStreak: 0 };
+        this.virtualStates.set(sessionId, vState);
+      }
+
+      if (hasVh && vState?.inVirtualMode) {
+        const vhTrigger = Number(vhConfig.trigger || 3);
+        const simResult = this._simulateContract(targetContractType, history?.prices, session.settings.duration, targetBarrier);
+
+        if (simResult !== null) {
+          if (simResult === false) {
+            // Perte simulée
+            vState.virtualLosses += 1;
+            vState.virtualWins = 0;
+
+            if (vState.virtualLosses < vhTrigger) {
+              const statusMsg = `Virtual Hook : Perte simulée (${vState.virtualLosses}/${vhTrigger} requises). Analyse sniper continue...`;
+              if (global.broadcastToUser) {
+                global.broadcastToUser(session.user.toString(), {
+                  type: 'deriv_robot_virtual_tick',
+                  sessionId,
+                  botName: bot?.name || session.botName,
+                  symbol: session.symbol,
+                  virtualLosses: vState.virtualLosses,
+                  vhTrigger,
+                  message: statusMsg,
+                });
+              }
+              ds.close();
+              return; // Attend la prochaine perte virtuelle requise
+            } else {
+              // Condition de déclenchement atteinte !
+              vState.inVirtualMode = false;
+              const triggerMsg = `🎯 Virtual Hook déclenché (${vState.virtualLosses} pertes simulées atteintes) → Exécution de l'ordre réel sur votre compte !`;
+              if (global.broadcastToUser) {
+                global.broadcastToUser(session.user.toString(), {
+                  type: 'deriv_robot_vh_triggered',
+                  sessionId,
+                  botName: bot?.name || session.botName,
+                  symbol: session.symbol,
+                  message: triggerMsg,
+                });
+              }
+            }
+          } else {
+            // Gain simulé : réinitialise la série de pertes virtuelles
+            vState.virtualLosses = 0;
+            vState.virtualWins += 1;
+            const statusMsg = `Virtual Hook : Gain simulé observé (0/${vhTrigger} pertes). En attente de setup sniper...`;
+            if (global.broadcastToUser) {
+              global.broadcastToUser(session.user.toString(), {
+                type: 'deriv_robot_virtual_tick',
+                sessionId,
+                botName: bot?.name || session.botName,
+                symbol: session.symbol,
+                virtualLosses: 0,
+                vhTrigger,
+                message: statusMsg,
+              });
+            }
+            ds.close();
+            return;
+          }
+        }
+      }
 
       // Vérifier le solde disponible
       const currentAccBalance = Number(acc.balance !== undefined ? acc.balance : 0);
@@ -589,28 +737,53 @@ class DerivRobotEngine {
 
             const hasActiveMartingale = updatedSession.settings.martingaleEnabled === true && Number(updatedSession.settings.martingaleMultiplier) > 1;
 
+            const vhConfig = updatedSession.settings?.virtualHook;
+            const hasVh = Boolean(vhConfig?.enabled);
+            const vState = this.virtualStates.get(sessionId);
+
             if (isWon) {
               updatedSession.stats.wins += 1;
               updatedSession.stats.consecutiveLosses = 0;
-              // Règle : Si le trade gagne (mise de base ou multiplicateur), retour immédiat au prix initial
+              // Règle : Si le trade gagne, retour immédiat au prix initial
               updatedSession.stats.currentStake = updatedSession.settings.initialStake;
+
+              // Si le Virtual Hook est activé, retour en mode virtuel pour filtrer la prochaine entrée !
+              if (hasVh && vState) {
+                vState.inVirtualMode = true;
+                vState.virtualLosses = 0;
+              }
             } else {
               updatedSession.stats.losses += 1;
               updatedSession.stats.consecutiveLosses += 1;
 
-              // Règle : Le multiplicateur s'applique UNE SEULE FOIS après une perte sur la mise de base (consecutiveLosses === 1).
-              if (hasActiveMartingale && updatedSession.stats.consecutiveLosses === 1) {
-                const multiplier = Number(updatedSession.settings.martingaleMultiplier);
-                const nextStake = +(updatedSession.settings.initialStake * multiplier).toFixed(2);
-                updatedSession.stats.currentStake = Math.min(nextStake, updatedSession.settings.maxStake || 50);
-              } else {
-                // Si la Martingale est désactivée OU si le trade du multiplicateur a déjà été exécuté une fois :
-                // on repasse strictement à la mise initiale sans s'emballer
-                updatedSession.stats.currentStake = updatedSession.settings.initialStake;
-                if (hasActiveMartingale && updatedSession.stats.consecutiveLosses >= 2) {
-                  // Réinitialiser les pertes consécutives pour que la prochaine perte normale redéclenche le multiplicateur 1 fois
-                  updatedSession.stats.consecutiveLosses = 0;
+              const martiStart = Number(updatedSession.settings.martiStart || 1);
+              const martiFactor = Number(updatedSession.settings.martiFactor || updatedSession.settings.martingaleMultiplier || 1);
+              const maxSteps = Number(updatedSession.settings.maxMartingaleSteps || 4);
+
+              // Vérification du déclenchement Martingale selon martiStart
+              if (hasActiveMartingale && updatedSession.stats.consecutiveLosses >= martiStart) {
+                let nextStake = updatedSession.stats.currentStake;
+                if (martiFactor > 0 && martiFactor < 1) {
+                  // Hausse fractionnaire progressive (ex: +45% par palier comme dans le robot Unicorn)
+                  nextStake = +(updatedSession.stats.currentStake * (1 + martiFactor)).toFixed(2);
+                } else if (martiFactor >= 1) {
+                  nextStake = +(updatedSession.stats.currentStake * martiFactor).toFixed(2);
                 }
+                const maxStakeAllowed = updatedSession.settings.maxStake || 50;
+                updatedSession.stats.currentStake = Math.min(nextStake, maxStakeAllowed);
+
+                // Si le nombre max de paliers martingale est dépassé, réinitialisation de sécurité anti-ruine
+                if (updatedSession.stats.consecutiveLosses >= martiStart + maxSteps) {
+                  updatedSession.stats.currentStake = updatedSession.settings.initialStake;
+                  updatedSession.stats.consecutiveLosses = 0;
+                  if (hasVh && vState) {
+                    vState.inVirtualMode = true;
+                    vState.virtualLosses = 0;
+                  }
+                }
+              } else {
+                // Avant martiStart, la mise reste la mise initiale
+                updatedSession.stats.currentStake = updatedSession.settings.initialStake;
               }
             }
 
@@ -677,6 +850,7 @@ class DerivRobotEngine {
   _clear(sessionId) {
     this.busySessions.delete(sessionId);
     this.skippedCounts.delete(sessionId);
+    this.virtualStates.delete(sessionId);
     const e = this.active.get(sessionId);
     if (e) {
       clearInterval(e.handle);

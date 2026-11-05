@@ -51,6 +51,14 @@ router.get('/accounts', authenticate, async (req, res) => {
 
 router.post('/accounts/connect', authenticate, enforceBinanceAccountQuota, async (req, res) => {
   try {
+    const isOwner = (req.user?.email || '').toLowerCase().trim() === 'valdeslando15@gmail.com';
+    const isAdmin = isOwner || req.user?.role === 'super_admin' || req.user?.role === 'admin';
+    if (!isAdmin) {
+      return res.status(403).json({
+        error: 'La connexion aux comptes Binance et Bybit est temporairement réservée aux administrateurs pour la phase de finalisation des robots. Bientôt disponible pour tous les utilisateurs !'
+      });
+    }
+
     const { apiKey, apiSecret, label, market = 'both', isTestnet = true } = req.body;
     if (!apiKey || !apiSecret) return res.status(400).json({ error: 'apiKey et apiSecret requis.' });
 

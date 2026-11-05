@@ -121,6 +121,7 @@ const useStore = create((set, get) => ({
   liveEvents: [],      // Real-time events (skips, pauses, etc.)
   derivLiveTrades: [], // Real-time Deriv contracts/trades
   derivStreamClearedAt: null,
+  derivSessionStatuses: {}, // Status message per session (ex: Virtual Hook progress)
   mt5Ticks: {},        // { symbol: { bid, ask, candle } } — live MT5 ticks
   mt5Positions: [],    // Live MT5 open positions
   copyEvents: [],      // Copy Trading: live copy trade events
@@ -353,6 +354,31 @@ const useStore = create((set, get) => ({
           type: 'error',
           title: `⚠️ Erreur Robot ${msg.botName || 'Deriv'}`,
           message: msg.error || 'Une erreur est survenue lors du trading.',
+        })
+        break
+      }
+      case 'deriv_robot_virtual_tick': {
+        const statuses = get().derivSessionStatuses || {}
+        set({
+          derivSessionStatuses: {
+            ...statuses,
+            [msg.sessionId]: msg.message || 'Simulation Virtual Hook en cours...',
+          }
+        })
+        break
+      }
+      case 'deriv_robot_vh_triggered': {
+        const statuses = get().derivSessionStatuses || {}
+        set({
+          derivSessionStatuses: {
+            ...statuses,
+            [msg.sessionId]: msg.message,
+          }
+        })
+        get().addNotification?.({
+          type: 'info',
+          title: '🎯 Virtual Hook Déclenché !',
+          message: msg.message || 'Signal sniper validé : exécution de l\'ordre réel...',
         })
         break
       }

@@ -111,6 +111,10 @@ export default function DashboardBinance() {
 
   const handleConnect = async (e) => {
     e.preventDefault()
+    if (!isAdmin && !isPublicEnabled) {
+      showMsg('error', 'La connexion aux comptes Binance et Bybit est temporairement réservée aux administrateurs.')
+      return
+    }
     setConnectLoading(true)
     try {
       if (connectExchange === 'bybit') {
@@ -164,6 +168,10 @@ export default function DashboardBinance() {
   }
 
   const handleStartRobot = async () => {
+    if (!isAdmin && !isPublicEnabled) {
+      showMsg('error', 'Les robots Binance & Bybit sont en phase de finalisation (réservée à l\'administrateur).')
+      return
+    }
     if (!selectedAccount || !selectedRobot) return
     setStartLoading(true)
     try {
@@ -255,8 +263,17 @@ export default function DashboardBinance() {
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <BnButton variant="dark" size="sm" onClick={fetchAll}><RefreshCw className="h-4 w-4" /> Actualiser</BnButton>
-                <BnButton variant="primary" size="sm" onClick={() => setShowConnectForm(!showConnectForm)}>
-                  <Plus className="h-4 w-4" /> Connecter un compte
+                <BnButton
+                  variant="primary"
+                  size="sm"
+                  disabled={!isAdmin && !isPublicEnabled}
+                  className={!isAdmin && !isPublicEnabled ? 'opacity-60 cursor-not-allowed' : ''}
+                  onClick={() => {
+                    if (isAdmin || isPublicEnabled) setShowConnectForm(!showConnectForm)
+                  }}
+                  title={!isAdmin && !isPublicEnabled ? 'Phase de finalisation réservée aux administrateurs' : ''}
+                >
+                  <Plus className="h-4 w-4" /> Connecter un compte {!isAdmin && !isPublicEnabled ? '(Bientôt)' : ''}
                 </BnButton>
               </div>
             </div>
@@ -486,15 +503,31 @@ export default function DashboardBinance() {
                 <h3 className="text-lg font-semibold mb-2" style={{ color: BN.text }}>Aucun compte connecté</h3>
                 <p className="text-sm mb-5 max-w-md mx-auto" style={{ color: BN.sub }}>Connectez votre compte Binance ou Bybit via vos clés API pour laisser les robots trader automatiquement à votre place.</p>
                 <div className="flex items-center justify-center gap-3 flex-wrap">
-                  <BnButton variant="primary" onClick={() => { setConnectExchange('binance'); setShowConnectForm(true) }}>
-                    <Plus className="h-4 w-4" /> Connecter Binance
+                  <BnButton
+                    variant="primary"
+                    disabled={!isAdmin && !isPublicEnabled}
+                    className={!isAdmin && !isPublicEnabled ? 'opacity-60 cursor-not-allowed' : ''}
+                    onClick={() => {
+                      if (isAdmin || isPublicEnabled) {
+                        setConnectExchange('binance')
+                        setShowConnectForm(true)
+                      }
+                    }}
+                  >
+                    <Plus className="h-4 w-4" /> Connecter Binance {!isAdmin && !isPublicEnabled ? '(Bientôt)' : ''}
                   </BnButton>
                   <button
-                    onClick={() => { setConnectExchange('bybit'); setShowConnectForm(true) }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                    disabled={!isAdmin && !isPublicEnabled}
+                    onClick={() => {
+                      if (isAdmin || isPublicEnabled) {
+                        setConnectExchange('bybit')
+                        setShowConnectForm(true)
+                      }
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${!isAdmin && !isPublicEnabled ? 'opacity-60 cursor-not-allowed' : ''}`}
                     style={{ background: '#F7A600', color: '#000' }}
                   >
-                    <Plus className="h-4 w-4" /> Connecter Bybit
+                    <Plus className="h-4 w-4" /> Connecter Bybit {!isAdmin && !isPublicEnabled ? '(Bientôt)' : ''}
                   </button>
                 </div>
               </div></BnCard>
