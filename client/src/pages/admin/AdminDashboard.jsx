@@ -12,7 +12,7 @@ import {
   TrendingUp, Crown, Activity, DollarSign, Loader2, Search,
   Check, X, AlertCircle, ChevronLeft, ChevronRight, Send,
   Sun, Moon, LogOut, Square, PlayCircle, StopCircle, RefreshCw,
-  CreditCard, Coins, Gift, Ban, Menu, Shield, Eye, ArrowUpRight,
+  CreditCard, Coins, Gift, Ban, Menu, Shield, Eye, ArrowUpRight, ArrowRight, Sparkles,
   ArrowDownRight, Clock, UserCheck, Zap, Globe, Copy, MoreVertical,
   ChevronDown, CircleDot, ImageIcon, Trash2, Upload, Plus, MessageCircle, Hash, Trophy, Brain, Bitcoin
 } from 'lucide-react'

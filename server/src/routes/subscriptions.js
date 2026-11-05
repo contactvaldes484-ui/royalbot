@@ -408,7 +408,21 @@ router.post('/ikeepay/webhook', async (req, res) => {
     }
 
     if (!sub) {
-      console.warn('⚠️ [iKeePay Webhook]: Souscription introuvable pour order_id:', order_id);
+      try {
+        const Order = require('../models/Order');
+        const shopFulfill = require('../services/shopFulfillService');
+        const order = await Order.findById(order_id).catch(() => null);
+        if (order) {
+          order.transactionHash = ikeepay_ref || order_id;
+          await order.save();
+          await shopFulfill.confirmOrderPaid(order._id, { txRef: ikeepay_ref || order_id, note: 'Confirmé automatiquement via iKeePay Webhook' });
+          console.log('✅ [iKeePay Webhook]: Commande robot validée avec succès pour order:', order._id);
+          return res.status(200).json({ received: true, success: true, orderId: order._id });
+        }
+      } catch (errShop) {
+        console.error('Erreur fulfillment commande via iKeePay:', errShop.message);
+      }
+      console.warn('⚠️ [iKeePay Webhook]: Souscription ou commande introuvable pour order_id:', order_id);
       return res.status(200).json({ received: true, warning: 'subscription not found' });
     }
 
