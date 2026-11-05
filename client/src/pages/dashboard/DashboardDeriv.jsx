@@ -206,8 +206,8 @@ export default function DashboardDeriv() {
     setBotStake(bot.defaultSettings?.initialStake || 1)
     setBotSL(bot.defaultSettings?.stopLoss || 20)
     setBotTP(bot.defaultSettings?.takeProfit || 50)
-    setUseBotMartingale(false)
-    setBotMartingale(2)
+    setUseBotMartingale(Boolean(bot.defaultSettings?.martingaleEnabled))
+    setBotMartingale(bot.defaultSettings?.martingaleMultiplier || 2)
   }
 
   async function confirmStartBot() {
@@ -228,6 +228,10 @@ export default function DashboardDeriv() {
           takeProfit: Number(botTP),
           martingaleEnabled: useBotMartingale,
           martingaleMultiplier: useBotMartingale ? Number(botMartingale) : 1,
+          virtualHook: selectedBotForStart.defaultSettings?.virtualHook,
+          martiStart: selectedBotForStart.defaultSettings?.martiStart,
+          martiFactor: selectedBotForStart.defaultSettings?.martiFactor,
+          maxMartingaleSteps: selectedBotForStart.defaultSettings?.maxMartingaleSteps,
         },
       })
       if (res.data?.success) {
@@ -844,6 +848,17 @@ export default function DashboardDeriv() {
                     />
                     <p className="text-[10px] text-slate-500 mt-1">
                       {`Appliqué 1 fois après chaque perte. Retour immédiat à ${botStake || 1} dès que le trade suivant est gagné.`}
+                    </p>
+                  </div>
+                )}
+                {selectedBotForStart.defaultSettings?.virtualHook?.enabled && (
+                  <div className="p-3 rounded-xl border border-emerald-500/40 bg-emerald-950/30 text-xs text-emerald-300 space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-emerald-200">
+                      <Sparkles className="w-4 h-4 text-emerald-400" />
+                      <span>Virtual Hook &amp; Simulation Active</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      Ce robot exécute d'abord une simulation en arrière-plan et attend <strong>{selectedBotForStart.defaultSettings.virtualHook.trigger || 3} pertes virtuelles consécutives</strong> avant de placer des trades réels sur votre compte Deriv.
                     </p>
                   </div>
                 )}

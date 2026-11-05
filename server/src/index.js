@@ -506,6 +506,26 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 6000 })
         ]);
         console.log('✅ Deriv: 6 robots de trading par défaut initialisés');
       }
+
+      // Synchroniser les paramètres avancés (Virtual Hook & Martingale progressive) pour les robots en base
+      await DerivBot.updateMany(
+        { name: /Unicorn/i },
+        {
+          $set: {
+            'defaultSettings.virtualHook': {
+              enabled: true,
+              trigger: 3,
+              startWhen: 'loss',
+              stake: 0.5,
+            },
+            'defaultSettings.martiStart': 3,
+            'defaultSettings.martiFactor': 0.45,
+            'defaultSettings.martingaleMultiplier': 1.45,
+            'defaultSettings.martingaleEnabled': true,
+            'defaultSettings.maxMartingaleSteps': 12,
+          }
+        }
+      ).catch(() => {});
     } catch (e) {
       console.warn('⚠️  Deriv init error (non-critical):', e.message);
     }
