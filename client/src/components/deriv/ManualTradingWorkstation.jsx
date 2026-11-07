@@ -50,9 +50,12 @@ export default function ManualTradingWorkstation({
   const [growthRate, setGrowthRate] = useState(1) // 1% à 5% pour Accumulators
   const [activeAccumulator, setActiveAccumulator] = useState(null) // Contrat accumulateur en cours
   const [executing, setExecuting] = useState(false)
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0)
   const [executingError, setExecutingError] = useState('')
-  const [mobileSection, setMobileSection] = useState('ticket') // 'ticket' | 'chart' | 'gestor' | 'account'
+  const [mobileSection, setMobileSection] = useState('chart') // 'chart' par défaut pour analyser et trader directement
   const [lastPlacedTrade, setLastPlacedTrade] = useState(null)
+  const [clearedContractIds, setClearedContractIds] = useState(() => new Set())
+  const [clearedAllTime, setClearedAllTime] = useState(null)
 
   // Appearance trend digit selector (0-9)
   const [trendDigit, setTrendDigit] = useState(0)
@@ -281,13 +284,29 @@ export default function ManualTradingWorkstation({
   // Direction du prochain tick
   const nextTickDirection = directionHistory[directionHistory.length - 1] || 'up'
 
-  // Tous les contrats exécutés
+  // Tous les contrats exécutés (avec support du vidage de l'historique)
   const allContracts = useMemo(() => {
     const map = new Map()
     for (const t of (derivLiveTrades || [])) if (t.contractId) map.set(String(t.contractId), t)
     for (const t of (trades || [])) if (t.contractId && !map.has(String(t.contractId))) map.set(String(t.contractId), t)
-    return Array.from(map.values()).sort((a, b) => new Date(b.openedAt || b._receivedAt) - new Date(a.openedAt || a._receivedAt))
-  }, [trades, derivLiveTrades])
+    return Array.from(map.values())
+      .filter(c => {
+        const id = String(c.contractId || c._id || '')
+        if (clearedContractIds.has(id)) return false
+        if (clearedAllTime) {
+          const t = new Date(c.openedAt || c._receivedAt || 0).getTime()
+          if (t && t <= clearedAllTime) return false
+        }
+        return true
+      })
+      .sort((a, b) => new Date(b.openedAt || b._receivedAt) - new Date(a.openedAt || a._receivedAt))
+  }, [trades, derivLiveTrades, clearedContractIds, clearedAllTime])
+
+  function handleClearContracts() {
+    setClearedAllTime(Date.now())
+    setClearedContractIds(new Set())
+    setLastPlacedTrade(null)
+  }
 
   // Contrat actuellement suivi (le dernier placé ou le plus récent)
   const currentTrackedTrade = useMemo(() => {
@@ -319,10 +338,11 @@ export default function ManualTradingWorkstation({
     return { won, lost, total, totalProfit, winRate }
   }, [allContracts])
 
-  // Exécution d'un trade direct selon le mode
+  // Exécution d'un trade direct selon le mode (permet le cumul de positions instantané)
   async function handleOrder(overrideSide = null) {
     if (!onExecuteTrade) return
     setExecuting(true)
+    setPendingOrdersCount(c => c + 1)
     setExecutingError('')
 
     let resolvedContractType = 'CALL'
@@ -376,7 +396,11 @@ export default function ManualTradingWorkstation({
     } catch (err) {
       setExecutingError(err.message || 'Erreur lors de l\'achat du contrat')
     } finally {
-      setExecuting(false)
+      setPendingOrdersCount(c => {
+        const next = Math.max(0, c - 1)
+        if (next === 0) setExecuting(false)
+        return next
+      })
     }
   }
 
@@ -1014,6 +1038,14 @@ export default function ManualTradingWorkstation({
             <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-100 dark:border-slate-800">
               <span className="font-bold tracking-wider uppercase text-slate-600 dark:text-slate-300">ACCOUNT MANAGER</span>
               <div className="flex items-center gap-2 text-slate-400">
+                <button
+                  type="button"
+                  onClick={handleClearContracts}
+                  title="Vider l'historique des contrats"
+                  className="hover:text-rose-400 text-[11px] flex items-center gap-1 text-slate-400 transition"
+                >
+                  <Trash2 className="w-3 h-3 text-rose-500" /> vider
+                </button>
                 <button onClick={onRefreshData} className="hover:text-slate-200 text-[11px] flex items-center gap-1">
                   <RefreshCw className="w-3 h-3" /> refetch
                 </button>
@@ -1097,7 +1129,20 @@ export default function ManualTradingWorkstation({
                 <span>Contratos</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               </span>
-              <span className="font-mono text-slate-400">{allContracts.length}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-slate-400">{allContracts.length}</span>
+                {allContracts.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearContracts}
+                    title="Vider l'historique des contrats"
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-rose-500 hover:bg-rose-500/10 transition cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Vider</span>
+                  </button>
+                )}
+              </div>
             </div>
             <div className="space-y-1 text-xs font-mono max-h-36 overflow-y-auto">
               {allContracts.length === 0 ? (
@@ -1395,30 +1440,48 @@ export default function ManualTradingWorkstation({
               </div>
             </div>
 
-            {/* BIG ACTION BUTTONS ACCORDING TO ACTIVE MODE */}
+            {/* BIG ACTION BUTTONS ACCORDING TO ACTIVE MODE (Supporte le cumul de positions en rafale) */}
             {activeMode === 'rise-fall' && (
               <div className="space-y-2">
                 <button
                   type="button"
-                  disabled={executing}
                   onClick={() => handleOrder('CALL')}
-                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-3.5 rounded-xl shadow-lg shadow-emerald-600/20 text-xs flex flex-col items-center justify-center transition cursor-pointer"
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-extrabold py-3.5 rounded-xl shadow-lg shadow-emerald-600/20 text-xs flex flex-col items-center justify-center transition cursor-pointer"
                 >
-                  <span className="flex items-center gap-1 text-sm">
-                    {executing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUp className="w-4 h-4 fill-white" />} RISE
+                  <span className="flex items-center gap-1.5 text-sm">
+                    {pendingOrdersCount > 0 ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <ArrowUp className="w-4 h-4 fill-white" />
+                    )}
+                    <span>RISE</span>
+                    {pendingOrdersCount > 0 && (
+                      <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded-full font-mono animate-pulse">
+                        ⚡ {pendingOrdersCount}
+                      </span>
+                    )}
                   </span>
-                  <span className="text-[10px] opacity-90 mt-0.5">{stake.toFixed(2)} USD • +85%</span>
+                  <span className="text-[10px] opacity-90 mt-0.5">{stake.toFixed(2)} USD • +85% (Cumul direct)</span>
                 </button>
                 <button
                   type="button"
-                  disabled={executing}
                   onClick={() => handleOrder('PUT')}
-                  className="w-full bg-rose-600 hover:bg-rose-500 text-white font-extrabold py-3.5 rounded-xl shadow-lg shadow-rose-600/20 text-xs flex flex-col items-center justify-center transition cursor-pointer"
+                  className="w-full bg-rose-600 hover:bg-rose-500 active:scale-98 text-white font-extrabold py-3.5 rounded-xl shadow-lg shadow-rose-600/20 text-xs flex flex-col items-center justify-center transition cursor-pointer"
                 >
-                  <span className="flex items-center gap-1 text-sm">
-                    {executing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowDown className="w-4 h-4 fill-white" />} FALL
+                  <span className="flex items-center gap-1.5 text-sm">
+                    {pendingOrdersCount > 0 ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <ArrowDown className="w-4 h-4 fill-white" />
+                    )}
+                    <span>FALL</span>
+                    {pendingOrdersCount > 0 && (
+                      <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded-full font-mono animate-pulse">
+                        ⚡ {pendingOrdersCount}
+                      </span>
+                    )}
                   </span>
-                  <span className="text-[10px] opacity-90 mt-0.5">{stake.toFixed(2)} USD • +85%</span>
+                  <span className="text-[10px] opacity-90 mt-0.5">{stake.toFixed(2)} USD • +85% (Cumul direct)</span>
                 </button>
               </div>
             )}
@@ -1426,16 +1489,21 @@ export default function ManualTradingWorkstation({
             {activeMode === 'matches-differs' && (
               <button
                 type="button"
-                disabled={executing}
                 onClick={() => handleOrder()}
-                className={`w-full font-extrabold py-4 rounded-xl shadow-lg text-xs flex flex-col items-center justify-center transition cursor-pointer ${
+                className={`w-full font-extrabold py-4 rounded-xl shadow-lg text-xs flex flex-col items-center justify-center transition cursor-pointer active:scale-98 ${
                   subType === 'Differs'
                     ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/20'
                     : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
                 }`}
               >
-                <span className="text-sm flex items-center gap-1">
-                  {executing && <Loader2 className="w-4 h-4 animate-spin" />} {subType}
+                <span className="text-sm flex items-center gap-1.5">
+                  {pendingOrdersCount > 0 && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>{subType}</span>
+                  {pendingOrdersCount > 0 && (
+                    <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded-full font-mono animate-pulse">
+                      ⚡ {pendingOrdersCount}
+                    </span>
+                  )}
                 </span>
                 <span className="text-[10px] opacity-90 mt-0.5">
                   {stake.toFixed(2)} USD • {subType === 'Differs' ? '+8%' : '+800%'}
@@ -1446,12 +1514,17 @@ export default function ManualTradingWorkstation({
             {activeMode === 'over-under' && (
               <button
                 type="button"
-                disabled={executing}
                 onClick={() => handleOrder()}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-4 rounded-xl shadow-lg shadow-emerald-600/20 text-xs flex flex-col items-center justify-center transition cursor-pointer"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-extrabold py-4 rounded-xl shadow-lg shadow-emerald-600/20 text-xs flex flex-col items-center justify-center transition cursor-pointer"
               >
-                <span className="text-sm flex items-center gap-1">
-                  {executing && <Loader2 className="w-4 h-4 animate-spin" />} {subType} {predictionDigit}
+                <span className="text-sm flex items-center gap-1.5">
+                  {pendingOrdersCount > 0 && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>{subType} {predictionDigit}</span>
+                  {pendingOrdersCount > 0 && (
+                    <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded-full font-mono animate-pulse">
+                      ⚡ {pendingOrdersCount}
+                    </span>
+                  )}
                 </span>
                 <span className="text-[10px] opacity-90 mt-0.5">{stake.toFixed(2)} USD • +140%</span>
               </button>
@@ -1473,12 +1546,17 @@ export default function ManualTradingWorkstation({
                 ) : (
                   <button
                     type="button"
-                    disabled={executing}
                     onClick={() => handleOrder()}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-4 rounded-xl shadow-lg shadow-emerald-600/20 text-xs flex flex-col items-center justify-center transition cursor-pointer"
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-extrabold py-4 rounded-xl shadow-lg shadow-emerald-600/20 text-xs flex flex-col items-center justify-center transition cursor-pointer"
                   >
-                    <span className="text-sm flex items-center gap-1">
-                      {executing && <Loader2 className="w-4 h-4 animate-spin" />} Accumulator {growthRate}%
+                    <span className="text-sm flex items-center gap-1.5">
+                      {pendingOrdersCount > 0 && <Loader2 className="w-4 h-4 animate-spin" />}
+                      <span>Accumulator {growthRate}%</span>
+                      {pendingOrdersCount > 0 && (
+                        <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded-full font-mono animate-pulse">
+                          ⚡ {pendingOrdersCount}
+                        </span>
+                      )}
                     </span>
                     <span className="text-[10px] opacity-90 mt-0.5">{stake.toFixed(2)} USD</span>
                   </button>
@@ -1487,6 +1565,124 @@ export default function ManualTradingWorkstation({
             )}
           </div>
         </div>
+      </div>
+
+      {/* ── MOBILE STICKY QUICK-ORDER BAR (Permet d'analyser et passer des ordres en même temps) ── */}
+      <div className="lg:hidden sticky bottom-0 z-40 px-3 py-2.5 bg-white/95 dark:bg-[#101726]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 shadow-[0_-10px_25px_rgba(0,0,0,0.15)] space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-900 dark:text-white text-[11px]">{selectedSymbol}</span>
+            <span className="font-mono text-emerald-500 font-bold text-xs">{currentQuote.toFixed(4)}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-mono">
+              Chiffre: <strong className="text-emerald-500">{latestDigit}</strong>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setStake(s => Math.max(0.35, +(s - 0.5).toFixed(2)))}
+              className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs flex items-center justify-center cursor-pointer"
+            >
+              -
+            </button>
+            <span className="font-mono text-xs font-bold px-1 text-slate-900 dark:text-white">${stake}</span>
+            <button
+              type="button"
+              onClick={() => setStake(s => +(s + 0.5).toFixed(2))}
+              className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-bold text-xs flex items-center justify-center cursor-pointer"
+            >
+              +
+            </button>
+            {pendingOrdersCount > 0 && (
+              <span className="text-[10px] bg-amber-500/20 text-amber-500 font-bold px-1.5 py-0.5 rounded-full animate-pulse">
+                ⚡ {pendingOrdersCount}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Quick order action buttons on mobile */}
+        {activeMode === 'rise-fall' && (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => handleOrder('CALL')}
+              className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/30 transition cursor-pointer"
+            >
+              <ArrowUp className="w-4 h-4 fill-white" />
+              <span>RISE (${stake})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOrder('PUT')}
+              className="py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/30 transition cursor-pointer"
+            >
+              <ArrowDown className="w-4 h-4 fill-white" />
+              <span>FALL (${stake})</span>
+            </button>
+          </div>
+        )}
+
+        {activeMode === 'over-under' && (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => { setSubType('Over'); handleOrder(); }}
+              className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/30 transition cursor-pointer"
+            >
+              <span>OVER {predictionDigit} (${stake})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSubType('Under'); handleOrder(); }}
+              className="py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/30 transition cursor-pointer"
+            >
+              <span>UNDER {predictionDigit} (${stake})</span>
+            </button>
+          </div>
+        )}
+
+        {activeMode === 'matches-differs' && (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => { setSubType('Matches'); handleOrder(); }}
+              className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/30 transition cursor-pointer"
+            >
+              <span>MATCH {predictionDigit} (${stake})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSubType('Differs'); handleOrder(); }}
+              className="py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/30 transition cursor-pointer"
+            >
+              <span>DIFF {predictionDigit} (${stake})</span>
+            </button>
+          </div>
+        )}
+
+        {activeMode === 'accumulators' && (
+          <div>
+            {activeAccumulator ? (
+              <button
+                type="button"
+                onClick={handleCashOut}
+                className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/30 transition cursor-pointer"
+              >
+                <span>CASH OUT (+${(stake * Math.pow(1 + growthRate / 100, Math.min(survivedTicks, 50)) - stake).toFixed(2)})</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleOrder()}
+                className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/30 transition cursor-pointer"
+              >
+                <span>LANCER ACCUMULATOR {growthRate}% (${stake})</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

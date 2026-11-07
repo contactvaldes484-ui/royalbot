@@ -41,6 +41,7 @@ export function AdminLayout() {
     { icon: LayoutDashboard, label: 'Vue d\'ensemble', href: '/admin', badge: null },
     { icon: Users,           label: 'Utilisateurs',    href: '/admin/users', badge: null },
     { icon: Zap,              label: 'Robots Deriv SmartTrader', href: '/admin/deriv', badge: 'Dédié' },
+    { icon: Sparkles,         label: 'Bot Builder (Deriv Studio)', href: '/admin/deriv?tab=builder', badge: 'Studio' },
     { icon: Bitcoin,          label: 'Binance & Bybit', href: '/admin/binance', badge: null },
     { icon: Bot,             label: 'Marketplace & Robots', href: '/admin/bots', badge: null },
     { icon: Gift,            label: 'Plans & Tarifs',  href: '/admin/plans', badge: null },

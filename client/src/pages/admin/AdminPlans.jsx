@@ -42,7 +42,9 @@ const emptyPlan = () => ({
   tier: 0,
   priceMonthly: 0,
   priceYearly: 0,
-  currency: 'USD',
+  currency: 'XAF',
+  isFree: false,
+  temporaryFreeUntil: '',
   limits: { maxRobots: 0, maxBinanceAccounts: 0, maxTradesPerDay: 0, maxBacktestsPerMonth: 0 },
   features: FEATURE_KEYS.reduce((acc, f) => ({ ...acc, [f.key]: false }), {}),
   highlights: [],
@@ -51,7 +53,7 @@ const emptyPlan = () => ({
   icon: 'Sparkles',
   popular: false,
   order: 0,
-  trialDays: 0,
+  trialDays: 7,
   category: 'crypto',
   broker: 'all',
   referralEligible: true,
@@ -137,6 +139,17 @@ export default function AdminPlans() {
     try {
       const { data } = await adminAPI.togglePlanPayment(plan._id)
       showMessage('success', data.allowPaidSubscription ? `Paiement direct activé pour "${plan.name}".` : `Paiement direct désactivé pour "${plan.name}".`)
+      await load()
+    } catch (err) {
+      showMessage('error', err.response?.data?.error || 'Action impossible.')
+    }
+  }
+
+  const toggleFree = async (plan) => {
+    try {
+      const nextFree = !plan.isFree && plan.priceMonthly !== 0
+      const { data } = await adminAPI.updatePlan(plan._id, { isFree: nextFree, ...(nextFree ? { priceMonthly: 0, priceYearly: 0 } : {}) })
+      showMessage('success', nextFree ? `Plan « ${plan.name} » passé en 100% GRATUIT.` : `Plan « ${plan.name} » repassé en payant.`)
       await load()
     } catch (err) {
       showMessage('error', err.response?.data?.error || 'Action impossible.')
@@ -286,8 +299,27 @@ export default function AdminPlans() {
                   </div>
 
                   <div className="mb-3">
-                    <p className="text-xl font-bold">${plan.priceMonthly}<span className="text-xs font-normal text-muted-foreground">/mois</span></p>
-                    <p className="text-xs text-muted-foreground">${plan.priceYearly}/an</p>
+                    {plan.isFree || plan.priceMonthly === 0 ? (
+                      <div>
+                        <span className="text-xl font-black text-emerald-400">100% GRATUIT</span>
+                        <p className="text-[11px] text-emerald-500 font-medium">Offert gratuitement aux utilisateurs</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xl font-bold font-mono">
+                          {plan.priceMonthly?.toLocaleString()} {plan.currency || 'XAF'}
+                          <span className="text-xs font-normal text-muted-foreground">/mois</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {plan.priceYearly?.toLocaleString()} {plan.currency || 'XAF'}/an
+                        </p>
+                      </div>
+                    )}
+                    {plan.trialDays > 0 && (
+                      <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 font-semibold">
+                        🎁 {plan.trialDays} jours d'essai gratuit
+                      </span>
+                    )}
                   </div>
 
                   <div className="text-xs space-y-1 text-muted-foreground mb-3">
@@ -309,7 +341,20 @@ export default function AdminPlans() {
                           plan.isActive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'
                         }`}
                       >
-                        {plan.isActive ? '🟢 ACTIF' : '🔴 INACTIF'}
+                        {plan.isActive ? '🟢 ACTIF' : '🔴 DÉSACTIVÉ'}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium">Mode Gratuit :</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleFree(plan)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
+                          plan.isFree || plan.priceMonthly === 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-700/40 text-slate-400 border border-slate-700'
+                        }`}
+                      >
+                        {plan.isFree || plan.priceMonthly === 0 ? '🎁 100% GRATUIT' : '💳 PAYANT'}
                       </button>
                     </div>
 
@@ -475,19 +520,64 @@ export default function AdminPlans() {
               {/* Pricing */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Prix mensuel ($)</label>
-                  <Input type="number" min="0" value={editing.priceMonthly} onChange={(e) => updateField('priceMonthly', parseFloat(e.target.value) || 0)} />
+                  <label className="text-xs font-medium mb-1 block">Prix mensuel ({editing.currency || 'XAF'})</label>
+                  <Input type="number" min="0" value={editing.priceMonthly} onChange={(e) => updateField('priceMonthly', parseFloat(e.target.value) || 0)} disabled={editing.isFree} />
                 </div>
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Prix annuel ($)</label>
-                  <Input type="number" min="0" value={editing.priceYearly} onChange={(e) => updateField('priceYearly', parseFloat(e.target.value) || 0)} />
+                  <label className="text-xs font-medium mb-1 block">Prix annuel ({editing.currency || 'XAF'})</label>
+                  <Input type="number" min="0" value={editing.priceYearly} onChange={(e) => updateField('priceYearly', parseFloat(e.target.value) || 0)} disabled={editing.isFree} />
                 </div>
                 <div>
                   <label className="text-xs font-medium mb-1 block">Devise</label>
-                  <Input value={editing.currency} onChange={(e) => updateField('currency', e.target.value.toUpperCase())} />
+                  <select
+                    value={editing.currency || 'XAF'}
+                    onChange={(e) => updateField('currency', e.target.value.toUpperCase())}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm font-bold"
+                  >
+                    <option value="XAF">XAF (Franc CFA)</option>
+                    <option value="USD">USD ($)</option>
+                  </select>
                 </div>
                 <div>
-                  <label className="text-xs font-medium mb-1 block">Jours d'essai</label>
+                  <label className="text-xs font-medium mb-1 block">Jours d'essai gratuit</label>
+                  <Input type="number" min="0" value={editing.trialDays || 0} onChange={(e) => updateField('trialDays', parseInt(e.target.value) || 0)} />
+                </div>
+              </div>
+
+              {/* Options de gratuité & période configurable */}
+              <div className="p-3 rounded-lg border bg-emerald-500/10 border-emerald-500/30 space-y-3">
+                <p className="text-xs font-semibold text-emerald-400">OPTIONS DE GRATUITÉ &amp; PÉRIODE CONFIGURABLE</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="flex items-center gap-2 text-xs cursor-pointer p-2 rounded bg-background border">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editing.isFree)}
+                      onChange={(e) => {
+                        updateField('isFree', e.target.checked)
+                        if (e.target.checked) {
+                          updateField('priceMonthly', 0)
+                          updateField('priceYearly', 0)
+                        }
+                      }}
+                      className="accent-emerald-500 w-4 h-4"
+                    />
+                    <div>
+                      <span className="font-bold text-emerald-400 block">Rendre ce plan 100% GRATUIT</span>
+                      <span className="text-[10px] text-muted-foreground">Les utilisateurs pourront l'activer sans aucun paiement.</span>
+                    </div>
+                  </label>
+
+                  <div>
+                    <label className="text-xs font-medium mb-1 block">Gratuité temporaire jusqu'au (optionnel)</label>
+                    <Input
+                      type="date"
+                      value={editing.temporaryFreeUntil ? String(editing.temporaryFreeUntil).slice(0, 10) : ''}
+                      onChange={(e) => updateField('temporaryFreeUntil', e.target.value)}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Le plan sera offert gratuitement jusqu'à cette date.</p>
+                  </div>
+                </div>
+              </div>
                   <Input type="number" min="0" value={editing.trialDays} onChange={(e) => updateField('trialDays', parseInt(e.target.value) || 0)} />
                 </div>
               </div>

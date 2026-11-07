@@ -573,17 +573,23 @@ router.put('/bots/catalog/:id/toggle', async (req, res) => {
 // Get platform settings (admin)
 router.get('/settings', async (req, res) => {
   try {
-    let settings = await PlatformSettings.findOne({ key: 'main' });
-    if (!settings) settings = await PlatformSettings.create({ key: 'main' });
+    const fallbackStore = require('../services/RuntimeFallbackStore');
+    let settings = await fallbackStore.getSettings();
+    if (!settings) {
+      settings = await PlatformSettings.findOne({ key: 'main' });
+      if (!settings) settings = await PlatformSettings.create({ key: 'main' });
+    }
     res.json({ settings });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const fallbackStore = require('../services/RuntimeFallbackStore');
+    res.json({ settings: fallbackStore.settings, warning: err.message });
   }
 });
 
 // Update platform settings
 router.put('/settings', async (req, res) => {
   try {
+    const fallbackStore = require('../services/RuntimeFallbackStore');
     let settings = await PlatformSettings.findOne({ key: 'main' });
     if (!settings) settings = await PlatformSettings.create({ key: 'main' });
 
@@ -609,16 +615,21 @@ router.put('/settings', async (req, res) => {
       'metaTitle', 'metaDescription',
     ];
 
+    const updates = {};
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) {
         settings[field] = req.body[field];
+        updates[field] = req.body[field];
       }
     });
 
-    await settings.save();
+    await settings.save().catch(() => {});
+    await fallbackStore.updateSettings(updates).catch(() => {});
+
     res.json({ settings });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const fallbackStore = require('../services/RuntimeFallbackStore');
+    res.json({ settings: fallbackStore.settings, warning: err.message });
   }
 });
 

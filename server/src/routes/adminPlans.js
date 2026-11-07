@@ -15,10 +15,17 @@ router.use(authenticate, requireAdmin);
 // List ALL plans (incl. hidden)
 router.get('/plans', async (req, res) => {
   try {
-    const plans = await SubscriptionPlan.find().sort({ tier: 1, order: 1 });
+    let plans = await SubscriptionPlan.find().sort({ tier: 1, order: 1 });
+    if (!plans || plans.length === 0) {
+      const defaultPlans = require('../config/defaultPlans');
+      await SubscriptionPlan.insertMany(defaultPlans).catch(() => {});
+      plans = await SubscriptionPlan.find().sort({ tier: 1, order: 1 });
+      if (!plans || plans.length === 0) plans = defaultPlans;
+    }
     res.json({ plans });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const defaultPlans = require('../config/defaultPlans');
+    res.json({ plans: defaultPlans, warning: err.message });
   }
 });
 
@@ -68,7 +75,7 @@ router.put('/plans/:id', async (req, res) => {
 });
 
 // Quick toggle Plan Active status
-router.post('/plans/:id/toggle-active', async (req, res) => {
+const handleToggleActive = async (req, res) => {
   try {
     const plan = await SubscriptionPlan.findById(req.params.id);
     if (!plan) return res.status(404).json({ error: 'Plan introuvable.' });
@@ -77,7 +84,23 @@ router.post('/plans/:id/toggle-active', async (req, res) => {
     await planCache.refreshCache();
     res.json({ success: true, plan });
   } catch (err) { res.status(500).json({ error: err.message }); }
-});
+};
+router.post('/plans/:id/toggle-active', handleToggleActive);
+router.put('/plans/:id/toggle-active', handleToggleActive);
+
+// Quick toggle Plan 100% Free status
+const handleToggleFree = async (req, res) => {
+  try {
+    const plan = await SubscriptionPlan.findById(req.params.id);
+    if (!plan) return res.status(404).json({ error: 'Plan introuvable.' });
+    plan.isFree = !plan.isFree;
+    await plan.save();
+    await planCache.refreshCache();
+    res.json({ success: true, plan });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+};
+router.post('/plans/:id/toggle-free', handleToggleFree);
+router.put('/plans/:id/toggle-free', handleToggleFree);
 
 // Quick toggle Referral Activation
 router.post('/plans/:id/toggle-referral', async (req, res) => {

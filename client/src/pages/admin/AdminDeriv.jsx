@@ -1,17 +1,22 @@
 import React, { useEffect, useState } from 'react'
+import { useSearchParams, useLocation } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
 import { adminDerivAPI, settingsAPI } from '../../lib/api'
+import BotBuilder from '../../components/deriv/BotBuilder'
 import {
   Bot, Plus, ShieldCheck, Clock, CheckCircle2, XCircle, Trash2,
   Edit, RefreshCw, ExternalLink, Settings, Activity, Users, Layers,
-  Upload, FileCode, FileText, Check, AlertCircle, Loader2
+  Upload, FileCode, FileText, Check, AlertCircle, Loader2, Sparkles
 } from 'lucide-react'
 
 export default function AdminDeriv() {
-  const [activeTab, setActiveTab] = useState('bots') // 'bots' | 'accounts' | 'settings'
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const initialTab = searchParams.get('tab') || (location.pathname.includes('builder') ? 'builder' : 'bots')
+  const [activeTab, setActiveTab] = useState(initialTab) // 'bots' | 'builder' | 'accounts' | 'settings'
   const [bots, setBots] = useState([])
   const [accounts, setAccounts] = useState([])
   const [stats, setStats] = useState(null)
@@ -263,6 +268,14 @@ export default function AdminDeriv() {
 
         <div className="flex items-center gap-2 flex-wrap">
           <Button
+            onClick={() => setActiveTab('builder')}
+            className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold shadow-lg shadow-cyan-500/20"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            Bot Builder (Studio)
+          </Button>
+
+          <Button
             onClick={() => {
               setUploadFile(null)
               setParsedPreview(null)
@@ -352,18 +365,27 @@ export default function AdminDeriv() {
       </div>
 
       {/* ── ONGLETS GESTION ───────────────────────────────────────────── */}
-      <div className="flex border-b border-slate-800 space-x-2">
+      <div className="flex border-b border-slate-800 space-x-2 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('bots')}
-          className={`py-3 px-6 font-bold text-sm border-b-2 transition ${
+          className={`py-3 px-6 font-bold text-sm border-b-2 transition whitespace-nowrap ${
             activeTab === 'bots' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           Robots Deriv ({bots.length})
         </button>
         <button
+          onClick={() => setActiveTab('builder')}
+          className={`py-3 px-6 font-bold text-sm border-b-2 transition whitespace-nowrap flex items-center gap-2 ${
+            activeTab === 'builder' ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10' : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-cyan-400" />
+          <span>Bot Builder (Deriv Studio) 🛠️</span>
+        </button>
+        <button
           onClick={() => setActiveTab('accounts')}
-          className={`py-3 px-6 font-bold text-sm border-b-2 transition ${
+          className={`py-3 px-6 font-bold text-sm border-b-2 transition whitespace-nowrap ${
             activeTab === 'accounts' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
@@ -371,13 +393,20 @@ export default function AdminDeriv() {
         </button>
         <button
           onClick={() => setActiveTab('settings')}
-          className={`py-3 px-6 font-bold text-sm border-b-2 transition ${
+          className={`py-3 px-6 font-bold text-sm border-b-2 transition whitespace-nowrap ${
             activeTab === 'settings' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           Lien de Parrainage Deriv
         </button>
       </div>
+
+      {/* ── TAB 0 : BOT BUILDER STUDIO (Deriv Visual Builder) ─────────── */}
+      {activeTab === 'builder' && (
+        <div className="space-y-4">
+          <BotBuilder onBotPublished={loadData} />
+        </div>
+      )}
 
       {/* ── TAB 1 : GESTION DES ROBOTS ────────────────────────────────── */}
       {activeTab === 'bots' && (

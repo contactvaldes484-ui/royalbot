@@ -196,6 +196,7 @@ export default function App() {
           <Route path="forex-ai" element={<AdminForexAI />} />
           <Route path="binance" element={<AdminBinance />} />
           <Route path="deriv" element={<AdminDeriv />} />
+          <Route path="bot-builder" element={<AdminDeriv />} />
         </Route>
 
         {/* 404 */}

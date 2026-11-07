@@ -15,10 +15,12 @@ const subscriptionPlanSchema = new mongoose.Schema({
   // 0 = free, higher = more access. Reserved tiers: 0,1,2,3,4 for default plans.
   tier: { type: Number, required: true, default: 0, index: true },
 
-  // Pricing (USD)
+  // Pricing (XAF / USD)
   priceMonthly: { type: Number, default: 0, min: 0 },
   priceYearly: { type: Number, default: 0, min: 0 }, // discounted full-year price
-  currency: { type: String, default: 'USD' },
+  currency: { type: String, default: 'XAF' },
+  isFree: { type: Boolean, default: false }, // Rendre ce plan 100% gratuit
+  temporaryFreeUntil: { type: Date }, // Période de gratuité temporaire configurable
 
   // Category & Platform separation
   category: { type: String, enum: ['crypto', 'deriv'], default: 'crypto', index: true },
