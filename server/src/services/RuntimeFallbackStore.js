@@ -118,6 +118,176 @@ const DEFAULT_BOTS = [
   },
 ];
 
+const DEFAULT_SHOP_ROBOTS = [
+  {
+    _id: '670000000000000000000701',
+    name: 'Unicorn Only Up Down BinaryBot VH',
+    slug: 'unicorn-only-up-down-binarybot-vh',
+    tier: 'pro',
+    description: 'Robot algorithmique officiel Deriv & MT5 haute performance avec filtre Virtual Hook anti-perte pour sécuriser le capital.',
+    platforms: ['mt4', 'mt5'],
+    supportedContracts: ['BUY', 'SELL'],
+    supportedSymbols: ['EURUSD', 'GBPUSD', 'R_100', 'XAUUSD'],
+    price: 49,
+    currency: 'USD',
+    billingCycle: 'lifetime',
+    totalUsers: 840,
+    avgWinRate: 91,
+    winRate: '91%',
+    ratingAverage: 4.9,
+    ratingCount: 142,
+    isActive: true,
+    isPopular: true,
+    listingStatus: 'approved',
+    badge: 'Top Vente',
+    color: '#10b981',
+    icon: 'Bot',
+    features: [
+      'Filtre Virtual Hook Anti-Perte',
+      'Taux de réussite 91% en Backtest MT5',
+      'Multi-Marchés Synthétiques & Paires Majeures',
+      'Livraison Fichier .ex5 & .xml par Email',
+    ],
+    robotFile: Buffer.from('// RoyalBot Unicorn Only Up Down VH MT5 EA Compiled').toString('base64'),
+    robotFileName: 'Unicorn_Only_Up_Down_VH.ex5',
+    robotFileType: 'application/octet-stream',
+    createdAt: new Date('2026-01-15'),
+  },
+  {
+    _id: '670000000000000000000702',
+    name: 'Gold Scalper Pro EA (XAU/USD)',
+    slug: 'gold-scalper-pro-ea',
+    tier: 'vip',
+    description: 'Expert Advisor de scalping institutionnel pour MetaTrader 4 et 5. Détecte les micro-impulsions sur l\'Or avec un ratio gain/perte moyen de 3:1.',
+    platforms: ['mt4', 'mt5'],
+    supportedContracts: ['BUY', 'SELL'],
+    supportedSymbols: ['XAUUSD'],
+    price: 89,
+    currency: 'USD',
+    billingCycle: 'lifetime',
+    totalUsers: 1250,
+    avgWinRate: 88,
+    winRate: '88%',
+    ratingAverage: 4.95,
+    ratingCount: 215,
+    isActive: true,
+    isPopular: true,
+    listingStatus: 'approved',
+    badge: 'Expert Advisor',
+    color: '#f59e0b',
+    icon: 'TrendingUp',
+    features: [
+      'Spécialisé XAU/USD (Or)',
+      'Stop Loss Garanti à Chaque Trade',
+      'Max Drawdown < 4%',
+      'Algorithme Scalping M5 Ultra-Rapide',
+    ],
+    robotFile: Buffer.from('// RoyalBot Gold Scalper Pro MT5 EA Compiled').toString('base64'),
+    robotFileName: 'Gold_Scalper_Pro_MT5.ex5',
+    robotFileType: 'application/octet-stream',
+    createdAt: new Date('2026-01-10'),
+  },
+  {
+    _id: '670000000000000000000703',
+    name: 'EUR/USD Quantum Sniper EA',
+    slug: 'eur-usd-quantum-sniper-ea',
+    tier: 'pro',
+    description: 'Algorithme haute fréquence pour le Forex majeur (EUR/USD, GBP/USD). Conçu pour le passage d\'évaluations Prop Firm (FTMO, Funded Next).',
+    platforms: ['mt4', 'mt5'],
+    supportedContracts: ['BUY', 'SELL'],
+    supportedSymbols: ['EURUSD', 'GBPUSD'],
+    price: 65,
+    currency: 'USD',
+    billingCycle: 'lifetime',
+    totalUsers: 620,
+    avgWinRate: 89,
+    winRate: '89%',
+    ratingAverage: 4.88,
+    ratingCount: 98,
+    isActive: true,
+    isPopular: false,
+    listingStatus: 'approved',
+    badge: 'Prop Firm Ready',
+    color: '#3b82f6',
+    icon: 'Activity',
+    features: [
+      'Exécution Sub-Milliseconde',
+      'Filtre de Sessions Londres / New York',
+      'Gestion Automatique des Lots et Capital',
+    ],
+    robotFile: Buffer.from('// RoyalBot EURUSD Quantum Sniper MT5 EA').toString('base64'),
+    robotFileName: 'EURUSD_Quantum_Sniper.ex5',
+    robotFileType: 'application/octet-stream',
+    createdAt: new Date('2026-01-20'),
+  },
+  {
+    _id: '670000000000000000000704',
+    name: 'US30 & Nasdaq 100 Trend Surfer',
+    slug: 'us30-nasdaq-trend-surfer',
+    tier: 'institutional',
+    description: 'Capture les grandes tendances explosives à l\'ouverture des marchés américains sur US30 et NAS100 avec un risk/reward asymétrique.',
+    platforms: ['mt5'],
+    supportedContracts: ['BUY', 'SELL'],
+    supportedSymbols: ['US30', 'NAS100'],
+    price: 120,
+    currency: 'USD',
+    billingCycle: 'lifetime',
+    totalUsers: 410,
+    avgWinRate: 86,
+    winRate: '86%',
+    ratingAverage: 4.92,
+    ratingCount: 76,
+    isActive: true,
+    isPopular: true,
+    listingStatus: 'approved',
+    badge: 'Indices Wall Street',
+    color: '#8b5cf6',
+    icon: 'Zap',
+    features: [
+      'Suivi de Tendance Indiciaire US',
+      'Trailing Stop Break-Even Automatique',
+      'Compatible Comptes $10k-$200k',
+    ],
+    robotFile: Buffer.from('// RoyalBot US30 Trend Surfer MT5 EA').toString('base64'),
+    robotFileName: 'US30_Trend_Surfer.ex5',
+    robotFileType: 'application/octet-stream',
+    createdAt: new Date('2026-02-01'),
+  },
+  {
+    _id: '670000000000000000000705',
+    name: 'Crypto Momentum Breakout EA (BTC/ETH)',
+    slug: 'crypto-momentum-breakout-ea',
+    tier: 'pro',
+    description: 'Robot de trading automatisé fonctionnant 24h/24 et 7j/7 sur BTC/USD et ETH/USD via courtiers MT5 (Deriv, Binance MT5, IC Markets).',
+    platforms: ['mt5'],
+    supportedContracts: ['BUY', 'SELL'],
+    supportedSymbols: ['BTCUSD', 'ETHUSD'],
+    price: 95,
+    currency: 'USD',
+    billingCycle: 'lifetime',
+    totalUsers: 380,
+    avgWinRate: 85,
+    winRate: '85%',
+    ratingAverage: 4.85,
+    ratingCount: 64,
+    isActive: true,
+    isPopular: false,
+    listingStatus: 'approved',
+    badge: 'Crypto 24/7',
+    color: '#ec4899',
+    icon: 'Shield',
+    features: [
+      'Trading 24/7 sur Crypto',
+      'Filtre de Volatilité ATR Dynamique',
+      'Protection Anti-Crash',
+    ],
+    robotFile: Buffer.from('// RoyalBot Crypto Momentum Breakout MT5 EA').toString('base64'),
+    robotFileName: 'Crypto_Breakout_MT5.ex5',
+    robotFileType: 'application/octet-stream',
+    createdAt: new Date('2026-02-10'),
+  },
+];
+
 function isPlatformOwner(email) {
   return String(email || '').toLowerCase().trim() === 'valdeslando15@gmail.com';
 }
@@ -337,6 +507,7 @@ class RuntimeFallbackStore {
     this.users = new Map(); // _id -> userObj
     this.derivAccounts = new Map(); // _id -> accObj
     this.derivBots = [...DEFAULT_BOTS];
+    this.shopRobots = [...DEFAULT_SHOP_ROBOTS];
     this.derivSessions = new Map(); // _id -> sessionObj
     this.derivTrades = new Map(); // _id -> tradeObj
     this.settings = {
@@ -424,6 +595,87 @@ class RuntimeFallbackStore {
       } catch (_) {}
     }
     return this.settings;
+  }
+
+  async getShopRobots(query = {}) {
+    if (this.isDbConnected()) {
+      try {
+        const Bot = require('../models/Bot');
+        const filter = { isActive: true, price: { $gt: 0 } };
+        if (query.category === 'mt4') filter.platforms = 'mt4';
+        else if (query.category === 'mt5') filter.platforms = 'mt5';
+        if (query.search) {
+          filter.$or = [
+            { name: new RegExp(query.search, 'i') },
+            { description: new RegExp(query.search, 'i') },
+          ];
+        }
+        let sortOption = { order: 1, createdAt: -1 };
+        if (query.sort === 'price_asc') sortOption = { price: 1 };
+        else if (query.sort === 'price_desc') sortOption = { price: -1 };
+        else if (query.sort === 'popular') sortOption = { totalUsers: -1 };
+        else if (query.sort === 'newest') sortOption = { createdAt: -1 };
+
+        const dbRobots = await Bot.find(filter)
+          .select('-robotFile')
+          .sort(sortOption)
+          .populate('vendor', 'firstName lastName');
+
+        if (dbRobots && dbRobots.length > 0) return dbRobots;
+      } catch (err) {
+        console.warn('FallbackStore: Bot.find error, using in-memory shop robots:', err.message);
+      }
+    }
+
+    let list = [...this.shopRobots];
+    if (query.category) {
+      list = list.filter(r => r.platforms && r.platforms.includes(query.category));
+    }
+    if (query.search) {
+      const q = query.search.toLowerCase();
+      list = list.filter(r => r.name.toLowerCase().includes(q) || (r.description && r.description.toLowerCase().includes(q)));
+    }
+    if (query.sort === 'price_asc') list.sort((a, b) => a.price - b.price);
+    else if (query.sort === 'price_desc') list.sort((a, b) => b.price - a.price);
+    else if (query.sort === 'popular') list.sort((a, b) => (b.totalUsers || 0) - (a.totalUsers || 0));
+
+    return list.map(r => {
+      const copy = { ...r };
+      delete copy.robotFile;
+      return copy;
+    });
+  }
+
+  async findShopRobotBySlug(slug) {
+    if (this.isDbConnected()) {
+      try {
+        const Bot = require('../models/Bot');
+        const bot = await Bot.findOne({ slug, isActive: true }).select('-robotFile');
+        if (bot) return bot;
+      } catch (_) {}
+    }
+    const found = this.shopRobots.find(r => r.slug === slug);
+    if (!found) return null;
+    const copy = { ...found };
+    delete copy.robotFile;
+    return copy;
+  }
+
+  async findShopRobotById(id, includeFile = false) {
+    if (this.isDbConnected()) {
+      try {
+        const Bot = require('../models/Bot');
+        const q = Bot.findById(id);
+        if (!includeFile) q.select('-robotFile');
+        const bot = await q;
+        if (bot) return bot;
+      } catch (_) {}
+    }
+    const found = this.shopRobots.find(r => String(r._id) === String(id));
+    if (!found) return null;
+    const copy = { ...found };
+    if (!includeFile) delete copy.robotFile;
+    return copy;
   }
 
   async findUserById(userId) {

@@ -60,10 +60,27 @@ async function confirmOrderPaid(orderId, { confirmedBy = null, txRef = null, not
 
   // Envoi automatique du fichier robot et du lien de téléchargement par email à l'acheteur
   try {
-    const buyer = await User.findById(order.user);
+    let buyer = null;
+    try {
+      buyer = await User.findById(order.user);
+    } catch (_) {}
+    if (!buyer) {
+      const fallbackStore = require('./RuntimeFallbackStore');
+      buyer = await fallbackStore.findUserById(order.user);
+    }
     if (buyer) {
       const emailService = require('./emailService');
-      const bots = await Bot.find({ _id: { $in: botIds } });
+      const fallbackStore = require('./RuntimeFallbackStore');
+      let bots = [];
+      try {
+        bots = await Bot.find({ _id: { $in: botIds } });
+      } catch (_) {}
+      if (bots.length === 0) {
+        for (const id of botIds) {
+          const b = await fallbackStore.findShopRobotById(id, true);
+          if (b) bots.push(b);
+        }
+      }
       emailService.sendRobotPurchaseEmail(buyer, order, bots).catch(e => {
         console.warn('[shopFulfill] Erreur envoi email robot:', e.message);
       });
