@@ -58,6 +58,20 @@ async function confirmOrderPaid(orderId, { confirmedBy = null, txRef = null, not
     }
   }
 
+  // Envoi automatique du fichier robot et du lien de téléchargement par email à l'acheteur
+  try {
+    const buyer = await User.findById(order.user);
+    if (buyer) {
+      const emailService = require('./emailService');
+      const bots = await Bot.find({ _id: { $in: botIds } });
+      emailService.sendRobotPurchaseEmail(buyer, order, bots).catch(e => {
+        console.warn('[shopFulfill] Erreur envoi email robot:', e.message);
+      });
+    }
+  } catch (err) {
+    console.warn('[shopFulfill] Erreur récupération buyer pour email:', err.message);
+  }
+
   // Notifie l'acheteur (best-effort)
   try {
     if (global.broadcastToUser) {

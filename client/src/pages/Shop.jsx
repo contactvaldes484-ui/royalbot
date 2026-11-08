@@ -11,8 +11,9 @@ import {
   Bot, ShoppingCart, Search, Filter, Star, TrendingUp, Shield,
   Wallet, X, Plus, Minus, Trash2, CheckCircle2, AlertCircle,
   ArrowRight, Loader2, Copy, CreditCard, BarChart3, Zap,
-  Package, Eye, Lock, ChevronDown, Smartphone, Download
+  Package, Eye, Lock, ChevronDown, Smartphone, Download, Activity, Sparkles
 } from 'lucide-react'
+import MT5StrategyTesterModal from '../components/shop/MT5StrategyTesterModal'
 
 const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4 } } }
 const stagger = { visible: { transition: { staggerChildren: 0.08 } } }
@@ -28,6 +29,7 @@ export default function Shop() {
   const [search, setSearch] = useState('')
   const [vendors, setVendors] = useState([])
   const [vendorFilter, setVendorFilter] = useState('')
+  const [testerRobot, setTesterRobot] = useState(null)
   const [cart, setCart] = useState(() => {
     try { return JSON.parse(localStorage.getItem('shop_cart') || '[]') } catch { return [] }
   })
@@ -618,19 +620,43 @@ export default function Shop() {
                           </div>
                         </div>
 
-                        {isOwned(robot._id) ? (
-                          <Button variant="outline" className="w-full border-green-500/30 text-green-600" onClick={() => handleDownload(robot._id, robot.name)}>
-                            <Download className="h-4 w-4 mr-2" /> Télécharger le robot
+                        <div className="space-y-2">
+                          {/* Bouton Tester le Robot MT4/MT5 (Accessible à tous sans connexion) */}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full border-cyan-500/40 text-cyan-500 dark:text-cyan-400 hover:bg-cyan-500/10 font-bold text-xs"
+                            onClick={() => setTesterRobot(robot)}
+                          >
+                            <Activity className="h-3.5 w-3.5 mr-1.5 text-cyan-400" />
+                            🧪 Tester le Robot (MT4/MT5)
                           </Button>
-                        ) : isInCart(robot._id) ? (
-                          <Button variant="outline" className="w-full border-violet-500/30 text-violet-500" onClick={() => removeFromCart(robot._id)}>
-                            <X className="h-4 w-4 mr-2" /> Retirer du panier
-                          </Button>
-                        ) : (
-                          <Button variant="gradient" className="w-full" onClick={() => addToCart(robot)}>
-                            <ShoppingCart className="h-4 w-4 mr-2" /> Ajouter au panier
-                          </Button>
-                        )}
+
+                          {isOwned(robot._id) ? (
+                            <Button variant="outline" className="w-full border-green-500/30 text-green-600" onClick={() => handleDownload(robot._id, robot.name)}>
+                              <Download className="h-4 w-4 mr-2" /> Télécharger le robot
+                            </Button>
+                          ) : isInCart(robot._id) ? (
+                            <Button variant="outline" className="w-full border-violet-500/30 text-violet-500" onClick={() => removeFromCart(robot._id)}>
+                              <X className="h-4 w-4 mr-2" /> Retirer du panier
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="gradient"
+                              className="w-full font-bold text-xs"
+                              onClick={() => {
+                                addToCart(robot)
+                                if (!isAuthenticated) {
+                                  navigate(`/login?redirect=/shop&buy=${robot.slug}`)
+                                  return
+                                }
+                                setShowCart(true)
+                              }}
+                            >
+                              <ShoppingCart className="h-4 w-4 mr-2" /> Acheter ce Robot
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -638,6 +664,24 @@ export default function Shop() {
               ))}
             </motion.div>
           )}
+
+          {/* Modal Testeur de Stratégie MT4/MT5 */}
+          <MT5StrategyTesterModal
+            robot={testerRobot}
+            isOpen={!!testerRobot}
+            onClose={() => setTesterRobot(null)}
+            isAuthenticated={isAuthenticated}
+            user={user}
+            onBuyRobot={(r) => {
+              addToCart(r)
+              setTesterRobot(null)
+              if (!isAuthenticated) {
+                navigate(`/login?redirect=/shop&buy=${r.slug}`)
+              } else {
+                setShowCart(true)
+              }
+            }}
+          />
 
           {/* Payment methods info */}
           <div className="text-center mt-16">

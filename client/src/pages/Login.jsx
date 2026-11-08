@@ -35,8 +35,9 @@ export default function Login() {
       }
       const params = new URLSearchParams(location.search)
       const redirectTo = params.get('redirect')
+      const buySlug = params.get('buy')
       if (redirectTo) {
-        navigate(redirectTo)
+        navigate(buySlug ? `${redirectTo}?buy=${buySlug}` : redirectTo)
       } else if (['admin', 'super_admin'].includes(result?.user?.role)) {
         navigate('/admin')
       } else {
@@ -64,6 +65,13 @@ export default function Login() {
           <CardDescription>Accédez à votre compte de trading</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {location.search.includes('buy=') && (
+            <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold flex items-center gap-2">
+              <Zap className="h-4 w-4 shrink-0 text-emerald-400" />
+              <span>Connectez-vous pour finaliser votre commande. Le fichier du robot vous sera envoyé par email.</span>
+            </div>
+          )}
+
           {error && (
             <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">{error}</div>
           )}

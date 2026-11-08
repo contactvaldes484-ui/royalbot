@@ -293,7 +293,7 @@ router.put('/orders/:id/verify-usdt', authenticate, async (req, res) => {
 });
 
 // ─── AUTH: Download a purchased robot file ──────────────────────────
-router.get('/robots/:id/download', authenticate, async (req, res) => {
+router.get(['/robots/:id/download', '/download/:id'], authenticate, async (req, res) => {
   try {
     const botId = req.params.id;
     const user = await User.findById(req.user._id).select('purchasedBots');

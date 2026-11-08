@@ -11,7 +11,9 @@ import useStore from '../store/useStore'
 import {
   ArrowLeft, Star, Loader2, AlertCircle, User as UserIcon,
   Cpu, TrendingUp, Layers, Coins, ShoppingCart, Download, CheckCircle2, Shield,
+  Activity, Sparkles
 } from 'lucide-react'
+import MT5StrategyTesterModal from '../components/shop/MT5StrategyTesterModal'
 
 const STRATEGY_LABELS = {
   scalper_ema: 'Scalping EMA — entrées rapides sur croisements de moyennes mobiles',
@@ -62,6 +64,7 @@ export default function ShopRobotDetail() {
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showTester, setShowTester] = useState(false)
 
   const [rating, setRating] = useState(5)
   const [title, setTitle] = useState('')
@@ -178,6 +181,73 @@ export default function ShopRobotDetail() {
                 <span className="text-xs text-muted-foreground capitalize">{robot.billingCycle === 'lifetime' ? 'à vie' : robot.billingCycle}</span>
               </div>
             </div>
+          </motion.div>
+
+          {/* Action Box : Testeur MT4/MT5 & Achat Direct */}
+          <motion.div variants={fadeUp} className="mb-8 p-6 rounded-2xl bg-gradient-to-r from-slate-900 to-[#121829] border-2 border-violet-500/30 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <span className="text-xs font-bold text-violet-400 uppercase tracking-wider block mb-1">
+                  Évaluation &amp; Achat Sécurisé
+                </span>
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>Prêt à automatiser vos gains ?</span>
+                  <span className="text-xs bg-emerald-500/20 text-emerald-400 font-extrabold px-2 py-0.5 rounded border border-emerald-500/40">
+                    TESTEUR DISPONIBLE
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-1 max-w-xl">
+                  Testez les performances de ce robot directement sur notre simulateur MT4/MT5 avec des données réelles de marché avant de finaliser votre commande.
+                </p>
+              </div>
+
+              <div className="text-left sm:text-right">
+                <span className="text-3xl font-extrabold text-white">${robot.price}</span>
+                <span className="text-xs text-slate-400 block">Licence {robot.billingCycle === 'lifetime' ? 'à vie' : robot.billingCycle}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-slate-800">
+              {/* Bouton Tester MT4/MT5 */}
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={() => setShowTester(true)}
+                className="border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10 font-bold flex items-center gap-2 text-xs sm:text-sm"
+              >
+                <Activity className="h-4 w-4 text-cyan-400" />
+                <span>🧪 Tester le Robot (MT4/MT5)</span>
+              </Button>
+
+              {/* Bouton Achat ou Téléchargement */}
+              {owned(robot._id) ? (
+                <Button variant="outline" size="lg" className="border-green-500/40 text-green-400 hover:bg-green-500/10 font-bold text-xs sm:text-sm" onClick={handleDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  <span>Télécharger le Fichier du Robot</span>
+                </Button>
+              ) : (
+                <Button
+                  variant="gradient"
+                  size="lg"
+                  className="font-bold shadow-lg shadow-violet-500/25 flex items-center gap-2 text-xs sm:text-sm"
+                  onClick={() => {
+                    handleBuy()
+                    if (!isAuthenticated) {
+                      navigate(`/login?redirect=/shop&buy=${robot.slug}`)
+                    }
+                  }}
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                  <span>Acheter ce Robot (${robot.price})</span>
+                </Button>
+              )}
+            </div>
+
+            <p className="text-[11px] text-slate-400 flex items-center gap-1.5 pt-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>Livraison instantanée : le fichier du robot (.ex4/.ex5/.xml) vous est automatiquement envoyé par email dès confirmation.</span>
+            </p>
           </motion.div>
 
           {error && (
@@ -311,6 +381,22 @@ export default function ShopRobotDetail() {
             </motion.div>
           </div>
         </motion.div>
+
+        {/* Modal Testeur de Stratégie MT4/MT5 */}
+        <MT5StrategyTesterModal
+          robot={robot}
+          isOpen={showTester}
+          onClose={() => setShowTester(false)}
+          isAuthenticated={isAuthenticated}
+          user={user}
+          onBuyRobot={() => {
+            setShowTester(false)
+            handleBuy()
+            if (!isAuthenticated) {
+              navigate(`/login?redirect=/shop&buy=${robot.slug}`)
+            }
+          }}
+        />
       </div>
     </div>
   )

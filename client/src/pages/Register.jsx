@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
@@ -14,6 +14,7 @@ export default function Register() {
   const [loading, setLoading] = useState(false)
   const { register, platformSettings } = useStore()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const derivAppId = platformSettings?.derivAppId || '34HkkJSIK047dAEWEgXML'
   const derivSignupUrl = platformSettings?.derivReferralLink || 'https://track.deriv.com/_DEFAULT/'
@@ -34,7 +35,14 @@ export default function Register() {
     setLoading(true)
     try {
       await register({ firstName: form.firstName, lastName: form.lastName, email: form.email, password: form.password, referralCode: form.referralCode || undefined })
-      navigate('/dashboard')
+      const params = new URLSearchParams(location.search)
+      const redirectTo = params.get('redirect')
+      const buySlug = params.get('buy')
+      if (redirectTo) {
+        navigate(buySlug ? `${redirectTo}?buy=${buySlug}` : redirectTo)
+      } else {
+        navigate('/dashboard')
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -57,6 +65,13 @@ export default function Register() {
           <CardDescription>Commencez le trading automatisé gratuitement</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {location.search.includes('buy=') && (
+            <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold flex items-center gap-2">
+              <Zap className="h-4 w-4 shrink-0 text-emerald-400" />
+              <span>Créez votre compte pour finaliser votre commande. Le fichier du robot vous sera envoyé par email.</span>
+            </div>
+          )}
+
           {error && <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">{error}</div>}
 
           {/* Deriv Quick Registration / Login */}
