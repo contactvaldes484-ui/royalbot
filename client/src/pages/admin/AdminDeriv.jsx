@@ -22,6 +22,12 @@ export default function AdminDeriv() {
   const [stats, setStats] = useState(null)
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [builderBot, setBuilderBot] = useState(null)
+
+  const openInBotBuilder = (bot) => {
+    setBuilderBot(bot)
+    setActiveTab('builder')
+  }
 
   // Modal création manuelle de robot
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -404,7 +410,7 @@ export default function AdminDeriv() {
       {/* ── TAB 0 : BOT BUILDER STUDIO (Deriv Visual Builder) ─────────── */}
       {activeTab === 'builder' && (
         <div className="space-y-4">
-          <BotBuilder onBotPublished={loadData} />
+          <BotBuilder initialBot={builderBot} onBotPublished={loadData} />
         </div>
       )}
 
@@ -465,6 +471,16 @@ export default function AdminDeriv() {
                         </Badge>
                       </td>
                       <td className="py-3 text-right space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openInBotBuilder(b)}
+                          className="h-7 px-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border-cyan-500/30 text-[11px] font-bold"
+                          title="Ouvrir et modifier dans le Bot Builder"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 mr-1" />
+                          <span>Bot Builder</span>
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -1009,19 +1025,38 @@ export default function AdminDeriv() {
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-2 border-t border-slate-800">
+              <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-800">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setShowUploadModal(false)}
-                  className="w-1/2 border-slate-700 text-slate-300"
+                  className="sm:w-1/3 border-slate-700 text-slate-300"
                 >
                   Annuler
                 </Button>
                 <Button
+                  type="button"
+                  disabled={!uploadFile}
+                  onClick={async () => {
+                    if (!uploadFile) return
+                    const text = await uploadFile.text()
+                    setBuilderBot({
+                      name: uploadBotName || uploadFile.name.replace(/\.[^/.]+$/, ''),
+                      fileContent: text,
+                      fileName: uploadFile.name,
+                    })
+                    setShowUploadModal(false)
+                    setActiveTab('builder')
+                  }}
+                  className="sm:w-1/3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs"
+                >
+                  <Sparkles className="w-3.5 h-3.5 mr-1" />
+                  Éditer dans Bot Builder
+                </Button>
+                <Button
                   type="submit"
                   disabled={!uploadFile || uploading}
-                  className="w-1/2 bg-cyan-600 hover:bg-cyan-500 text-white font-bold"
+                  className="sm:w-1/3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs"
                 >
                   {uploading ? (
                     <>
@@ -1031,7 +1066,7 @@ export default function AdminDeriv() {
                   ) : (
                     <>
                       <Upload className="w-4 h-4 mr-2" />
-                      Importer et Appliquer
+                      Importer et Activer
                     </>
                   )}
                 </Button>

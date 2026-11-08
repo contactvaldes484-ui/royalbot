@@ -8,6 +8,7 @@ import { derivAPI, settingsAPI } from '../../lib/api'
 import { startDerivOAuth } from '../../lib/derivOAuth'
 import useStore from '../../store/useStore'
 import ManualTradingWorkstation from '../../components/deriv/ManualTradingWorkstation'
+import BotBuilder from '../../components/deriv/BotBuilder'
 import {
   TrendingUp, TrendingDown, Bot, Play, Square, Pause, ShieldCheck,
   AlertTriangle, RefreshCw, Key, ExternalLink, Activity, Sparkles, CheckCircle2,
@@ -467,11 +468,11 @@ export default function DashboardDeriv() {
         </Card>
       </div>
 
-      {/* ── ONGLETS : TRADING MANUEL VS ROBOTS AUTOMATIQUES ────────────── */}
-      <div className="flex border-b border-slate-800 space-x-2">
+      {/* ── ONGLETS : TRADING MANUEL VS ROBOTS AUTOMATIQUES VS BOT BUILDER ── */}
+      <div className="flex border-b border-slate-800 space-x-2 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('manual')}
-          className={`flex items-center gap-2 py-3 px-6 font-bold text-sm border-b-2 transition ${
+          className={`flex items-center gap-2 py-3 px-6 font-bold text-sm border-b-2 transition whitespace-nowrap ${
             activeTab === 'manual'
               ? 'border-emerald-500 text-emerald-400'
               : 'border-transparent text-slate-400 hover:text-white'
@@ -482,7 +483,7 @@ export default function DashboardDeriv() {
         </button>
         <button
           onClick={() => setActiveTab('robots')}
-          className={`flex items-center gap-2 py-3 px-6 font-bold text-sm border-b-2 transition ${
+          className={`flex items-center gap-2 py-3 px-6 font-bold text-sm border-b-2 transition whitespace-nowrap ${
             activeTab === 'robots'
               ? 'border-emerald-500 text-emerald-400'
               : 'border-transparent text-slate-400 hover:text-white'
@@ -490,6 +491,17 @@ export default function DashboardDeriv() {
         >
           <Bot className="w-4 h-4" />
           Robots Automatiques ({bots.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('builder')}
+          className={`flex items-center gap-2 py-3 px-6 font-bold text-sm border-b-2 transition whitespace-nowrap ${
+            activeTab === 'builder'
+              ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-cyan-400" />
+          Bot Builder Studio
         </button>
       </div>
 
@@ -764,6 +776,13 @@ export default function DashboardDeriv() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── CONTENU ONGLET 3 : BOT BUILDER STUDIO DERIV ─────────────────── */}
+      {activeTab === 'builder' && (
+        <div className="space-y-4">
+          <BotBuilder onBotPublished={loadData} />
         </div>
       )}
 
