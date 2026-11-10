@@ -6,6 +6,8 @@ if (!process.env.ENCRYPTION_KEY) {
   process.env.ENCRYPTION_KEY = '5c5b110611b60ed22cb031fe506f95243397bdfb644d25bc2e391904f026a47d';
 }
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -181,6 +183,16 @@ app.get('/api/health', (req, res) => {
 app.all('/api/*', (req, res) => {
   res.status(404).json({ error: `Route ${req.method} ${req.originalUrl} introuvable.`, code: 'NOT_FOUND' });
 });
+
+// Serve frontend static build if client/dist exists (cPanel / Monolith deployment)
+const clientDist = path.resolve(__dirname, '../../client/dist');
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/ws')) return next();
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+}
 
 // Global error handler (must be AFTER all routes)
 app.use(errorHandler);

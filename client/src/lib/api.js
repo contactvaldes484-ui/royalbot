@@ -20,7 +20,11 @@ export function resolveApiUrl() {
     raw.includes('<')
 
   if (isPlaceholder) {
-    return isLocalHost ? '/api' : DEFAULT_PROD_API
+    if (isLocalHost) return '/api'
+    if (typeof window !== 'undefined' && window.location.hostname.includes('royal-bot.online')) {
+      return `${window.location.origin}/api`
+    }
+    return DEFAULT_PROD_API
   }
 
   // Ignorer localhost en production HTTPS
