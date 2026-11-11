@@ -578,9 +578,6 @@ export default function AdminPlans() {
                   </div>
                 </div>
               </div>
-                  <Input type="number" min="0" value={editing.trialDays} onChange={(e) => updateField('trialDays', parseInt(e.target.value) || 0)} />
-                </div>
-              </div>
 
               {/* Limits */}
               <div>
