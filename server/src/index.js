@@ -1,4 +1,7 @@
-require('dotenv').config();
+const path = require('path');
+const fs = require('fs');
+const serverEnvPath = path.resolve(__dirname, '../.env');
+require('dotenv').config(fs.existsSync(serverEnvPath) ? { path: serverEnvPath } : undefined);
 if (!process.env.JWT_SECRET) {
   process.env.JWT_SECRET = '1b38d6a0db1247e468332213f2bb0e74f0e55bc2e676701cecbf15543fc45ba8';
 }
@@ -6,8 +9,6 @@ if (!process.env.ENCRYPTION_KEY) {
   process.env.ENCRYPTION_KEY = '5c5b110611b60ed22cb031fe506f95243397bdfb644d25bc2e391904f026a47d';
 }
 const express = require('express');
-const path = require('path');
-const fs = require('fs');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -55,6 +56,7 @@ const binanceUserStream = require('./services/BinanceUserDataStream');
 const { authenticateWS } = require('./middleware/auth');
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 // WebSocket server for real-time updates
@@ -110,7 +112,7 @@ app.use('/api/webhooks', webhookRoutes);
 app.use(express.json({ limit: '10mb' }));
 app.use(mongoSanitize());
 app.use(hpp());
-app.use(limiter);
+app.use('/api', limiter);
 
 // Cache headers for static assets
 app.use('/api', (req, res, next) => {
@@ -551,8 +553,20 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 6000 })
     console.warn('⚡ RuntimeFallbackStore in-memory mode activated (zero downtime for Auth & Deriv)');
   });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+const isManagedNodeHost = Boolean(
+  process.env.PASSENGER_BASE_URI ||
+  process.env.LSWS_CHILDREN ||
+  typeof PhusionPassenger !== 'undefined'
+);
+
+if (isManagedNodeHost) {
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on managed Node host (port ${PORT})`);
+  });
+} else {
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
+}
 
 module.exports = { app, server, wss };
