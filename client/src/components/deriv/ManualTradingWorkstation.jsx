@@ -87,7 +87,8 @@ export default function ManualTradingWorkstation({
   useEffect(() => {
     let active = true
     const appId = '1089' // ID numérique officiel Deriv pour l'accès aux flux WebSocket temps réel
-    const wsUrl = `wss://ws.derivws.com/websockets/v3?app_id=${appId}&l=FR&brand=deriv`
+    // Utilisation de ws.binaryws.com (CDN direct et stable Deriv évitant le code 520 Cloudflare sur ws.derivws.com)
+    const wsUrl = `wss://ws.binaryws.com/websockets/v3?app_id=${appId}&l=FR&brand=deriv`
 
     function connect() {
       try {
@@ -139,7 +140,7 @@ export default function ManualTradingWorkstation({
 
         ws.onerror = () => {}
         ws.onclose = () => {
-          if (active) setTimeout(connect, 2500)
+          if (active) setTimeout(connect, 5000)
         }
       } catch (_) {}
     }

@@ -62,11 +62,22 @@ const server = http.createServer(app);
 // WebSocket server for real-time updates
 const wss = new WebSocketServer({ server, path: '/ws' });
 
-// Rate limiting
+// Rate limiting - Adapté pour dashboard de trading temps réel
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { error: 'Too many requests, please try again later.' }
+  max: 5000, // Large quota pour supporter le polling temps réel et les robots
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de requêtes, veuillez patienter un instant.' },
+  skip: (req) => {
+    // Ne jamais bloquer les flux vitaux du dashboard de trading et des robots
+    const p = req.path || '';
+    return p.startsWith('/deriv/sessions') ||
+           p.startsWith('/deriv/trades') ||
+           p.startsWith('/deriv/accounts') ||
+           p.startsWith('/users/stats') ||
+           p.startsWith('/settings');
+  }
 });
 
 const authLimiter = rateLimit({

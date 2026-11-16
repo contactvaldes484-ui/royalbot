@@ -95,9 +95,12 @@ export default function DashboardDeriv() {
     loadSettings()
   }, [])
 
+  const pollCounterRef = useRef(0)
+
   useEffect(() => {
     const hasActive = sessions.some(s => s.status === 'active')
-    const timer = setInterval(loadSessionsAndTrades, hasActive ? 1500 : 7000)
+    const intervalMs = hasActive ? 2500 : 8000
+    const timer = setInterval(loadSessionsAndTrades, intervalMs)
     return () => clearInterval(timer)
   }, [sessions])
 
@@ -137,18 +140,33 @@ export default function DashboardDeriv() {
 
   async function loadSessionsAndTrades() {
     try {
-      const [accRes, sessRes, tradesRes] = await Promise.all([
-        derivAPI.getAccounts(),
+      pollCounterRef.current += 1
+      const shouldRefreshAccounts = pollCounterRef.current % 4 === 0
+
+      const promises = [
         derivAPI.getSessions(),
         derivAPI.getTrades(),
-      ])
-      if (accRes.data?.accounts) setAccounts(accRes.data.accounts)
-      setSessions(sessRes.data?.sessions || [])
-      const rawTrades = tradesRes.data?.trades || []
+      ]
+      if (shouldRefreshAccounts) {
+        promises.push(derivAPI.getAccounts())
+      }
+
+      const results = await Promise.all(promises)
+      const sessRes = results[0]
+      const tradesRes = results[1]
+      const accRes = shouldRefreshAccounts ? results[2] : null
+
+      if (accRes?.data?.accounts) setAccounts(accRes.data.accounts)
+      if (sessRes?.data?.sessions) setSessions(sessRes.data.sessions)
+      const rawTrades = tradesRes?.data?.trades || []
       const cutoff = useStore.getState().derivStreamClearedAt ? new Date(useStore.getState().derivStreamClearedAt).getTime() : 0
       const filtered = cutoff ? rawTrades.filter(t => new Date(t.openedAt || t.createdAt).getTime() >= cutoff) : rawTrades
       setTrades(filtered)
-    } catch (_) {}
+    } catch (err) {
+      if (err.response?.status === 429) {
+        console.warn('[DashboardDeriv] Rate limited, temporisation du rafraîchissement...')
+      }
+    }
   }
 
   async function handleConnectAccount(e) {
