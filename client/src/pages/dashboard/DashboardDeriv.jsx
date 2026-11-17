@@ -63,6 +63,7 @@ export default function DashboardDeriv() {
   const selectedAccount = accounts.find(a => a._id === selectedAccountId) || accounts[0]
   const isOwner = user?.email?.toLowerCase().trim() === 'valdeslando15@gmail.com'
   const isAdmin = isOwner || user?.role === 'admin' || user?.role === 'super_admin'
+  const isBotBuilderVisible = isAdmin || settings?.derivBotBuilderEnabled !== false
   const isTrialValid = isOwner || selectedAccount?.isTrialValid !== false
   const trialDays = isOwner ? 9999 : (selectedAccount?.trialDaysRemaining ?? 7)
   const isAffiliated = selectedAccount?.affiliateVerified === true
@@ -94,6 +95,12 @@ export default function DashboardDeriv() {
     loadData()
     loadSettings()
   }, [])
+
+  useEffect(() => {
+    if (!isBotBuilderVisible && activeTab === 'builder') {
+      setActiveTab('manual')
+    }
+  }, [isBotBuilderVisible, activeTab])
 
   const pollCounterRef = useRef(0)
 
@@ -510,17 +517,19 @@ export default function DashboardDeriv() {
           <Bot className="w-4 h-4" />
           Robots Automatiques ({bots.length})
         </button>
-        <button
-          onClick={() => setActiveTab('builder')}
-          className={`flex items-center gap-2 py-3 px-6 font-bold text-sm border-b-2 transition whitespace-nowrap ${
-            activeTab === 'builder'
-              ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10'
-              : 'border-transparent text-slate-400 hover:text-white'
-          }`}
-        >
-          <Sparkles className="w-4 h-4 text-cyan-400" />
-          Bot Builder Studio
-        </button>
+        {isBotBuilderVisible && (
+          <button
+            onClick={() => setActiveTab('builder')}
+            className={`flex items-center gap-2 py-3 px-6 font-bold text-sm border-b-2 transition whitespace-nowrap ${
+              activeTab === 'builder'
+                ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-cyan-400" />
+            Bot Builder Studio
+          </button>
+        )}
       </div>
 
       {/* ── CONTENU ONGLET 1 : TRADING MANUEL SMARTTRADER (4 MODES DYNAMIQUES) ──── */}
@@ -798,7 +807,7 @@ export default function DashboardDeriv() {
       )}
 
       {/* ── CONTENU ONGLET 3 : BOT BUILDER STUDIO DERIV ─────────────────── */}
-      {activeTab === 'builder' && (
+      {isBotBuilderVisible && activeTab === 'builder' && (
         <div className="space-y-4">
           <BotBuilder onBotPublished={loadData} />
         </div>

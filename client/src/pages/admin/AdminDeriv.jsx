@@ -9,7 +9,7 @@ import BotBuilder from '../../components/deriv/BotBuilder'
 import {
   Bot, Plus, ShieldCheck, Clock, CheckCircle2, XCircle, Trash2,
   Edit, RefreshCw, ExternalLink, Settings, Activity, Users, Layers,
-  Upload, FileCode, FileText, Check, AlertCircle, Loader2, Sparkles
+  Upload, FileCode, FileText, Check, AlertCircle, Loader2, Sparkles, Code
 } from 'lucide-react'
 
 export default function AdminDeriv() {
@@ -21,6 +21,7 @@ export default function AdminDeriv() {
   const [accounts, setAccounts] = useState([])
   const [stats, setStats] = useState(null)
   const [settings, setSettings] = useState(null)
+  const [derivBotBuilderEnabled, setDerivBotBuilderEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
   const [builderBot, setBuilderBot] = useState(null)
 
@@ -43,10 +44,12 @@ export default function AdminDeriv() {
     maxStake: 50,
     stopLoss: 20,
     takeProfit: 50,
-    duration: 5,
+    duration: 1,
     barrier: '2',
     martingaleMultiplier: 2,
     maxMartingaleSteps: 4,
+    lossFactor: 1,
+    customLogicCode: '',
     winRate: '75-80%',
     badge: 'Automatisé',
   })
@@ -93,6 +96,7 @@ export default function AdminDeriv() {
         setDerivAppId(setRes.data.settings.derivAppId || '34HkkJSIK047dAEWEgXML')
         setDerivWsUrl(setRes.data.settings.derivWsUrl || 'wss://ws.derivws.com/websockets/v3')
         setDerivTrialDays(setRes.data.settings.derivTrialDays !== undefined ? setRes.data.settings.derivTrialDays : 7)
+        setDerivBotBuilderEnabled(setRes.data.settings.derivBotBuilderEnabled !== false)
       }
     } catch (err) {
       console.error(err)
@@ -166,7 +170,10 @@ export default function AdminDeriv() {
           barrier: botForm.barrier,
           martingaleMultiplier: Number(botForm.martingaleMultiplier),
           maxMartingaleSteps: Number(botForm.maxMartingaleSteps),
+          lossFactor: botForm.lossFactor !== undefined && botForm.lossFactor !== '' ? Number(botForm.lossFactor) : 1,
+          customLogicCode: botForm.customLogicCode || '',
         },
+        customLogicCode: botForm.customLogicCode || '',
         winRate: botForm.winRate,
         badge: botForm.badge,
       }
@@ -225,6 +232,7 @@ export default function AdminDeriv() {
         derivAppId,
         derivWsUrl,
         derivTrialDays: Number(derivTrialDays) || 7,
+        derivBotBuilderEnabled,
       })
       alert('Paramètres Deriv enregistrés !')
       await loadData()
@@ -236,6 +244,7 @@ export default function AdminDeriv() {
   }
 
   function openEditModal(bot) {
+    const isDigitOver2 = String(bot.slug || '').toLowerCase().includes('digit-over-2') || String(bot.name || '').toLowerCase().includes('digit over 2')
     setEditingBot(bot)
     setBotForm({
       name: bot.name,
@@ -248,10 +257,12 @@ export default function AdminDeriv() {
       maxStake: bot.defaultSettings?.maxStake || 50,
       stopLoss: bot.defaultSettings?.stopLoss || 20,
       takeProfit: bot.defaultSettings?.takeProfit || 50,
-      duration: bot.defaultSettings?.duration || 5,
-      barrier: bot.defaultSettings?.barrier || '2',
+      duration: bot.defaultSettings?.duration || 1,
+      barrier: bot.defaultSettings?.barrier !== undefined ? bot.defaultSettings.barrier : '2',
       martingaleMultiplier: bot.defaultSettings?.martingaleMultiplier || 2,
       maxMartingaleSteps: bot.defaultSettings?.maxMartingaleSteps || 4,
+      lossFactor: bot.defaultSettings?.lossFactor !== undefined ? bot.defaultSettings.lossFactor : (isDigitOver2 ? 0.12 : 1),
+      customLogicCode: bot.defaultSettings?.customLogicCode || bot.customLogicCode || '',
       winRate: bot.winRate || '75-80%',
       badge: bot.badge || 'Automatisé',
     })
@@ -310,10 +321,12 @@ export default function AdminDeriv() {
                 maxStake: 50,
                 stopLoss: 20,
                 takeProfit: 50,
-                duration: 5,
+                duration: 1,
                 barrier: '2',
                 martingaleMultiplier: 2,
                 maxMartingaleSteps: 4,
+                lossFactor: 1,
+                customLogicCode: '',
                 winRate: '75-80%',
                 badge: 'Automatisé',
               })
@@ -671,6 +684,47 @@ export default function AdminDeriv() {
                 </p>
               </div>
 
+              {/* Contrôle d'accès au Bot Builder Studio Utilisateur */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-cyan-500/30 space-y-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-cyan-400" />
+                      Visibilité du Bot Builder Studio chez les Utilisateurs
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Permet d'activer ou désactiver l'accès au "Bot Builder Studio" pour les utilisateurs normaux.
+                      Lorsque désactivé, l'onglet et le studio disparaissent totalement de leur tableau de bord.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDerivBotBuilderEnabled(!derivBotBuilderEnabled)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      derivBotBuilderEnabled ? 'bg-cyan-500' : 'bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        derivBotBuilderEnabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+                <div className="text-[11px] font-medium flex items-center gap-2">
+                  <span className="text-slate-400">Statut :</span>
+                  {derivBotBuilderEnabled ? (
+                    <span className="text-cyan-400 font-bold bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/30">
+                      ✓ Activé — Visible sur les tableaux de bord utilisateurs
+                    </span>
+                  ) : (
+                    <span className="text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">
+                      ✗ Désactivé — Totalement masqué aux utilisateurs
+                    </span>
+                  )}
+                </div>
+              </div>
+
               <div className="pt-3 border-t border-slate-800 space-y-3">
                 <h4 className="text-xs font-bold text-cyan-400">Paramètres Techniques API Deriv &amp; OAuth 2.0</h4>
                 <div className="p-3 rounded-xl bg-slate-950 border border-emerald-500/30 space-y-1.5">
@@ -858,6 +912,97 @@ export default function AdminDeriv() {
                     className="bg-slate-950 border-slate-700 text-white font-mono text-xs"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-slate-300 font-semibold mb-1 block">Barrière (ex: 2 pour Over 2)</label>
+                  <Input
+                    value={botForm.barrier}
+                    onChange={(e) => setBotForm({ ...botForm, barrier: e.target.value })}
+                    className="bg-slate-950 border-slate-700 text-white font-mono text-xs"
+                    placeholder="2"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-300 font-semibold mb-1 block">Durée (Ticks)</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={botForm.duration}
+                    onChange={(e) => setBotForm({ ...botForm, duration: e.target.value })}
+                    className="bg-slate-950 border-slate-700 text-white font-mono text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-emerald-400 font-bold mb-1 block">
+                    Facteur Perte (Loss Factor)
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={botForm.lossFactor !== undefined ? botForm.lossFactor : 1}
+                    onChange={(e) => setBotForm({ ...botForm, lossFactor: e.target.value })}
+                    className="bg-slate-950 border-emerald-500/50 text-emerald-300 font-mono text-xs font-bold"
+                    placeholder="0.12"
+                  />
+                  <p className="text-[10px] text-emerald-400/90 mt-0.5">
+                    0.12 = 1$ misé -&gt; <strong>0.12$ de perte</strong>
+                  </p>
+                </div>
+              </div>
+
+              {/* Logique personnalisée Super-Admin */}
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                    <Code className="w-3.5 h-3.5" />
+                    Logique &amp; Conditions Personnalisées Super-Admin
+                  </label>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setBotForm({
+                        ...botForm,
+                        lossFactor: 0.12,
+                        barrier: '2',
+                        customLogicCode: `// Logique Digit Over 2 : perte 0.12$ pour 1$ de mise\nif (lastDigit <= Number(barrier || 2)) {\n  return { shouldTrade: true, contractType: 'DIGITOVER', barrier: Number(barrier || 2), reason: 'Rebond Sniper bas (tick=' + lastDigit + ' <= ' + barrier + ')' };\n}\nif (lastDigit >= 3 && priceDelta >= 0) {\n  return { shouldTrade: true, contractType: 'DIGITOVER', barrier: Number(barrier || 2), reason: 'Momentum Sniper haussier' };\n}\nif (skippedCount >= 2) {\n  return { shouldTrade: true, contractType: 'DIGITOVER', barrier: Number(barrier || 2), reason: 'Sniper adaptatif (skipped=' + skippedCount + ')' };\n}\nreturn { shouldTrade: false };`
+                      })}
+                      className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"
+                    >
+                      Digit Over 2 (0.12$)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBotForm({
+                        ...botForm,
+                        customLogicCode: `// Détection de série 3 chiffres pairs\nconst last3 = lastDigits.slice(-3);\nif (last3.length >= 3 && last3.every(d => d % 2 === 0)) {\n  return { shouldTrade: true, contractType: 'DIGITODD', reason: 'Cluster Pair -> Retour Impair' };\n}\nreturn { shouldTrade: false };`
+                      })}
+                      className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30"
+                    >
+                      Pair/Impair
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBotForm({ ...botForm, customLogicCode: '' })}
+                      className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white"
+                    >
+                      Standard
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  rows={4}
+                  value={botForm.customLogicCode}
+                  onChange={(e) => setBotForm({ ...botForm, customLogicCode: e.target.value })}
+                  placeholder="// Code JavaScript de décision sur chaque tick.\n// Variables: prices, lastDigits, lastDigit, prevDigit, priceDelta, contractType, barrier, skippedCount\n// Renvoyer: return { shouldTrade: true/false, reason: '...' };"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs font-mono text-cyan-300 outline-none focus:border-cyan-500"
+                />
+                <p className="text-[10px] text-slate-400">
+                  Le Super-Administrateur peut injecter ici n'importe quel algorithme pour personnaliser ou remplacer la logique de ce robot.
+                </p>
               </div>
 
               <div className="flex gap-2 pt-3">

@@ -51,7 +51,12 @@ const DerivBotSchema = new mongoose.Schema({
     martingaleMultiplier: { type: Number, default: 2 },
     maxMartingaleSteps:   { type: Number, default: 2 },
     cooldownSeconds:      { type: Number, default: 2 },
+    lossFactor:           { type: Number, default: 1 }, // Ratio de perte personnalisable (ex: 0.12 pour 1$ misé = 0.12$ perdu)
+    customLogicCode:      { type: String, default: '' }, // Script / logique personnalisée de trade injectable
   },
+
+  customLogicCode: { type: String, default: '' }, // Script de stratégie custom Super-Admin
+
 
   winRate:    { type: String, default: '70-75%' },
   badge:      { type: String, default: 'Automatisé' },

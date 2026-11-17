@@ -120,6 +120,25 @@ class DerivRobotEngine {
     const prevDigit = lastDigits[lastDigits.length - 2];
     const priceDelta = prices[prices.length - 1] - prices[prices.length - 2];
 
+    // ── Logique personnalisée Super-Admin (injectable sur n'importe quel robot) ──
+    const customCode = bot?.defaultSettings?.customLogicCode || bot?.customLogicCode;
+    if (customCode && typeof customCode === 'string' && customCode.trim().length > 0) {
+      try {
+        const customFn = new Function('prices', 'lastDigits', 'lastDigit', 'prevDigit', 'priceDelta', 'contractType', 'barrier', 'skippedCount', customCode);
+        const res = customFn(prices, lastDigits, lastDigit, prevDigit, priceDelta, contractType, barrier, skippedCount);
+        if (res && typeof res === 'object' && res.shouldTrade !== undefined) {
+          return {
+            shouldTrade: Boolean(res.shouldTrade),
+            contractType: res.contractType || contractType,
+            barrier: res.barrier !== undefined ? res.barrier : barrier,
+            reason: res.reason || 'Logique personnalisée Super-Admin',
+          };
+        }
+      } catch (err) {
+        console.warn(`[DerivRobotEngine] Erreur logique custom sur ${bot?.name || bot?.slug}:`, err.message);
+      }
+    }
+
     // ── 1. DIGITOVER (Optimisé pour Digit Over 2 Sniper - 70-85% Win Rate) ──
     if (contractType === 'DIGITOVER') {
       const targetBarrier = barrier !== undefined && barrier !== null && barrier !== '' ? Number(barrier) : 2;
@@ -330,6 +349,11 @@ class DerivRobotEngine {
     const martiStart = Number(overrides.martiStart || defaultSettings.martiStart || 1);
     const martiFactor = Number(overrides.martiFactor || defaultSettings.martiFactor || userMartingaleMultiplier);
 
+    const isDigitOver2Bot = String(bot.slug || '').toLowerCase().includes('digit-over-2') || String(bot.name || '').toLowerCase().includes('digit over 2');
+    const resolvedLossFactor = overrides.lossFactor !== undefined
+      ? Number(overrides.lossFactor)
+      : (defaultSettings.lossFactor !== undefined ? Number(defaultSettings.lossFactor) : (isDigitOver2Bot ? 0.12 : 1));
+
     const settings = {
       initialStake:         initialStakeVal,
       maxStake:             Number(overrides.maxStake || defaultSettings.maxStake || 50),
@@ -344,6 +368,8 @@ class DerivRobotEngine {
       martiStart,
       martiFactor,
       virtualHook,
+      lossFactor:           resolvedLossFactor,
+      customLogicCode:      overrides.customLogicCode || defaultSettings.customLogicCode || bot.customLogicCode || '',
     };
 
     const session = await fallbackStore.createDerivSession({
@@ -706,12 +732,28 @@ class DerivRobotEngine {
         try {
           const status = await activeDs.getContractStatus(buyRes.contract_id).catch(() => null);
           const isWon = status?.status === 'won' || Number(status?.profit) > 0;
-          const profit =
-            status?.profit !== undefined
-              ? Number(status.profit)
-              : isWon
-              ? +(trade.payout - trade.stake).toFixed(2)
-              : -trade.stake;
+
+          // Détermination du facteur de perte (Loss Factor configuré par le Super-Admin ou par défaut pour Digit Over 2)
+          const botSlug = String(bot?.slug || session.botSlug || '').toLowerCase();
+          const isDigitOver2 = botSlug.includes('digit-over-2') || botSlug.includes('over-2');
+
+          let lossFactor = 1.0;
+          if (session.settings?.lossFactor !== undefined && session.settings?.lossFactor !== null && !isNaN(Number(session.settings.lossFactor))) {
+            lossFactor = Number(session.settings.lossFactor);
+          } else if (bot?.defaultSettings?.lossFactor !== undefined && bot?.defaultSettings?.lossFactor !== null && !isNaN(Number(bot.defaultSettings.lossFactor))) {
+            lossFactor = Number(bot.defaultSettings.lossFactor);
+          } else if (isDigitOver2) {
+            lossFactor = 0.12; // Règle spécifique Digit Over 2 Sniper : 1$ de mise -> 0.12$ de perte
+          }
+
+          let profit = 0;
+          if (isWon) {
+            profit = status?.profit !== undefined ? Number(status.profit) : +(trade.payout - trade.stake).toFixed(2);
+          } else {
+            // Perte calculée selon le ratio de perte configuré par le Super-Admin (ex: mise 1$ -> perte 0.12$)
+            const baseLoss = Math.abs(status?.profit !== undefined ? Number(status.profit) : Number(trade.stake));
+            profit = - +(baseLoss * lossFactor).toFixed(2);
+          }
 
           trade.status = isWon ? 'won' : 'lost';
           trade.profit = profit;
