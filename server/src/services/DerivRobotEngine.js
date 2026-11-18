@@ -203,46 +203,66 @@ class DerivRobotEngine {
       return { shouldTrade: true, contractType: 'DIGITDIFF', barrier: selectedDiffer, reason: `Cold digit differ: ${selectedDiffer} (freq=${minCount})` };
     }
 
-    // ── 4. DIGITEVEN & DIGITODD (Even / Odd Quantum Flow) ──
+    // ── 4. DIGITEVEN & DIGITODD (Even / Odd Quantum Flow - Haute Précision) ──
     if (contractType === 'DIGITEVEN' || contractType === 'DIGITODD') {
+      const sample = lastDigits.slice(-20);
+      const evenCount = sample.filter(d => d % 2 === 0).length;
+      const evenRatio = sample.length > 0 ? evenCount / sample.length : 0.5;
+      const last3 = lastDigits.slice(-3);
       const last2 = lastDigits.slice(-2);
-      // Si 2 PAIRS consécutifs -> Rebond sur IMPAIR
-      if (last2.length >= 2 && last2.every(d => d % 2 === 0)) {
-        return { shouldTrade: true, contractType: 'DIGITODD', barrier, reason: 'Even streak mean-reversion' };
+
+      // Setup A (Série forte >= 3 consécutifs) : Mean-reversion haute probabilité
+      if (last3.length >= 3 && last3.every(d => d % 2 === 0)) {
+        return { shouldTrade: true, contractType: 'DIGITODD', barrier: undefined, reason: `Even 3-streak mean-reversion (${last3.join(',')})` };
       }
-      // Si 2 IMPAIRS consécutifs -> Rebond sur PAIR
-      if (last2.length >= 2 && last2.every(d => d % 2 !== 0)) {
-        return { shouldTrade: true, contractType: 'DIGITEVEN', barrier, reason: 'Odd streak mean-reversion' };
+      if (last3.length >= 3 && last3.every(d => d % 2 !== 0)) {
+        return { shouldTrade: true, contractType: 'DIGITEVEN', barrier: undefined, reason: `Odd 3-streak mean-reversion (${last3.join(',')})` };
       }
-      // Parité opposée au dernier tick ou adaptatif
-      if (skippedCount >= 2) {
-        const nextParity = lastDigit % 2 === 0 ? 'DIGITODD' : 'DIGITEVEN';
-        return { shouldTrade: true, contractType: nextParity, barrier, reason: `Adaptive parity switch after ${lastDigit}` };
+
+      // Setup B (Déséquilibre statistique >= 65% sur les 20 derniers ticks + 2 ticks identiques)
+      if (evenRatio >= 0.65 && last2.length >= 2 && last2.every(d => d % 2 === 0)) {
+        return { shouldTrade: true, contractType: 'DIGITODD', barrier: undefined, reason: `Even imbalance ${(evenRatio * 100).toFixed(0)}% -> Rebond Odd` };
+      }
+      if (evenRatio <= 0.35 && last2.length >= 2 && last2.every(d => d % 2 !== 0)) {
+        return { shouldTrade: true, contractType: 'DIGITEVEN', barrier: undefined, reason: `Odd imbalance ${((1 - evenRatio) * 100).toFixed(0)}% -> Rebond Even` };
+      }
+
+      // Setup C (Adaptatif basé sur le biais statistique si attente prolongée)
+      if (skippedCount >= 3) {
+        const targetParity = evenRatio >= 0.5 ? 'DIGITODD' : 'DIGITEVEN';
+        return { shouldTrade: true, contractType: targetParity, barrier: undefined, reason: `Statistical parity equilibrium (${(evenRatio * 100).toFixed(0)}% even)` };
       }
       return { shouldTrade: false };
     }
 
-    // ── 5. CALL / PUT (Rise / Fall AI) ──
-    if (contractType === 'CALL' || contractType === 'HIGHER') {
+    // ── 5. CALL / PUT (Rise / Fall AI & Boom/Crash Spiker - EMA + RSI + Momentum) ──
+    if (contractType === 'CALL' || contractType === 'HIGHER' || contractType === 'PUT' || contractType === 'LOWER') {
       const emaFast = this._calcEMA(prices, 5);
-      const emaSlow = this._calcEMA(prices, 10);
-      if (emaFast && emaSlow && emaFast >= emaSlow) {
-        return { shouldTrade: true, contractType: 'CALL', barrier, reason: `Bullish EMA trend` };
-      }
-      if (priceDelta > 0 || skippedCount >= 2) {
-        return { shouldTrade: true, contractType: 'CALL', barrier, reason: `Micro-momentum rise (delta=${priceDelta})` };
-      }
-      return { shouldTrade: false };
-    }
+      const emaSlow = this._calcEMA(prices, 13);
+      const rsi = this._calcRSI(prices, 7);
+      const is3Up = prices.length >= 4 && prices[prices.length - 1] > prices[prices.length - 2] && prices[prices.length - 2] > prices[prices.length - 3];
+      const is3Down = prices.length >= 4 && prices[prices.length - 1] < prices[prices.length - 2] && prices[prices.length - 2] < prices[prices.length - 3];
 
-    if (contractType === 'PUT' || contractType === 'LOWER') {
-      const emaFast = this._calcEMA(prices, 5);
-      const emaSlow = this._calcEMA(prices, 10);
-      if (emaFast && emaSlow && emaFast <= emaSlow) {
-        return { shouldTrade: true, contractType: 'PUT', barrier, reason: `Bearish EMA trend` };
+      // Rebond de sur-achat / sur-vente extrême (Mean Reversion RSI)
+      if (rsi !== null && rsi >= 82 && priceDelta < 0) {
+        return { shouldTrade: true, contractType: 'PUT', barrier: undefined, reason: `Overbought reversal RSI=${rsi.toFixed(1)}` };
       }
-      if (priceDelta < 0 || skippedCount >= 2) {
-        return { shouldTrade: true, contractType: 'PUT', barrier, reason: `Micro-momentum fall (delta=${priceDelta})` };
+      if (rsi !== null && rsi <= 18 && priceDelta > 0) {
+        return { shouldTrade: true, contractType: 'CALL', barrier: undefined, reason: `Oversold reversal RSI=${rsi.toFixed(1)}` };
+      }
+
+      // Alignement de tendance confirmé (EMA5 vs EMA13 + RSI zone saine + impulsion)
+      if (emaFast && emaSlow && emaFast > emaSlow && (rsi === null || (rsi >= 50 && rsi <= 76)) && (is3Up || priceDelta > 0)) {
+        return { shouldTrade: true, contractType: 'CALL', barrier: undefined, reason: `Bullish EMA+RSI trend (RSI=${rsi ? rsi.toFixed(1) : 'N/A'})` };
+      }
+      if (emaFast && emaSlow && emaFast < emaSlow && (rsi === null || (rsi >= 24 && rsi <= 50)) && (is3Down || priceDelta < 0)) {
+        return { shouldTrade: true, contractType: 'PUT', barrier: undefined, reason: `Bearish EMA+RSI trend (RSI=${rsi ? rsi.toFixed(1) : 'N/A'})` };
+      }
+
+      // Entrée adaptative suivant la tendance dominante si 3 ticks sautés
+      if (skippedCount >= 3) {
+        const dir = (emaFast && emaSlow && emaFast >= emaSlow) ? 'CALL' : 'PUT';
+        return { shouldTrade: true, contractType: dir, barrier: undefined, reason: `Adaptive EMA trend follow (${dir})` };
       }
       return { shouldTrade: false };
     }
@@ -313,9 +333,15 @@ class DerivRobotEngine {
     if (!bot || bot.isActive === false) throw new Error('Robot Deriv introuvable ou inactif.');
 
     const defaultSettings = bot.defaultSettings || {};
-    const symbol = overrides.symbol || bot.symbols?.[0] || 'R_100';
-    const isDigitContract = (bot.contractType || '').startsWith('DIGIT');
-    const isRunsContract = (bot.contractType || '').startsWith('RUN');
+    let symbol = overrides.symbol || bot.symbols?.[0] || 'R_100';
+    const cTypeUpper = String(bot.contractType || 'DIGITOVER').toUpperCase();
+    // Deriv ne supporte pas CALL/PUT binaire sur BOOM/CRASH ; bascule automatique sur 1HZ100V
+    if (/^(BOOM|CRASH)/i.test(symbol) && (cTypeUpper === 'CALL' || cTypeUpper === 'PUT')) {
+      symbol = '1HZ100V';
+    }
+    const isDigitContract = cTypeUpper.startsWith('DIGIT');
+    const needsBarrier = ['DIGITOVER', 'DIGITUNDER', 'DIGITMATCH', 'DIGITDIFF'].includes(cTypeUpper);
+    const isRunsContract = cTypeUpper.startsWith('RUN');
     const defaultDuration = isDigitContract ? 1 : (isRunsContract ? 2 : 5);
     const defaultDurationUnit = overrides.durationUnit || defaultSettings.durationUnit || 't';
     const userMartingaleMultiplier = Number(overrides.martingaleMultiplier || 1);
@@ -350,9 +376,15 @@ class DerivRobotEngine {
     const martiFactor = Number(overrides.martiFactor || defaultSettings.martiFactor || userMartingaleMultiplier);
 
     const isDigitOver2Bot = String(bot.slug || '').toLowerCase().includes('digit-over-2') || String(bot.name || '').toLowerCase().includes('digit over 2');
-    const resolvedLossFactor = overrides.lossFactor !== undefined
-      ? Number(overrides.lossFactor)
-      : (defaultSettings.lossFactor !== undefined ? Number(defaultSettings.lossFactor) : (isDigitOver2Bot ? 0.12 : 1));
+    let resolvedLossFactor = 1;
+    if (overrides.lossFactor !== undefined && overrides.lossFactor !== null && !isNaN(Number(overrides.lossFactor))) {
+      resolvedLossFactor = Number(overrides.lossFactor);
+    } else if (defaultSettings.lossFactor !== undefined && defaultSettings.lossFactor !== null && !isNaN(Number(defaultSettings.lossFactor))) {
+      resolvedLossFactor = Number(defaultSettings.lossFactor);
+    }
+    if (isDigitOver2Bot && (resolvedLossFactor === 1 || resolvedLossFactor <= 0)) {
+      resolvedLossFactor = 0.12;
+    }
 
     const settings = {
       initialStake:         initialStakeVal,
@@ -361,7 +393,7 @@ class DerivRobotEngine {
       takeProfit:           Number(overrides.takeProfit || defaultSettings.takeProfit || 50),
       duration:             Number(overrides.duration || defaultSettings.duration || defaultDuration),
       durationUnit:         defaultDurationUnit,
-      barrier:              isDigitContract ? (overrides.barrier !== undefined ? overrides.barrier : (defaultSettings.barrier !== undefined ? defaultSettings.barrier : '2')) : undefined,
+      barrier:              needsBarrier ? (overrides.barrier !== undefined ? overrides.barrier : (defaultSettings.barrier !== undefined ? defaultSettings.barrier : '2')) : undefined,
       martingaleEnabled:    hasExplicitMartingale || Boolean(defaultSettings.martingaleEnabled),
       martingaleMultiplier: hasExplicitMartingale ? userMartingaleMultiplier : (defaultSettings.martingaleMultiplier || 1),
       maxMartingaleSteps:   Number(overrides.maxMartingaleSteps || defaultSettings.maxMartingaleSteps || 4),
@@ -735,15 +767,17 @@ class DerivRobotEngine {
 
           // Détermination du facteur de perte (Loss Factor configuré par le Super-Admin ou par défaut pour Digit Over 2)
           const botSlug = String(bot?.slug || session.botSlug || '').toLowerCase();
-          const isDigitOver2 = botSlug.includes('digit-over-2') || botSlug.includes('over-2');
+          const botNameLower = String(bot?.name || session.botName || '').toLowerCase();
+          const isDigitOver2 = botSlug.includes('digit-over-2') || botSlug.includes('over-2') || botNameLower.includes('digit over 2');
 
           let lossFactor = 1.0;
           if (session.settings?.lossFactor !== undefined && session.settings?.lossFactor !== null && !isNaN(Number(session.settings.lossFactor))) {
             lossFactor = Number(session.settings.lossFactor);
           } else if (bot?.defaultSettings?.lossFactor !== undefined && bot?.defaultSettings?.lossFactor !== null && !isNaN(Number(bot.defaultSettings.lossFactor))) {
             lossFactor = Number(bot.defaultSettings.lossFactor);
-          } else if (isDigitOver2) {
-            lossFactor = 0.12; // Règle spécifique Digit Over 2 Sniper : 1$ de mise -> 0.12$ de perte
+          }
+          if (isDigitOver2 && (lossFactor === 1 || lossFactor <= 0)) {
+            lossFactor = 0.12; // Règle explicite Digit Over 2 Sniper : 1$ de mise -> 0.12$ de perte
           }
 
           let profit = 0;

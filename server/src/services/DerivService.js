@@ -345,7 +345,8 @@ class DerivService {
       duration: Number(duration),
       duration_unit: durationUnit,
     };
-    if (barrier !== undefined && barrier !== null && barrier !== '') {
+    const noBarrierTypes = ['DIGITEVEN', 'DIGITODD', 'CALL', 'PUT', 'RUNHIGH', 'RUNLOW'];
+    if (barrier !== undefined && barrier !== null && barrier !== '' && !noBarrierTypes.includes(String(contractType).toUpperCase())) {
       basePayload.barrier = String(barrier);
     }
 
