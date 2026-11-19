@@ -375,15 +375,11 @@ class DerivRobotEngine {
     const martiStart = Number(overrides.martiStart || defaultSettings.martiStart || 1);
     const martiFactor = Number(overrides.martiFactor || defaultSettings.martiFactor || userMartingaleMultiplier);
 
-    const isDigitOver2Bot = String(bot.slug || '').toLowerCase().includes('digit-over-2') || String(bot.name || '').toLowerCase().includes('digit over 2');
     let resolvedLossFactor = 1;
     if (overrides.lossFactor !== undefined && overrides.lossFactor !== null && !isNaN(Number(overrides.lossFactor))) {
       resolvedLossFactor = Number(overrides.lossFactor);
     } else if (defaultSettings.lossFactor !== undefined && defaultSettings.lossFactor !== null && !isNaN(Number(defaultSettings.lossFactor))) {
       resolvedLossFactor = Number(defaultSettings.lossFactor);
-    }
-    if (isDigitOver2Bot && (resolvedLossFactor === 1 || resolvedLossFactor <= 0)) {
-      resolvedLossFactor = 0.12;
     }
 
     const settings = {
@@ -765,19 +761,12 @@ class DerivRobotEngine {
           const status = await activeDs.getContractStatus(buyRes.contract_id).catch(() => null);
           const isWon = status?.status === 'won' || Number(status?.profit) > 0;
 
-          // Détermination du facteur de perte (Loss Factor configuré par le Super-Admin ou par défaut pour Digit Over 2)
-          const botSlug = String(bot?.slug || session.botSlug || '').toLowerCase();
-          const botNameLower = String(bot?.name || session.botName || '').toLowerCase();
-          const isDigitOver2 = botSlug.includes('digit-over-2') || botSlug.includes('over-2') || botNameLower.includes('digit over 2');
-
+          // Facteur de perte réel (1.0 par défaut = 100% fidèle au solde réel Deriv)
           let lossFactor = 1.0;
           if (session.settings?.lossFactor !== undefined && session.settings?.lossFactor !== null && !isNaN(Number(session.settings.lossFactor))) {
             lossFactor = Number(session.settings.lossFactor);
           } else if (bot?.defaultSettings?.lossFactor !== undefined && bot?.defaultSettings?.lossFactor !== null && !isNaN(Number(bot.defaultSettings.lossFactor))) {
             lossFactor = Number(bot.defaultSettings.lossFactor);
-          }
-          if (isDigitOver2 && (lossFactor === 1 || lossFactor <= 0)) {
-            lossFactor = 0.12; // Règle explicite Digit Over 2 Sniper : 1$ de mise -> 0.12$ de perte
           }
 
           let profit = 0;

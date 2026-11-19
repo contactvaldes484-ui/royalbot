@@ -16,7 +16,7 @@ const DEFAULT_BOTS = [
     symbols: ['R_100', 'R_75', 'R_50', 'R_25', 'R_10'],
     strategyType: 'digit_analyzer',
     description: 'Sniper algorithmique 1-tick basé sur l\'épuisement statistique des petits chiffres (rebond Mean Reversion) et le momentum haussier.',
-    defaultSettings: { initialStake: 1, maxStake: 30, stopLoss: 20, takeProfit: 50, duration: 1, durationUnit: 't', barrier: '2', martingaleEnabled: false, martingaleMultiplier: 1, maxMartingaleSteps: 1, lossFactor: 0.12, customLogicCode: '' },
+    defaultSettings: { initialStake: 1, maxStake: 30, stopLoss: 20, takeProfit: 50, duration: 1, durationUnit: 't', barrier: '2', martingaleEnabled: true, martingaleMultiplier: 2.8, maxMartingaleSteps: 3, lossFactor: 1, customLogicCode: '' },
     winRate: '78-84%',
     badge: 'Sniper 1-Tick Rentable',
     isActive: true,
