@@ -104,7 +104,7 @@ class DerivRobotEngine {
    * Intègre l'épuisement statistique de petits chiffres, le momentum de micro-ticks,
    * la recherche du chiffre froid pour Digit Differ et le suivi de tendance EMA+RSI.
    */
-  _evaluateMarketSignal(bot, history, contractType, barrier, skippedCount = 0) {
+  _evaluateMarketSignal(bot, history, contractType, barrier, skippedCount = 0, session = null) {
     const prices = history?.prices || [];
     // Si l'historique est court ou si la session a déjà sauté des ticks, on utilise les derniers prix disponibles
     if (!prices || prices.length < 3) {
@@ -139,24 +139,61 @@ class DerivRobotEngine {
       }
     }
 
-    // ── 1. DIGITOVER (Optimisé pour Digit Over 2 Sniper - 70-85% Win Rate) ──
+    // ── 1. DIGITOVER (Architecture Sniper Élite : Multi-Fenêtres + Anti-Cluster + Dynamic Barrier Recovery) ──
     if (contractType === 'DIGITOVER') {
-      const targetBarrier = barrier !== undefined && barrier !== null && barrier !== '' ? Number(barrier) : 2;
+      const baseBarrier = barrier !== undefined && barrier !== null && barrier !== '' ? Number(barrier) : 2;
+      const consecutiveLosses = Number(session?.stats?.consecutiveLosses || 0);
 
-      // Setup A (Épuisement statistique de petits chiffres) : dernier tick <= targetBarrier (ex: 0, 1 ou 2).
-      // La probabilité de rebond vers un chiffre > 2 (3..9) est > 80% !
-      if (lastDigit <= targetBarrier) {
-        return { shouldTrade: true, contractType, barrier: targetBarrier, reason: `Low-digit rebound (last=${lastDigit} <= ${targetBarrier})` };
+      // Récupération dynamique par changement de barrière :
+      // Palier 0 -> DIGITOVER 2 (~39% payout, 70% win rate de base, ~80%+ avec filtre)
+      // Palier 1 (après 1 perte) -> DIGITOVER 3 (~62% payout -> couvre la perte avec x1.9 seulement)
+      // Palier 2+ (après 2+ pertes) -> DIGITOVER 4 (~95% payout -> couvre tout en 1 gain)
+      let effectiveBarrier = baseBarrier;
+      if (baseBarrier <= 2 && consecutiveLosses === 1) {
+        effectiveBarrier = 3;
+      } else if (baseBarrier <= 2 && consecutiveLosses >= 2) {
+        effectiveBarrier = 4;
       }
 
-      // Setup B (Momentum de cluster supérieur) : micro-tick haussier ou chiffre élevé
-      if (lastDigit >= 3 && priceDelta >= 0) {
-        return { shouldTrade: true, contractType, barrier: targetBarrier, reason: `High-digit momentum (last=${lastDigit}, delta=${priceDelta})` };
+      const sample25 = lastDigits.slice(-25);
+      const sample6 = lastDigits.slice(-6);
+      const lowCount25 = sample25.filter(d => d <= effectiveBarrier).length;
+      const lowFreq25 = sample25.length > 0 ? lowCount25 / sample25.length : 0.3;
+      const lowCount6 = sample6.filter(d => d <= effectiveBarrier).length;
+
+      // Garde Anti-Cluster Mortel : si le marché produit trop de petits chiffres d'affilée, on bloque l'entrée
+      if (lowCount6 >= 3 || lowFreq25 >= 0.48) {
+        return { shouldTrade: false };
       }
 
-      // Setup C (Anti-attente adaptive) : si 2 ticks ont déjà été sautés, exécuter un trade calculé
-      if (skippedCount >= 2) {
-        return { shouldTrade: true, contractType, barrier: targetBarrier, reason: `Adaptive sniper trade (skipped=${skippedCount})` };
+      // Setup A (Rebond Sniper après chiffre bas isolé dans un régime sain)
+      if (lastDigit <= effectiveBarrier && lowCount6 <= 2 && lowFreq25 <= 0.42) {
+        return {
+          shouldTrade: true,
+          contractType,
+          barrier: effectiveBarrier,
+          reason: `Sniper rebound (last=${lastDigit} <= ${effectiveBarrier}, freq25=${(lowFreq25 * 100).toFixed(0)}%)`,
+        };
+      }
+
+      // Setup B (Régime haute dominance > 72% sur 25 ticks + micro-tick haussier)
+      if (lowFreq25 <= 0.28 && lastDigit > effectiveBarrier && priceDelta >= 0) {
+        return {
+          shouldTrade: true,
+          contractType,
+          barrier: effectiveBarrier,
+          reason: `High-zone dominance (${((1 - lowFreq25) * 100).toFixed(0)}% > ${effectiveBarrier})`,
+        };
+      }
+
+      // Setup C (Entrée adaptative sécurisée après attente en régime sain)
+      if (skippedCount >= 4 && lowFreq25 <= 0.36 && lastDigit > effectiveBarrier) {
+        return {
+          shouldTrade: true,
+          contractType,
+          barrier: effectiveBarrier,
+          reason: `Adaptive sniper entry (freq25=${(lowFreq25 * 100).toFixed(0)}%)`,
+        };
       }
 
       return { shouldTrade: false };
@@ -540,10 +577,10 @@ class DerivRobotEngine {
 
       ds = new DerivService({ token, loginId: acc.loginId });
 
-      // Analyse du marché et confirmation de signal Sniper
-      const history = await ds.getTicksHistory(session.symbol, 30).catch(() => null);
+      // Analyse du marché sur 50 ticks et confirmation de signal Sniper Élite
+      const history = await ds.getTicksHistory(session.symbol, 50).catch(() => null);
       const skippedCount = this.skippedCounts.get(sessionId) || 0;
-      const signal = this._evaluateMarketSignal(bot, history, session.contractType, session.settings.barrier, skippedCount);
+      const signal = this._evaluateMarketSignal(bot, history, session.contractType, session.settings.barrier, skippedCount, session);
 
       // Si pas encore de signal de probabilité adéquat et moins de 2 ticks sautés
       if (!signal.shouldTrade) {
