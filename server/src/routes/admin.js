@@ -612,6 +612,7 @@ router.put('/settings', async (req, res) => {
       'binancePayId', 'binancePayMerchantId', 'binancePayApiKey', 'binancePaySecretKey', 'binancePayEmail',
       'sebpayBaseUrl', 'sebpayPublicKey', 'sebpaySecretKey',
       'ikeepayEnabled', 'ikeepayPublicKey', 'ikeepaySecretKey', 'ikeepayCurrency',
+      'adminWithdrawalFeePercent',
       'binanceRobotsPublicEnabled', 'bybitRobotsPublicEnabled', 'aiScannerUrl',
       'metaTitle', 'metaDescription',
     ];
@@ -812,6 +813,151 @@ router.put('/users/:id/unblock-ip', async (req, res) => {
     await user.save();
 
     res.json({ user: user.toPublicJSON(), message: 'IP de l\'utilisateur réinitialisée.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Admin Subscription Wallet & Direct iKeePay Payout (avec réduction 6% modifiable) ───
+
+async function computeAdminWalletData() {
+  const AdminWithdrawal = require('../models/AdminWithdrawal');
+  const fallbackStore = require('../services/RuntimeFallbackStore');
+  const settings = await fallbackStore.getSettings().catch(() => ({}));
+  const feePercent = settings?.adminWithdrawalFeePercent !== undefined ? Number(settings.adminWithdrawalFeePercent) : 6;
+
+  const [revAgg, withdrawnAgg, withdrawals] = await Promise.all([
+    Subscription.aggregate([
+      { $match: { paymentStatus: 'confirmed', amount: { $gt: 0 }, paymentMethod: { $ne: 'admin_grant' } } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ]).catch(() => []),
+    AdminWithdrawal.aggregate([
+      { $match: { status: { $in: ['pending', 'completed'] } } },
+      { $group: { _id: null, total: { $sum: '$grossAmount' } } },
+    ]).catch(() => []),
+    AdminWithdrawal.find().sort({ createdAt: -1 }).limit(30).catch(() => []),
+  ]);
+
+  const totalSubscriptionRevenue = +(revAgg?.[0]?.total || 0).toFixed(2);
+  const totalSubscriptionsCount = revAgg?.[0]?.count || 0;
+  const totalWithdrawn = +(withdrawnAgg?.[0]?.total || 0).toFixed(2);
+  const availableBalance = Math.max(0, +(totalSubscriptionRevenue - totalWithdrawn).toFixed(2));
+
+  return {
+    availableBalance,
+    totalSubscriptionRevenue,
+    totalSubscriptionsCount,
+    totalWithdrawn,
+    feePercent,
+    withdrawals,
+  };
+}
+
+router.get('/wallet', async (req, res) => {
+  try {
+    const wallet = await computeAdminWalletData();
+    res.json(wallet);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/wallet/fee', async (req, res) => {
+  try {
+    const pct = Number(req.body.feePercent);
+    if (isNaN(pct) || pct < 0 || pct > 50) {
+      return res.status(400).json({ error: 'Le pourcentage de frais doit être compris entre 0% et 50%.' });
+    }
+    const fallbackStore = require('../services/RuntimeFallbackStore');
+    await fallbackStore.updateSettings({ adminWithdrawalFeePercent: pct });
+    const settings = await PlatformSettings.findOne({ key: 'main' });
+    if (settings) {
+      settings.adminWithdrawalFeePercent = pct;
+      await settings.save();
+    }
+    res.json({ success: true, feePercent: pct, message: `Taux de réduction sur retrait mis à jour à ${pct}%.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/wallet/withdraw', async (req, res) => {
+  try {
+    const { amount, phoneNumber, operator, country = 'CI', currency = 'XOF' } = req.body;
+    const grossAmount = Number(amount);
+    if (!grossAmount || grossAmount <= 0) {
+      return res.status(400).json({ error: 'Montant invalide.' });
+    }
+    if (!phoneNumber || !operator) {
+      return res.status(400).json({ error: 'Numéro de téléphone et opérateur requis.' });
+    }
+
+    const wallet = await computeAdminWalletData();
+    if (grossAmount > wallet.availableBalance) {
+      return res.status(400).json({ error: `Solde insuffisant (${wallet.availableBalance} disponible).` });
+    }
+
+    const feePercent = wallet.feePercent;
+    const feeAmount = +(grossAmount * (feePercent / 100)).toFixed(2);
+    const netAmount = +(grossAmount - feeAmount).toFixed(2);
+    if (netAmount <= 0) {
+      return res.status(400).json({ error: 'Le montant net après déduction des frais est trop faible.' });
+    }
+
+    const externalReference = `ADMIN_PAYOUT_${Date.now()}`;
+    const ikeepay = require('../services/ikeepayService');
+    const AdminWithdrawal = require('../models/AdminWithdrawal');
+
+    let payoutRes;
+    try {
+      payoutRes = await ikeepay.initPayout({
+        amount: netAmount,
+        currency,
+        country,
+        phoneNumber,
+        operator,
+        externalReference,
+      });
+    } catch (err) {
+      const failedRecord = await AdminWithdrawal.create({
+        admin: req.user._id,
+        grossAmount,
+        feePercent,
+        feeAmount,
+        netAmount,
+        currency,
+        country,
+        phoneNumber,
+        operator,
+        externalReference,
+        status: 'failed',
+        errorMessage: err.message,
+      }).catch(() => null);
+      return res.status(502).json({ error: `Échec du payout iKeePay : ${err.message}`, withdrawal: failedRecord });
+    }
+
+    const withdrawal = await AdminWithdrawal.create({
+      admin: req.user._id,
+      grossAmount,
+      feePercent,
+      feeAmount,
+      netAmount,
+      currency,
+      country,
+      phoneNumber,
+      operator,
+      externalReference,
+      providerReference: payoutRes.providerReference || '',
+      status: payoutRes.status === 'completed' ? 'completed' : 'pending',
+    });
+
+    const updatedWallet = await computeAdminWalletData();
+    res.json({
+      success: true,
+      withdrawal,
+      wallet: updatedWallet,
+      message: `Retrait de ${netAmount} ${currency} (après ${feePercent}% de réduction soit ${feeAmount}) envoyé via iKeePay !`,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

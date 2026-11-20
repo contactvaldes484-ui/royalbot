@@ -83,11 +83,14 @@ const platformSettingsSchema = new mongoose.Schema({
   sebpayPublicKey: { type: String, default: '' },       // SebPay Public Key (pk_live_...)
   sebpaySecretKey: { type: String, default: '' },       // SebPay Secret Key (sk_live_...)
 
-  // iKeePay Payment Gateway (Mobile Money & Card Inline Checkout)
+  // iKeePay Payment Gateway (H2H Payin, Payout & Webhooks)
   ikeepayEnabled: { type: Boolean, default: false },
   ikeepayPublicKey: { type: String, default: '' },       // pk_live_...
   ikeepaySecretKey: { type: String, default: '' },       // sk_live_...
-  ikeepayCurrency: { type: String, default: 'USD' },      // USD or XOF
+  ikeepayCurrency: { type: String, default: 'XOF' },     // XOF, XAF, USD...
+
+  // Admin Wallet & Retraits
+  adminWithdrawalFeePercent: { type: Number, default: 6 }, // Réduction/Frais sur les retraits admin (6% par défaut, modifiable)
 
   // SEO
   metaTitle: { type: String, default: 'RoyalBot — Trading Automatisé' },

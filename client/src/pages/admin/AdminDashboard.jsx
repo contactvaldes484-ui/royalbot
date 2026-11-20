@@ -1677,31 +1677,77 @@ export function AdminWithdrawals() {
 export function AdminRevenue() {
   const [data, setData] = useState({ subscriptionRevenue: [], commissionRevenue: [] })
   const [subStats, setSubStats] = useState(null)
+  const [wallet, setWallet] = useState(null)
+  const [feeInput, setFeeInput] = useState(6)
+  const [savingFee, setSavingFee] = useState(false)
+  const [withdrawForm, setWithdrawForm] = useState({ amount: '', phoneNumber: '', operator: 'ORANGE', country: 'CI', currency: 'XOF' })
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [walletMsg, setWalletMsg] = useState('')
   const [period, setPeriod] = useState('30d')
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const fetch = async () => {
-      setLoading(true)
-      try {
-        const [revRes, statsRes] = await Promise.all([
-          adminAPI.getRevenue({ period }),
-          adminAPI.getRevenueStats().catch(() => ({ data: { stats: null } })),
-        ])
-        setData(revRes.data)
-        setSubStats(statsRes.data?.stats || null)
-      } catch {} finally { setLoading(false) }
-    }
-    fetch()
-  }, [period])
+  const loadAll = async () => {
+    setLoading(true)
+    try {
+      const [revRes, statsRes, walletRes] = await Promise.all([
+        adminAPI.getRevenue({ period }),
+        adminAPI.getRevenueStats().catch(() => ({ data: { stats: null } })),
+        adminAPI.getWallet().catch(() => ({ data: null })),
+      ])
+      setData(revRes.data)
+      setSubStats(statsRes.data?.stats || null)
+      if (walletRes?.data) {
+        setWallet(walletRes.data)
+        setFeeInput(walletRes.data.feePercent ?? 6)
+      }
+    } catch {} finally { setLoading(false) }
+  }
+
+  useEffect(() => { loadAll() }, [period])
+
+  const handleSaveFee = async () => {
+    setSavingFee(true)
+    setWalletMsg('')
+    try {
+      const res = await adminAPI.updateWalletFee(Number(feeInput))
+      setWallet(prev => prev ? { ...prev, feePercent: res.data.feePercent } : prev)
+      setWalletMsg(`✓ Pourcentage de réduction mis à jour : ${res.data.feePercent}%`)
+    } catch (err) {
+      setWalletMsg(`✗ ${err.response?.data?.error || err.message}`)
+    } finally { setSavingFee(false) }
+  }
+
+  const handleAdminWithdraw = async (e) => {
+    e.preventDefault()
+    setWithdrawing(true)
+    setWalletMsg('')
+    try {
+      const res = await adminAPI.withdrawWallet({
+        amount: Number(withdrawForm.amount),
+        phoneNumber: withdrawForm.phoneNumber,
+        operator: withdrawForm.operator,
+        country: withdrawForm.country,
+        currency: withdrawForm.currency,
+      })
+      if (res.data?.wallet) setWallet(res.data.wallet)
+      setWithdrawForm(f => ({ ...f, amount: '' }))
+      setWalletMsg(`✓ ${res.data?.message || 'Retrait iKeePay envoyé avec succès !'}`)
+    } catch (err) {
+      setWalletMsg(`✗ ${err.response?.data?.error || err.message}`)
+    } finally { setWithdrawing(false) }
+  }
 
   const totalSub = data.subscriptionRevenue.reduce((sum, d) => sum + d.total, 0)
   const totalComm = data.commissionRevenue.reduce((sum, d) => sum + d.total, 0)
+  const activeFeePct = Number(wallet?.feePercent ?? 6)
+  const grossPreview = Number(withdrawForm.amount || 0)
+  const feePreview = +(grossPreview * (activeFeePct / 100)).toFixed(2)
+  const netPreview = Math.max(0, +(grossPreview - feePreview).toFixed(2))
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Revenus</h1>
+        <h1 className="text-2xl font-bold">Portefeuille Admin &amp; Revenus</h1>
         <div className="flex gap-1 bg-muted rounded-lg p-1">
           {['7d', '30d', '90d', '1y'].map(p => (
             <button key={p} onClick={() => setPeriod(p)}
@@ -1711,6 +1757,168 @@ export function AdminRevenue() {
           ))}
         </div>
       </div>
+
+      {/* Portefeuille Administrateur (Abonnements) + Retrait Direct iKeePay */}
+      <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-950/25 via-slate-900/90 to-slate-950">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2 text-emerald-400">
+                <Wallet className="h-5 w-5" />
+                Portefeuille Abonnements &amp; Retrait Direct iKeePay
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Reçoit automatiquement les paiements d'abonnements mensuels. Retrait direct via iKeePay H2H avec réduction de {activeFeePct}% (modifiable).
+              </p>
+            </div>
+            <div className="flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-2">
+              <span className="text-xs text-slate-400">Réduction retrait (%) :</span>
+              <Input
+                type="number"
+                min="0"
+                max="50"
+                step="0.5"
+                value={feeInput}
+                onChange={e => setFeeInput(e.target.value)}
+                className="w-20 h-8 text-xs font-mono text-center bg-slate-900 border-slate-700"
+              />
+              <Button size="sm" onClick={handleSaveFee} disabled={savingFee} className="h-8 text-xs bg-violet-600 hover:bg-violet-500">
+                {savingFee ? '...' : 'Appliquer'}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {walletMsg && (
+            <div className={`p-3 rounded-xl text-xs font-semibold border ${walletMsg.startsWith('✓') ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-400'}`}>
+              {walletMsg}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-4 rounded-xl bg-slate-950/80 border border-emerald-500/30">
+              <p className="text-[11px] text-slate-400 uppercase">Solde Disponible</p>
+              <p className="text-2xl font-extrabold text-emerald-400 mt-1">{formatCurrency(wallet?.availableBalance || 0)}</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">{wallet?.totalSubscriptionsCount || 0} abonnement(s) encaissé(s)</p>
+            </div>
+            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+              <p className="text-[11px] text-slate-400 uppercase">Total Encaissé (Abonnements)</p>
+              <p className="text-2xl font-bold text-white mt-1">{formatCurrency(wallet?.totalSubscriptionRevenue || 0)}</p>
+            </div>
+            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+              <p className="text-[11px] text-slate-400 uppercase">Total Retiré</p>
+              <p className="text-2xl font-bold text-amber-400 mt-1">{formatCurrency(wallet?.totalWithdrawn || 0)}</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleAdminWithdraw} className="grid grid-cols-1 md:grid-cols-6 gap-3 p-4 rounded-xl bg-slate-950/60 border border-slate-800 items-end">
+            <div>
+              <label className="text-[11px] text-slate-400 font-semibold block mb-1">Montant Brut</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="1"
+                required
+                placeholder="ex: 100"
+                value={withdrawForm.amount}
+                onChange={e => setWithdrawForm({ ...withdrawForm, amount: e.target.value })}
+                className="h-9 text-xs font-mono bg-slate-900 border-slate-700"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-slate-400 font-semibold block mb-1">Pays</label>
+              <Input
+                value={withdrawForm.country}
+                onChange={e => setWithdrawForm({ ...withdrawForm, country: e.target.value.toUpperCase() })}
+                placeholder="CI"
+                maxLength={2}
+                className="h-9 text-xs font-mono bg-slate-900 border-slate-700"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-slate-400 font-semibold block mb-1">Opérateur</label>
+              <select
+                value={withdrawForm.operator}
+                onChange={e => setWithdrawForm({ ...withdrawForm, operator: e.target.value })}
+                className="w-full h-9 px-2 rounded-md text-xs bg-slate-900 border border-slate-700 text-white"
+              >
+                <option value="ORANGE">ORANGE</option>
+                <option value="MTN">MTN</option>
+                <option value="WAVE">WAVE</option>
+                <option value="MOOV">MOOV</option>
+                <option value="MOBICASH">MOBICASH</option>
+                <option value="AIRTEL">AIRTEL</option>
+                <option value="VODACOM">VODACOM</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] text-slate-400 font-semibold block mb-1">Téléphone (avec indicatif)</label>
+              <Input
+                required
+                placeholder="2250700000000"
+                value={withdrawForm.phoneNumber}
+                onChange={e => setWithdrawForm({ ...withdrawForm, phoneNumber: e.target.value })}
+                className="h-9 text-xs font-mono bg-slate-900 border-slate-700"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] text-slate-400 font-semibold block mb-1">Devise</label>
+              <select
+                value={withdrawForm.currency}
+                onChange={e => setWithdrawForm({ ...withdrawForm, currency: e.target.value })}
+                className="w-full h-9 px-2 rounded-md text-xs bg-slate-900 border border-slate-700 text-white font-mono"
+              >
+                <option value="XOF">XOF</option>
+                <option value="XAF">XAF</option>
+                <option value="USD">USD</option>
+              </select>
+            </div>
+            <Button type="submit" disabled={withdrawing} className="h-9 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs">
+              {withdrawing ? 'Envoi...' : 'Retirer via iKeePay'}
+            </Button>
+            {grossPreview > 0 && (
+              <div className="md:col-span-6 text-[11px] text-slate-300 flex flex-wrap gap-4 pt-1 border-t border-slate-800/80">
+                <span>Montant brut : <strong>{grossPreview} {withdrawForm.currency}</strong></span>
+                <span className="text-amber-400">Réduction ({activeFeePct}%) : <strong>-{feePreview} {withdrawForm.currency}</strong></span>
+                <span className="text-emerald-400">Montant Net envoyé : <strong>{netPreview} {withdrawForm.currency}</strong></span>
+              </div>
+            )}
+          </form>
+
+          {wallet?.withdrawals?.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 text-left">
+                    <th className="py-2 pr-3">Date</th>
+                    <th className="py-2 pr-3">Brut</th>
+                    <th className="py-2 pr-3">Frais (%)</th>
+                    <th className="py-2 pr-3">Net Envoyé</th>
+                    <th className="py-2 pr-3">Opérateur / Tél</th>
+                    <th className="py-2">Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {wallet.withdrawals.map(w => (
+                    <tr key={w._id} className="border-b border-slate-800/50">
+                      <td className="py-2 pr-3 text-slate-400">{new Date(w.createdAt).toLocaleString()}</td>
+                      <td className="py-2 pr-3 font-mono">{w.grossAmount} {w.currency}</td>
+                      <td className="py-2 pr-3 text-amber-400">-{w.feeAmount} ({w.feePercent}%)</td>
+                      <td className="py-2 pr-3 font-bold text-emerald-400">{w.netAmount} {w.currency}</td>
+                      <td className="py-2 pr-3 font-mono">{w.operator} · {w.phoneNumber}</td>
+                      <td className="py-2">
+                        <Badge variant={w.status === 'completed' ? 'success' : w.status === 'failed' ? 'destructive' : 'warning'} className="text-[10px]">
+                          {w.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* KPI cards â€” subscription business metrics */}
       {subStats && (
@@ -3221,7 +3429,7 @@ export function AdminSettings() {
                   <button
                     type="button"
                     onClick={() => {
-                      const url = `${window.location.origin}/api/subscriptions/ikeepay/webhook`
+                      const url = `${window.location.origin}/api/webhooks/ikeepay`
                       navigator.clipboard.writeText(url)
                       alert(`URL Webhook copiée :\n${url}`)
                     }}
@@ -3231,7 +3439,7 @@ export function AdminSettings() {
                   </button>
                 </div>
                 <p className="font-mono text-[11px] text-emerald-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 break-all select-all">
-                  {typeof window !== 'undefined' ? `${window.location.origin}/api/subscriptions/ikeepay/webhook` : '/api/subscriptions/ikeepay/webhook'}
+                  {typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/ikeepay` : '/api/webhooks/ikeepay'}
                 </p>
                 <p className="text-[10px] text-slate-400">
                   Collez cette URL dans votre tableau de bord iKeePay dans les paramètres Webhook pour recevoir instantanément les validations de paiement.
@@ -3389,19 +3597,34 @@ export function AdminSettings() {
                       <label className="text-sm font-medium mb-1.5 block">Durée de l'essai gratuit (jours)</label>
                       <Input
                         type="number"
-                        min="1"
-                        max="90"
+                        min="0"
+                        max="365"
                         value={form.freeTrialDays}
                         onChange={e => {
-                          const val = parseInt(e.target.value, 10) || 7
+                          const parsed = parseInt(e.target.value, 10)
+                          const val = isNaN(parsed) ? 0 : Math.max(0, parsed)
                           update('freeTrialDays', val)
                           update('derivTrialDays', val)
+                          if (val === 0) update('freeTrialEnabled', false)
                         }}
                         className="font-mono text-xs"
                       />
-                      <p className="text-[10px] text-muted-foreground mt-1">
-                        Appliqué aux robots Deriv SmartTrader, Binance et Bybit (défaut : 7 jours).
-                      </p>
+                      <div className="flex items-center justify-between gap-2 mt-1.5">
+                        <p className="text-[10px] text-muted-foreground">
+                          Appliqué aux robots Deriv SmartTrader, Binance et Bybit (0 = supprimé).
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            update('freeTrialDays', 0)
+                            update('derivTrialDays', 0)
+                            update('freeTrialEnabled', false)
+                          }}
+                          className="text-[10px] px-2 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30 hover:bg-rose-500/25 font-semibold shrink-0"
+                        >
+                          Supprimer le Free Trial
+                        </button>
+                      </div>
                     </div>
 
                     <div className="space-y-3">

@@ -372,11 +372,20 @@ class DerivRobotEngine {
       user?.subscription?.plan === 'institutional' ||
       (user?.subscription?.isActive && user?.subscription?.plan !== 'free');
     const isAffiliated = acc.affiliateVerified === true;
-    const isTrialActive = isOwner ? true : (acc.isTrialValid ? acc.isTrialValid() : true);
+    const settingsObj = await fallbackStore.getSettings().catch(() => ({}));
+    const freeTrialEnabled = settingsObj?.freeTrialEnabled !== false && Number(settingsObj?.derivTrialDays ?? settingsObj?.freeTrialDays ?? 7) > 0;
+    const isTrialActive = isOwner ? true : (freeTrialEnabled && (acc.isTrialValid ? acc.isTrialValid() : true));
 
-    if (!isAdmin && !isTrialActive && !hasPaidPlan && !isAffiliated) {
+    const planCache = require('./planCache');
+    const activePlans = planCache.getPublicPlans ? planCache.getPublicPlans() : [];
+    const hasActivePaidPlanCatalog =
+      settingsObj?.subscriptionsEnabled !== false &&
+      !settingsObj?.allRobotsFree &&
+      activePlans.some(p => p.isActive !== false && !p.isFree && p.allowPaidSubscription !== false && Number(p.priceMonthly) > 0);
+
+    if (hasActivePaidPlanCatalog && !isAdmin && !isTrialActive && !hasPaidPlan && !isAffiliated) {
       throw new Error(
-        'Période d\'essai gratuite de 7 jours expirée. Activez l\'accès via notre lien partenaire Deriv ou souscrivez à un abonnement mensuel.'
+        'Période d\'essai gratuite expirée. Veuillez souscrire à un plan d\'abonnement actif pour continuer à utiliser les robots Deriv SmartTrader.'
       );
     }
 

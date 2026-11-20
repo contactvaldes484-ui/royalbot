@@ -521,7 +521,8 @@ class RuntimeFallbackStore {
       ikeepayEnabled: false,
       ikeepayPublicKey: '',
       ikeepaySecretKey: '',
-      ikeepayCurrency: 'USD',
+      ikeepayCurrency: 'XOF',
+      adminWithdrawalFeePercent: 6,
       binanceRobotsPublicEnabled: false,
       bybitRobotsPublicEnabled: false,
       aiScannerUrl: 'https://tradingkit.com/',
@@ -800,7 +801,13 @@ class RuntimeFallbackStore {
             affiliateVerified: Boolean(affiliateVerified),
             affiliateCheckedAt: new Date(),
             trialStartDate: new Date(),
-            trialExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            trialExpiresAt: await (async () => {
+              const s = await this.getSettings().catch(() => ({}));
+              const enabled = s?.freeTrialEnabled !== false;
+              const days = Number(s?.derivTrialDays ?? s?.freeTrialDays ?? 7);
+              if (!enabled || days <= 0) return new Date(Date.now() - 1000);
+              return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+            })(),
           });
         } else {
           if (label) acc.label = label;

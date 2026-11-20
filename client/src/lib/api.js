@@ -227,6 +227,9 @@ export const adminAPI = {
   processWithdrawal: (id, data) => api.put(`/admin/withdrawals/${id}`, data),
   sendNotification: (data) => api.post('/admin/notifications', data),
   getRevenue: (params) => api.get('/admin/revenue', { params }),
+  getWallet: () => api.get('/admin/wallet'),
+  withdrawWallet: (data) => api.post('/admin/wallet/withdraw', data),
+  updateWalletFee: (feePercent) => api.put('/admin/wallet/fee', { feePercent }),
   searchUsersForRobot: (q) => api.get('/admin/robots/search-users', { params: { q } }),
   // Subscription management
   getSubscriptions: (params) => api.get('/admin/subscriptions', { params }),

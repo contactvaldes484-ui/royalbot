@@ -162,10 +162,10 @@ router.post('/subscribe', authenticate, subscribeLimiter, async (req, res) => {
       userAgent: req.headers['user-agent'],
     });
 
-    // ── iKeePay : Inline Checkout (Mobile Money & Carte) ──
+    // ── iKeePay : Intégration H2H (POST /h2h-payin) ou Checkout fallback ──
     if (paymentMethod === 'ikeepay') {
       const ikeepayCreds = await ikeepayService.getCredentials();
-      if (!ikeepayCreds.enabled || !ikeepayCreds.publicKey) {
+      if (!ikeepayCreds.enabled || (!ikeepayCreds.secretKey && !ikeepayCreds.publicKey)) {
         await Subscription.deleteOne({ _id: sub._id });
         return res.status(400).json({ error: 'La passerelle de paiement iKeePay n\'est pas activée par l\'administrateur.' });
       }
@@ -173,12 +173,51 @@ router.post('/subscribe', authenticate, subscribeLimiter, async (req, res) => {
       const orderId = `SUB_${sub._id}_${Date.now()}`;
       sub.paymentId = orderId;
       sub.ikeepayOrderId = orderId;
-      await sub.save();
 
+      const phone = req.body.phoneNumber || mobileMoneyNumber;
+      const op = req.body.operator || mobileMoneyProvider;
+      const ctry = req.body.country || mobileMoneyCountry || 'CI';
+
+      // Si les paramètres H2H (téléphone + opérateur) et la clé secrète sont présents -> appel direct POST /h2h-payin
+      if (phone && op && ikeepayCreds.secretKey) {
+        try {
+          const payin = await ikeepayService.initPayin({
+            amount,
+            currency: ikeepayCreds.currency || plan.currency || 'XOF',
+            country: ctry,
+            phoneNumber: phone,
+            operator: op,
+            externalReference: orderId,
+            customerEmail: req.user.email,
+            otp: req.body.otp || mobileMoneyOtp,
+          });
+          sub.ikeepayRef = payin.providerReference || orderId;
+          await sub.save();
+
+          return res.json({
+            subscription: sub,
+            orderId,
+            providerReference: payin.providerReference,
+            paymentLink: payin.paymentLink || undefined,
+            checkoutUrl: payin.paymentLink || undefined,
+            amount,
+            currency: ikeepayCreds.currency || 'XOF',
+            message: payin.paymentLink
+              ? 'Lien de paiement Wave/Orange généré. Finalisez le paiement.'
+              : 'Demande de paiement iKeePay H2H envoyée. Confirmez sur votre téléphone.',
+            pendingValidation: true,
+          });
+        } catch (err) {
+          await Subscription.deleteOne({ _id: sub._id });
+          return res.status(502).json({ error: `Erreur iKeePay H2H Payin : ${err.message}` });
+        }
+      }
+
+      await sub.save();
       const checkoutUrl = ikeepayService.buildCheckoutUrl({
         publicKey: ikeepayCreds.publicKey,
         amount,
-        currency: ikeepayCreds.currency || plan.currency || 'USD',
+        currency: ikeepayCreds.currency || plan.currency || 'XOF',
         orderId,
         redirectUrl: req.body.redirectUrl || '',
       });
@@ -189,7 +228,7 @@ router.post('/subscribe', authenticate, subscribeLimiter, async (req, res) => {
         checkoutUrl,
         publicKey: ikeepayCreds.publicKey,
         amount,
-        currency: ikeepayCreds.currency || 'USD',
+        currency: ikeepayCreds.currency || 'XOF',
         message: 'Tunnel de paiement iKeePay prêt.',
         pendingValidation: true,
       });
@@ -479,29 +518,24 @@ router.post('/ikeepay/verify', authenticate, async (req, res) => {
       return res.json({ confirmed: true, subscription: sub, message: 'Abonnement déjà actif !' });
     }
 
-    // Interroger l'API officielle iKeePay
+    // Interroger l'API officielle iKeePay (GET /h2h-verify/:reference)
     const check = await ikeepayService.verifyTransaction(ref);
     if (check.ok) {
-      sub.ikeepayRef = check.ikeepayRef || ref;
+      sub.ikeepayRef = check.providerReference || ref;
       await sub.save();
       const confirmed = await subService.confirmPendingSubscription(sub._id, {
-        txHash: check.ikeepayRef || ref,
-        adminNote: `Vérifié et confirmé via API iKeePay (${check.ikeepayRef || ''})`,
+        txHash: check.providerReference || ref,
+        adminNote: `Vérifié et confirmé via API iKeePay H2H (${check.providerReference || ref})`,
       });
       return res.json({ confirmed: true, subscription: confirmed, message: 'Paiement iKeePay validé, abonnement activé !' });
     }
 
-    // Si le signal success a été émis depuis l'iframe mais que l'API de vérification prend quelques secondes
-    // Activer l'abonnement en mode garanti
-    const confirmed = await subService.confirmPendingSubscription(sub._id, {
-      txHash: ref,
-      adminNote: `Confirmé suite à validation tunnel iKeePay (${ref})`,
-    });
-
-    res.json({
-      confirmed: true,
-      subscription: confirmed,
-      message: 'Paiement validé avec succès, abonnement activé !',
+    return res.json({
+      confirmed: false,
+      status: check.status || 'pending',
+      message: check.status === 'failed'
+        ? 'Paiement iKeePay échoué.'
+        : 'Paiement en attente de confirmation sur iKeePay.',
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
