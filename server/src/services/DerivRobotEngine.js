@@ -139,13 +139,27 @@ class DerivRobotEngine {
       }
     }
 
-    // ── 1. DIGITOVER (Architecture Sniper Élite : Multi-Fenêtres + Anti-Cluster + Dynamic Barrier Recovery) ──
+    // ── 1. DIGITOVER (Respect strict des XML importés + Sniper Élite pour les robots natifs) ──
     if (contractType === 'DIGITOVER') {
       const baseBarrier = barrier !== undefined && barrier !== null && barrier !== '' ? Number(barrier) : 2;
       const consecutiveLosses = Number(session?.stats?.consecutiveLosses || 0);
+      const isImportedXmlBot = bot?.strategyType === 'file_custom' || bot?.fileType === 'xml';
 
-      // Récupération dynamique par changement de barrière :
-      // Palier 0 -> DIGITOVER 2 (~39% payout, 70% win rate de base, ~80%+ avec filtre)
+      if (isImportedXmlBot) {
+        let xmlBarrier = baseBarrier;
+        if (consecutiveLosses >= 1 && bot?.parsedLogic?.recoveryBarrier !== undefined) {
+          xmlBarrier = Number(bot.parsedLogic.recoveryBarrier);
+        }
+        return {
+          shouldTrade: true,
+          contractType,
+          barrier: xmlBarrier,
+          reason: `XML Bot execution (DIGITOVER ${xmlBarrier})`,
+        };
+      }
+
+      // Récupération dynamique par changement de barrière pour Digit Over 2 Sniper natif :
+      // Palier 0 -> DIGITOVER 2 (~39% payout)
       // Palier 1 (après 1 perte) -> DIGITOVER 3 (~62% payout -> couvre la perte avec x1.9 seulement)
       // Palier 2+ (après 2+ pertes) -> DIGITOVER 4 (~95% payout -> couvre tout en 1 gain)
       let effectiveBarrier = baseBarrier;
