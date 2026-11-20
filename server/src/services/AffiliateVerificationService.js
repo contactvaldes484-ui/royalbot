@@ -10,9 +10,9 @@ class AffiliateVerificationService {
       const settings = await fallbackStore.getSettings();
       const partnerId = settings?.derivPartnerId || '';
 
-      // Si aucun partnerId configuré par l'admin, on valide pour ne pas bloquer les tests
+      // Si aucun partnerId configuré par l'admin, le compte n'est pas marqué comme affilié
       if (!partnerId) {
-        return { isAffiliated: true, reason: 'Aucun ID partenaire configuré, approbation automatique' };
+        return { isAffiliated: false, reason: 'ID partenaire Deriv non configuré dans les paramètres.' };
       }
 
       // Deriv API: l'objet de compte renvoie les informations de profil et d'affiliation

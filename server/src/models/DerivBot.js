@@ -11,7 +11,8 @@ const DerivBotSchema = new mongoose.Schema({
     type: String,
     enum: [
       'DIGITOVER', 'DIGITUNDER', 'DIGITMATCH', 'DIGITDIFF',
-      'DIGITEVEN', 'DIGITODD', 'CALL', 'PUT', 'MULTUP', 'MULTDOWN'
+      'DIGITEVEN', 'DIGITODD', 'CALL', 'PUT', 'MULTUP', 'MULTDOWN',
+      'RUNLOW', 'RUNHIGH'
     ],
     default: 'DIGITOVER',
   },
@@ -29,7 +30,9 @@ const DerivBotSchema = new mongoose.Schema({
       'martingale_smart',  // Martingale sécurisée avec pallier stop
       'even_odd_pattern',  // Reconnaissance de séries Pair/Impair
       'tick_volatility',   // Breakout de volatilité
+      'runs_momentum',     // Runs Only Ups / Only Downs
       'file_custom',       // Exécuté d'après fichier XML / JSON Deriv Bot
+      'bot_builder_custom',// Créé dans le Bot Builder Studio
     ],
     default: 'digit_analyzer',
   },
@@ -37,7 +40,7 @@ const DerivBotSchema = new mongoose.Schema({
   // Fichier robot Deriv (XML DBot / JSON)
   fileName:    { type: String, default: '' },
   fileType:    { type: String, enum: ['xml', 'json', 'none'], default: 'none' },
-  fileContent: { type: String, default: '', select: false },
+  fileContent: { type: String, default: '' },
   parsedLogic: { type: mongoose.Schema.Types.Mixed, default: {} },
 
   defaultSettings: {

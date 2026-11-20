@@ -218,6 +218,9 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
   const [codeType, setCodeType] = useState('xml')
   const [codeCopied, setCodeCopied] = useState(false)
   const [parseError, setParseError] = useState('')
+  const [xmlVariables, setXmlVariables] = useState([]) // Toutes les variables extraites du fichier XML
+  const [xmlTradeConditions, setXmlTradeConditions] = useState([]) // Conditions if/then extraites du XML
+  const preserveRawXmlRef = useRef(false)
 
   // Publication dans le catalogue
   const [showPublishModal, setShowPublishModal] = useState(false)
@@ -252,17 +255,22 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
       if (initialBot.fileContent) {
         loadBotFromFileContent(initialBot.fileContent, initialBot.fileName || `${initialBot.name}.xml`)
       } else {
+        preserveRawXmlRef.current = false
         if (initialBot.name) setBotName(initialBot.name)
         if (initialBot.symbols?.[0]) setSelectedMarket(initialBot.symbols[0])
         if (initialBot.contractType) setContractType(initialBot.contractType)
+        if (initialBot.parsedLogic?.variables) {
+          const entries = Object.entries(initialBot.parsedLogic.variables).map(([k, v]) => ({ name: k, value: String(v) }))
+          setXmlVariables(entries)
+        }
         if (initialBot.defaultSettings) {
           const s = initialBot.defaultSettings
-          if (s.initialStake) setStake(String(s.initialStake))
-          if (s.takeProfit) setTakeProfit(String(s.takeProfit))
-          if (s.stopLoss) setStopLoss(String(s.stopLoss))
-          if (s.martingaleMultiplier) setMartingaleFactor(String(s.martingaleMultiplier))
-          if (s.duration) setDuration(String(s.duration))
-          if (s.barrier) setBarrier(String(s.barrier))
+          if (s.initialStake !== undefined) setStake(String(s.initialStake))
+          if (s.takeProfit !== undefined) setTakeProfit(String(s.takeProfit))
+          if (s.stopLoss !== undefined) setStopLoss(String(s.stopLoss))
+          if (s.martingaleMultiplier !== undefined) setMartingaleFactor(String(s.martingaleMultiplier))
+          if (s.duration !== undefined) setDuration(String(s.duration))
+          if (s.barrier !== undefined) setBarrier(String(s.barrier))
           if (s.virtualHook) {
             setVhEnabled(Boolean(s.virtualHook.enabled))
             setVhTrigger(s.virtualHook.trigger || 3)
@@ -286,9 +294,11 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
     return () => clearInterval(t)
   }, [])
 
-  // Mise à jour continue du code XML Deriv officiel
+  // Mise à jour continue du code XML Deriv officiel (uniquement si aucun XML importé brut n'est préservé)
   useEffect(() => {
-    generateXmlFromState()
+    if (!preserveRawXmlRef.current) {
+      generateXmlFromState()
+    }
   }, [
     botName, selectedMarket, contractType, tradeType, stake, takeProfit, stopLoss,
     martingaleEnabled, martingaleFactor, duration, durationUnit, barrier,
@@ -536,9 +546,61 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
           setVhStake(data.virtualHook.stake || 0.5)
         }
       } else {
+        preserveRawXmlRef.current = true
         setCodeType('xml')
         const nameMatch = fileName.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ')
         setBotName(nameMatch)
+
+        // Séparer l'initialisation (avant after_purchase) pour extraire toutes les variables et blocs du XML
+        const afterIdx = content.search(/type=["']after_purchase["']/i)
+        const initXml = afterIdx > 0 ? content.slice(0, afterIdx) : content
+        const afterXml = afterIdx > 0 ? content.slice(afterIdx) : ''
+
+        const varList = []
+        const varMap = {}
+        const varSetRegex = /<block[^>]*type=["']variables_set["'][^>]*>[\s\S]*?<field\s+name=["']VAR["'][^>]*>([^<]+)<\/field>[\s\S]*?<value\s+name=["']VALUE["']>([\s\S]*?)<\/value>/gi
+        let vm
+        while ((vm = varSetRegex.exec(initXml)) !== null) {
+          const rawVarName = vm[1].trim()
+          const key = rawVarName.toLowerCase()
+          const numMatch = vm[2].match(/<field\s+name=["']NUM["']>(-?[\d.]+)<\/field>/i)
+          if (numMatch && varMap[key] === undefined) {
+            varMap[key] = numMatch[1]
+            varList.push({ name: rawVarName, value: numMatch[1] })
+          }
+        }
+        setXmlVariables(varList)
+
+        // Extraire les blocs if/then (Trade options)
+        const condList = []
+        const ifRegex = /<block[^>]*type=["']controls_if["'][^>]*>[\s\S]*?<field\s+name=["']OP["']>([^<]+)<\/field>[\s\S]*?<field\s+name=["']VAR["'][^>]*>([^<]+)<\/field>[\s\S]*?<field\s+name=["']NUM["']>(-?[\d.]+)<\/field>/gi
+        let cm
+        const opLabels = { LT: '<', LTE: '≤', GT: '>', GTE: '≥', EQ: '=', NEQ: '≠' }
+        while ((cm = ifRegex.exec(initXml)) !== null && condList.length < 8) {
+          condList.push({
+            op: opLabels[cm[1].trim().toUpperCase()] || cm[1],
+            varName: cm[2].trim(),
+            value: cm[3].trim(),
+          })
+        }
+        setXmlTradeConditions(condList)
+
+        const extractVal = (valName) => {
+          const r = new RegExp(`<value\\s+name=["']${valName}["'][^>]*>([\\s\\S]*?)<\\/value>`, 'i')
+          const m = initXml.match(r)
+          if (!m) return undefined
+          const vRef = m[1].match(/<field\s+name=["']VAR["'][^>]*>([^<]+)<\/field>/i)
+          if (vRef && varMap[vRef[1].trim().toLowerCase()] !== undefined) return varMap[vRef[1].trim().toLowerCase()]
+          const nDir = m[1].match(/<field\s+name=["']NUM["']>(-?[\d.]+)<\/field>/i)
+          return nDir ? nDir[1] : undefined
+        }
+        const findVar = (kws, excl = []) => {
+          for (const [k, v] of Object.entries(varMap)) {
+            if (excl.some(x => k.includes(x))) continue
+            if (kws.some(w => k.includes(w))) return v
+          }
+          return undefined
+        }
 
         const symMatch = content.match(/<field\s+name=["']SYMBOL_LIST["']>([^<]+)<\/field>/i)
           || content.match(/<field\s+name=["']submarket["']>([^<]+)<\/field>/i)
@@ -549,23 +611,27 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
           || content.match(/<field\s+name=["']TRADETYPE_LIST["']>([^<]+)<\/field>/i)
         if (purMatch && purMatch[1]) setContractType(purMatch[1].trim())
 
-        const stakeMatch = content.match(/name=["']AMOUNT["'][^>]*>[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i)
-        if (stakeMatch && stakeMatch[1]) setStake(stakeMatch[1].trim())
+        const stakeVal = extractVal('AMOUNT') || findVar(['initial stake', 'initial_stake', 'stake', 'amount'], ['max', 'martingale', 'profit', 'loss', 'vh'])
+        if (stakeVal !== undefined) setStake(String(stakeVal))
 
-        const tpMatch = content.match(/(?:take[_\s]?profit|target[_\s]?profit)[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i)
-        if (tpMatch && tpMatch[1]) setTakeProfit(tpMatch[1].trim())
+        const tpVal = findVar(['take profit', 'takeprofit', 'target profit', 'profit'])
+        if (tpVal !== undefined) setTakeProfit(String(tpVal))
 
-        const slMatch = content.match(/(?:stop[_\s]?loss|max[_\s]?loss)[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i)
-        if (slMatch && slMatch[1]) setStopLoss(slMatch[1].trim())
+        const slVal = findVar(['stop loss', 'stoploss', 'max loss'])
+        if (slVal !== undefined) setStopLoss(String(slVal))
 
-        const martMatch = content.match(/(?:martingale|multiplier|factor)[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i)
-        if (martMatch && martMatch[1]) setMartingaleFactor(martMatch[1].trim())
+        const martVal = findVar(['martingale', 'multiplier', 'factor'], ['max', 'stop', 'take', 'step', 'level', 'loss', 'start'])
+        if (martVal !== undefined && Number(martVal) <= 15) setMartingaleFactor(String(martVal))
+        else if (afterXml) {
+          const mulM = afterXml.match(/<field\s+name=["']OP["']>MULTIPLY<\/field>[\s\S]{0,400}?<field\s+name=["']NUM["']>([\d.]+)<\/field>/i)
+          if (mulM && Number(mulM[1]) <= 15) setMartingaleFactor(mulM[1])
+        }
 
-        const durMatch = content.match(/name=["']DURATION["'][^>]*>[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i)
-        if (durMatch && durMatch[1]) setDuration(durMatch[1].trim())
+        const durVal = extractVal('DURATION')
+        if (durVal !== undefined) setDuration(String(durVal))
 
-        const predMatch = content.match(/name=["'](?:PREDICTION|BARRIEROFFSET|BARRIER)["'][^>]*>[\s\S]*?<field\s+name=["']NUM["']>([^<]+)<\/field>/i)
-        if (predMatch && predMatch[1]) setBarrier(predMatch[1].trim())
+        const predVal = extractVal('PREDICTION') ?? extractVal('BARRIER') ?? findVar(['prediction', 'over digit', 'barrier'], ['loss', 'win', 'stake'])
+        if (predVal !== undefined) setBarrier(String(predVal))
 
         if (content.includes('type="virtualhook"') || content.includes('VH_STATE_LIST')) {
           setVhEnabled(!content.includes('<field name="VH_STATE_LIST">disabled</field>'))
@@ -608,23 +674,29 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')
 
+      const varsObj = {}
+      xmlVariables.forEach(v => {
+        if (v.name) varsObj[v.name.toLowerCase()] = isNaN(Number(v.value)) ? v.value : Number(v.value)
+      })
+
       const payload = {
         name: botName,
-        slug,
+        ...(initialBot?._id ? {} : { slug }),
         contractType: contractType || 'DIGITOVER',
         symbols: [selectedMarket],
         tier: publishPlanTier,
-        strategyType: 'bot_builder_custom',
+        strategyType: initialBot?.strategyType === 'file_custom' ? 'file_custom' : 'bot_builder_custom',
         defaultSettings: {
-          initialStake: parseFloat(stake) || 0.8,
-          maxStake: (parseFloat(stake) || 0.8) * 25,
+          ...(initialBot?.defaultSettings || {}),
+          initialStake: parseFloat(stake) || 0.5,
+          maxStake: Math.max((parseFloat(stake) || 0.5) * 20, 25),
           takeProfit: parseFloat(takeProfit) || 10,
           stopLoss: parseFloat(stopLoss) || 30,
           martingaleMultiplier: parseFloat(martingaleFactor) || 2,
           martingaleEnabled,
           duration: parseInt(duration, 10) || 1,
           durationUnit: durationUnit === 'Ticks' ? 't' : 'm',
-          barrier: barrier || undefined,
+          barrier: barrier !== undefined && barrier !== '' ? barrier : undefined,
           virtualHook: {
             enabled: vhEnabled,
             trigger: vhTrigger,
@@ -633,15 +705,24 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
           }
         },
         winRate: publishWinRate,
-        badge: 'Bot Builder Studio',
-        fileName: `${slug}.xml`,
-        fileType: 'xml',
+        badge: initialBot?.badge || 'Bot Builder Studio',
+        fileName: initialBot?.fileName || `${slug}.xml`,
+        fileType: initialBot?.fileType || 'xml',
         fileContent: rawCode,
-        description: publishDescription || `Robot créé et configuré dans le Deriv Bot Builder Studio (${contractType} sur ${selectedMarket})`
+        parsedLogic: {
+          ...(initialBot?.parsedLogic || {}),
+          variables: varsObj,
+        },
+        description: publishDescription || initialBot?.description || `Robot créé et configuré dans le Deriv Bot Builder Studio (${contractType} sur ${selectedMarket})`
       }
 
-      await adminDerivAPI.createBot(payload)
-      setPublishSuccessMsg(`🎉 Robot « ${botName} » publié avec succès ! Il est maintenant accessible et prêt à être lancé par les utilisateurs dans leur espace Deriv.`)
+      if (initialBot?._id) {
+        await adminDerivAPI.updateBot(initialBot._id, payload)
+        setPublishSuccessMsg(`✅ Robot « ${botName} » mis à jour avec succès !`)
+      } else {
+        await adminDerivAPI.createBot(payload)
+        setPublishSuccessMsg(`🎉 Robot « ${botName} » publié avec succès ! Il est maintenant accessible et prêt à être lancé par les utilisateurs dans leur espace Deriv.`)
+      }
       if (onBotPublished) onBotPublished()
       setTimeout(() => {
         setShowPublishModal(false)
@@ -1177,8 +1258,54 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
                           className="w-16 bg-white dark:bg-slate-900 border rounded px-1.5 py-0.5 font-bold text-center"
                         />
                       </div>
+
+                      {/* Blocs variables XML extraits du fichier robot (ex: 1st Over Digit, 2nd Over Digit, Amount, Profit, Ticks...) */}
+                      {xmlVariables.length > 0 && (
+                        <div className="pt-2 mt-2 border-t border-slate-300 dark:border-slate-700 space-y-1.5">
+                          <div className="text-[10px] font-bold text-cyan-700 dark:text-cyan-400 uppercase">
+                            Variables du fichier XML ({xmlVariables.length}) :
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {xmlVariables.map((v, idx) => (
+                              <div key={`${v.name}-${idx}`} className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2 py-0.5">
+                                <span className="font-bold text-slate-700 dark:text-slate-200">{v.name}</span>
+                                <input
+                                  type="text"
+                                  value={v.value}
+                                  onChange={e => {
+                                    const next = [...xmlVariables]
+                                    next[idx] = { ...v, value: e.target.value }
+                                    setXmlVariables(next)
+                                  }}
+                                  className="w-14 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-1 py-0.5 text-center font-bold text-emerald-600 dark:text-emerald-400"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
+
+                  {/* Trade options (Conditions if/then extraites du XML) */}
+                  {xmlTradeConditions.length > 0 && (
+                    <div className="mt-2 p-3 rounded-lg bg-[#e2e8f0] dark:bg-[#1e293b] border-l-4 border-amber-500 space-y-1.5">
+                      <div className="text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                        Trade options (Conditions du fichier) :
+                      </div>
+                      <div className="space-y-1 font-mono text-[11px]">
+                        {xmlTradeConditions.map((cond, idx) => (
+                          <div key={idx} className="flex items-center gap-1.5 flex-wrap bg-white/80 dark:bg-slate-900/80 px-2 py-1 rounded border border-slate-300 dark:border-slate-700">
+                            <span className="font-bold text-amber-600">if</span>
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold">{cond.varName} ▾</span>
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold">{cond.op}</span>
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold text-blue-500">{cond.value}</span>
+                            <span className="font-bold text-amber-600">then</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -813,7 +813,7 @@ class RuntimeFallbackStore {
           if (label) acc.label = label;
           if (balance !== undefined) acc.balance = Number(balance);
           if (currency) acc.currency = currency;
-          if (affiliateVerified) acc.affiliateVerified = true;
+          if (affiliateVerified !== undefined) acc.affiliateVerified = Boolean(affiliateVerified);
         }
         acc.setToken(token);
         acc.lastCheck = new Date();
@@ -844,7 +844,7 @@ class RuntimeFallbackStore {
       if (label) existing.label = label;
       if (balance !== undefined) existing.balance = Number(balance);
       if (currency) existing.currency = currency;
-      if (affiliateVerified) existing.affiliateVerified = true;
+      if (affiliateVerified !== undefined) existing.affiliateVerified = Boolean(affiliateVerified);
       existing.lastCheck = new Date();
     }
     existing.setToken(token);

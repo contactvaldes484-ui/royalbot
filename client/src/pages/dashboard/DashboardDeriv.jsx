@@ -64,8 +64,9 @@ export default function DashboardDeriv() {
   const isOwner = user?.email?.toLowerCase().trim() === 'valdeslando15@gmail.com'
   const isAdmin = isOwner || user?.role === 'admin' || user?.role === 'super_admin'
   const isBotBuilderVisible = isAdmin || settings?.derivBotBuilderEnabled !== false
-  const isTrialValid = isOwner || selectedAccount?.isTrialValid !== false
-  const trialDays = isOwner ? 9999 : (selectedAccount?.trialDaysRemaining ?? 7)
+  const freeTrialActiveGlobal = settings ? (settings.freeTrialEnabled !== false && Number(settings.derivTrialDays ?? settings.freeTrialDays ?? 7) > 0) : true
+  const isTrialValid = isOwner || (freeTrialActiveGlobal && selectedAccount?.isTrialValid !== false)
+  const trialDays = isOwner ? 9999 : (freeTrialActiveGlobal ? (selectedAccount?.trialDaysRemaining ?? 7) : 0)
   const isAffiliated = selectedAccount?.affiliateVerified === true
   const hasPaidPlan = isAdmin || user?.subscription?.plan?.startsWith('deriv') || user?.subscription?.plan === 'vip' || user?.subscription?.plan === 'institutional' || (user?.subscription?.isActive && user?.subscription?.plan !== 'free')
   const canRunRobots = isAdmin || isTrialValid || isAffiliated || hasPaidPlan
@@ -349,16 +350,28 @@ export default function DashboardDeriv() {
           </div>
         </div>
 
-        {/* Alerte si période d'essai expirée */}
+        {/* Alerte si période d'essai expirée ou désactivée */}
         {!canRunRobots && (
           <div className="mt-4 p-4 rounded-xl bg-amber-950/60 border border-amber-500/40 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <span className="font-bold text-amber-200">Période d'essai de 7 jours terminée :</span>
-              <p className="text-amber-300/90 mt-0.5">
-                Le trading automatique est suspendu. Vous pouvez débloquer l'accès gratuit à vie en créant votre compte Deriv avec notre lien partenaire, ou souscrire à un abonnement mensuel.
+            <div className="text-sm space-y-2">
+              <span className="font-bold text-amber-200">
+                {freeTrialActiveGlobal ? "Période d'essai gratuit expirée :" : "Abonnement ou Compte Partenaire requis :"}
+              </span>
+              <p className="text-amber-300/90">
+                Pour continuer à utiliser les robots Deriv SmartTrader, choisissez l'une des deux options ci-dessous :
               </p>
-              <div className="flex gap-2 mt-2">
+              <ul className="text-xs text-amber-200/80 list-disc pl-4 space-y-0.5">
+                <li><strong>Option 1 :</strong> Payez un abonnement mensuel pour débloquer l'accès sur n'importe quel compte Deriv.</li>
+                <li><strong>Option 2 (100% Gratuit à vie) :</strong> Créez un nouveau compte Deriv via notre lien de parrainage et connectez-vous <strong>toujours avec ce compte partenaire</strong>.</li>
+              </ul>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <a
+                  href="/dashboard/pricing"
+                  className="inline-block text-xs font-bold text-white bg-emerald-600 px-3 py-1.5 rounded-lg hover:bg-emerald-500"
+                >
+                  Payer l'Abonnement Mensuel
+                </a>
                 {settings?.derivReferralLink && (
                   <a
                     href={settings.derivReferralLink}
@@ -366,15 +379,16 @@ export default function DashboardDeriv() {
                     rel="noreferrer"
                     className="inline-block text-xs font-bold text-white bg-amber-600 px-3 py-1.5 rounded-lg hover:bg-amber-500"
                   >
-                    Activer Gratuitement via Partenaire
+                    Créer un compte via le Lien de Parrainage
                   </a>
                 )}
-                <a
-                  href="/pricing"
-                  className="inline-block text-xs font-bold text-amber-300 border border-amber-500/40 px-3 py-1.5 rounded-lg hover:bg-amber-900/40"
+                <button
+                  type="button"
+                  onClick={() => setShowConnectModal(true)}
+                  className="inline-block text-xs font-bold text-amber-200 border border-amber-500/40 px-3 py-1.5 rounded-lg hover:bg-amber-900/40"
                 >
-                  Voir les Tarifs Mensuels
-                </a>
+                  Connecter mon Compte Partenaire
+                </button>
               </div>
             </div>
           </div>

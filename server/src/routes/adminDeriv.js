@@ -70,10 +70,18 @@ router.post('/bots/upload-file', async (req, res) => {
     const parsed = parser.parse(fileContent, fileName || 'deriv_bot.xml');
 
     const botName = (customName || bodyBotName || parsed.name || 'Robot Deriv').trim();
-    const slug = (botName + '-' + Date.now().toString().slice(-4))
+    const randSuffix = Math.random().toString(36).slice(2, 6);
+    const slug = (botName + '-' + Date.now().toString().slice(-5) + '-' + randSuffix)
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
+
+    const rawUnit = String(parsed.defaultSettings?.durationUnit || 't').toLowerCase();
+    const normalizedUnit = rawUnit.startsWith('s') ? 's' : rawUnit.startsWith('m') ? 'm' : rawUnit.startsWith('h') ? 'h' : 't';
+    const cleanDefaultSettings = {
+      ...(parsed.defaultSettings || {}),
+      durationUnit: normalizedUnit,
+    };
 
     const bot = await fallbackStore.createDerivBot({
       name: botName,
@@ -82,9 +90,9 @@ router.post('/bots/upload-file', async (req, res) => {
       contractType: parsed.contractType,
       symbols: parsed.symbols,
       strategyType: 'file_custom',
-      defaultSettings: parsed.defaultSettings,
+      defaultSettings: cleanDefaultSettings,
       winRate: parsed.winRate || '80-86%',
-      badge: 'Fichier Bot XML',
+      badge: parsed.fileType === 'json' ? 'Fichier Bot JSON' : 'Fichier Bot XML',
       description: customDescription || parsed.description,
       fileName: parsed.fileName,
       fileType: parsed.fileType,
