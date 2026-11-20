@@ -518,6 +518,7 @@ class RuntimeFallbackStore {
       derivReferralLink: process.env.DERIV_AFFILIATE_URL || '',
       derivPartnerId: '',
       derivBotBuilderEnabled: true,
+      freeTrialUnit: 'days',
       ikeepayEnabled: false,
       ikeepayPublicKey: '',
       ikeepaySecretKey: '',
@@ -804,9 +805,11 @@ class RuntimeFallbackStore {
             trialExpiresAt: await (async () => {
               const s = await this.getSettings().catch(() => ({}));
               const enabled = s?.freeTrialEnabled !== false;
-              const days = Number(s?.derivTrialDays ?? s?.freeTrialDays ?? 7);
-              if (!enabled || days <= 0) return new Date(Date.now() - 1000);
-              return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+              const val = Number(s?.derivTrialDays ?? s?.freeTrialDays ?? 7);
+              if (!enabled || isNaN(val) || val <= 0) return new Date(Date.now() - 1000);
+              const unit = s?.freeTrialUnit || 'days';
+              const mult = unit === 'minutes' ? 60 * 1000 : unit === 'hours' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+              return new Date(Date.now() + val * mult);
             })(),
           });
         } else {

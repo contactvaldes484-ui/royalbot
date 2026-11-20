@@ -419,6 +419,7 @@ export const adminDerivAPI = {
   getBots: () => api.get('/admin/deriv/bots'),
   createBot: (data) => api.post('/admin/deriv/bots', data),
   updateBot: (id, data) => api.put(`/admin/deriv/bots/${id}`, data),
+  resetBotToInitial: (id) => api.post(`/admin/deriv/bots/${id}/reset-initial`),
   deleteBot: (id) => api.delete(`/admin/deriv/bots/${id}`),
   parseBotFile: (data) => api.post('/admin/deriv/bots/parse-file', data),
   uploadBotFile: (data) => api.post('/admin/deriv/bots/upload-file', data),

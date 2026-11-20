@@ -42,6 +42,7 @@ const DerivBotSchema = new mongoose.Schema({
   fileType:    { type: String, enum: ['xml', 'json', 'none'], default: 'none' },
   fileContent: { type: String, default: '' },
   parsedLogic: { type: mongoose.Schema.Types.Mixed, default: {} },
+  initialSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
 
   defaultSettings: {
     initialStake:         { type: Number, default: 1 },

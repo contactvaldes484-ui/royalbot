@@ -398,6 +398,19 @@ const useStore = create((set, get) => ({
     }
   },
 
+  // Language ('fr' | 'en')
+  language: (typeof localStorage !== 'undefined' && localStorage.getItem('royalbot_lang')) || 'fr',
+  setLanguage: (lang) => {
+    const next = lang === 'en' ? 'en' : 'fr'
+    if (typeof localStorage !== 'undefined') localStorage.setItem('royalbot_lang', next)
+    set({ language: next })
+  },
+  toggleLanguage: () => {
+    const next = get().language === 'en' ? 'fr' : 'en'
+    if (typeof localStorage !== 'undefined') localStorage.setItem('royalbot_lang', next)
+    set({ language: next })
+  },
+
   // Platform settings
   platformSettings: null,
   fetchPlatformSettings: async () => {

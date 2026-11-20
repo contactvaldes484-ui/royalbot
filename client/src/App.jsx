@@ -1,6 +1,7 @@
 import React, { useEffect, Suspense, lazy } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import useStore from './store/useStore'
+import { applyLanguage } from './lib/i18n'
 import { Loader2 } from 'lucide-react'
 
 // Layout (kept eager — needed on every page)
@@ -99,12 +100,17 @@ function PublicLayout({ children }) {
 }
 
 export default function App() {
-  const { theme, fetchUser, isAuthenticated, connectWS, disconnectWS, fetchPlatformSettings } = useStore()
+  const { theme, language, fetchUser, isAuthenticated, connectWS, disconnectWS, fetchPlatformSettings } = useStore()
 
   // Apply theme on mount
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
   }, [theme])
+
+  // Apply language translation across entire platform
+  useEffect(() => {
+    applyLanguage(language)
+  }, [language])
 
   // Fetch platform settings on mount (public, no auth)
   useEffect(() => {

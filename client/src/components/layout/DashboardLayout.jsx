@@ -10,7 +10,7 @@ import {
 
 export default function DashboardLayout() {
   const [collapsed, setCollapsed] = useState(false)
-  const { user, isAuthenticated, logout, theme, toggleTheme, platformSettings } = useStore()
+  const { user, isAuthenticated, logout, theme, toggleTheme, language, toggleLanguage, platformSettings } = useStore()
   const location = useLocation()
   const pName = platformSettings?.platformName || 'RoyalBot'
   const pLogo = platformSettings?.logoUrl
@@ -152,6 +152,10 @@ export default function DashboardLayout() {
             {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             {!collapsed && <span>Thème</span>}
           </button>
+          <button onClick={toggleLanguage} className={`flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold hover:bg-accent ${collapsed ? 'justify-center px-2' : ''}`}>
+            <span>{language === 'en' ? '🇬🇧' : '🇫🇷'}</span>
+            {!collapsed && <span>{language === 'en' ? 'English (EN)' : 'Français (FR)'}</span>}
+          </button>
           <button onClick={logout} className={`flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-destructive hover:bg-accent ${collapsed ? 'justify-center px-2' : ''}`}>
             <LogOut className="h-4 w-4" />
             {!collapsed && <span>Déconnexion</span>}
@@ -173,6 +177,12 @@ export default function DashboardLayout() {
             )}
             <span className="font-bold gradient-text">{pName}</span>
           </Link>
+          <button
+            onClick={toggleLanguage}
+            className="px-2.5 py-1 rounded-md border border-border text-xs font-bold hover:bg-accent"
+          >
+            {language === 'en' ? '🇬🇧 EN' : '🇫🇷 FR'}
+          </button>
         </div>
 
         {/* Mobile bottom nav */}

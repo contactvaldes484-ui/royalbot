@@ -7,7 +7,7 @@ import {
   TrendingUp, TrendingDown, HelpCircle, BarChart3, Bot, ChevronRight,
   ChevronDown, Cpu, Zap, Activity
 } from 'lucide-react'
-import { adminDerivAPI } from '../../lib/api'
+import { adminDerivAPI, derivAPI } from '../../lib/api'
 
 // Marchés Synthétiques Deriv
 const SYNTHETIC_MARKETS = [
@@ -245,6 +245,102 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
   const [showAiModal, setShowAiModal] = useState(false)
   const [aiPrompt, setAiPrompt] = useState('')
   const [aiGenerating, setAiGenerating] = useState(false)
+
+  // Test réel sur compte Démo Deriv & Reset état initial
+  const [demoAccounts, setDemoAccounts] = useState([])
+  const [selectedDemoId, setSelectedDemoId] = useState('')
+  const [demoSession, setDemoSession] = useState(null)
+  const [demoLoading, setDemoLoading] = useState(false)
+  const [resettingInitial, setResettingInitial] = useState(false)
+
+  useEffect(() => {
+    derivAPI.getAccounts().then(res => {
+      const list = res.data?.accounts || []
+      setDemoAccounts(list)
+      const demo = list.find(a => a.isDemo) || list[0]
+      if (demo) setSelectedDemoId(demo._id)
+    }).catch(() => {})
+  }, [])
+
+  async function handleTestOnDemo() {
+    if (!selectedDemoId) return alert('Veuillez d\'abord connecter un compte Démo Deriv dans SmartTrader.')
+    if (!initialBot?._id) return alert('Publiez ou sélectionnez d\'abord un robot existant pour le tester sur votre solde Démo Deriv.')
+    setDemoLoading(true)
+    try {
+      const res = await derivAPI.startSession({
+        accountId: selectedDemoId,
+        botId: initialBot._id,
+        settings: {
+          symbol: selectedMarket,
+          initialStake: parseFloat(stake) || 0.5,
+          takeProfit: parseFloat(takeProfit) || 10,
+          stopLoss: parseFloat(stopLoss) || 20,
+          martingaleEnabled,
+          martingaleMultiplier: parseFloat(martingaleFactor) || 2,
+          duration: parseInt(duration, 10) || 1,
+          durationUnit: durationUnit === 'Ticks' ? 't' : 'm',
+          barrier: barrier !== undefined && barrier !== '' ? barrier : undefined,
+          virtualHook: { enabled: vhEnabled, trigger: vhTrigger, startWhen: vhStartWhen, stake: vhStake },
+        },
+      })
+      if (res.data?.session) {
+        setDemoSession(res.data.session)
+      }
+    } catch (err) {
+      alert(err.response?.data?.error || err.message)
+    } finally {
+      setDemoLoading(false)
+    }
+  }
+
+  async function handleStopDemoTest() {
+    if (!demoSession?._id) return
+    setDemoLoading(true)
+    try {
+      await derivAPI.stopSession(demoSession._id)
+      setDemoSession(null)
+      const accRes = await derivAPI.getAccounts().catch(() => null)
+      if (accRes?.data?.accounts) setDemoAccounts(accRes.data.accounts)
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setDemoLoading(false)
+    }
+  }
+
+  async function handleResetToInitial() {
+    if (!initialBot?._id) return
+    if (!confirm(`Revenir à l'état initial du robot « ${initialBot.name} » et enregistrer ?`)) return
+    setResettingInitial(true)
+    try {
+      const { data } = await adminDerivAPI.resetBotToInitial(initialBot._id)
+      if (data?.bot) {
+        const b = data.bot
+        if (b.fileContent) {
+          loadBotFromFileContent(b.fileContent, b.fileName || `${b.name}.xml`)
+        } else {
+          preserveRawXmlRef.current = false
+          if (b.name) setBotName(b.name)
+          if (b.symbols?.[0]) setSelectedMarket(b.symbols[0])
+          if (b.contractType) setContractType(b.contractType)
+          if (b.defaultSettings) {
+            setStake(String(b.defaultSettings.initialStake || 1))
+            setTakeProfit(String(b.defaultSettings.takeProfit || 50))
+            setStopLoss(String(b.defaultSettings.stopLoss || 20))
+            setMartingaleFactor(String(b.defaultSettings.martingaleMultiplier || 2))
+            setDuration(String(b.defaultSettings.duration || 1))
+            if (b.defaultSettings.barrier !== undefined) setBarrier(String(b.defaultSettings.barrier))
+          }
+        }
+        if (onBotPublished) onBotPublished()
+        alert(data.message || 'Robot restauré à son état initial !')
+      }
+    } catch (err) {
+      alert(err.response?.data?.error || err.message)
+    } finally {
+      setResettingInitial(false)
+    }
+  }
 
   const fileInputRef = useRef(null)
   const simTimerRef = useRef(null)
@@ -798,15 +894,69 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Bouton Publier pour Utilisateurs */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Test Réel sur Solde Démo Deriv */}
+          {demoAccounts.length > 0 && initialBot?._id && (
+            <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1">
+              <select
+                value={selectedDemoId}
+                onChange={e => setSelectedDemoId(e.target.value)}
+                className="bg-transparent text-[11px] font-mono text-emerald-300 outline-none"
+              >
+                {demoAccounts.map(a => (
+                  <option key={a._id} value={a._id} className="bg-slate-900 text-white">
+                    {a.isDemo ? 'DÉMO' : 'RÉEL'} {a.loginId} (${Number(a.balance || 0).toFixed(2)})
+                  </option>
+                ))}
+              </select>
+              {!demoSession ? (
+                <button
+                  type="button"
+                  disabled={demoLoading}
+                  onClick={handleTestOnDemo}
+                  className="px-2 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Play className="w-3 h-3" />
+                  <span>{demoLoading ? '...' : 'Tester sur Démo Deriv'}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={demoLoading}
+                  onClick={handleStopDemoTest}
+                  className="px-2 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer animate-pulse"
+                >
+                  <Square className="w-3 h-3" />
+                  <span>Stop Test Démo</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Bouton Revenir à l'état initial */}
+          {initialBot?._id && (
+            <button
+              type="button"
+              disabled={resettingInitial}
+              onClick={handleResetToInitial}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-300 font-bold text-xs transition cursor-pointer"
+              title="Restaurer les paramètres et blocs initiaux du robot et enregistrer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${resettingInitial ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Revenir à l'état initial</span>
+            </button>
+          )}
+
+          {/* Bouton Enregistrer les modifications / Publier */}
           <button
             type="button"
             onClick={() => setShowPublishModal(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/30 transition cursor-pointer"
           >
             <UploadCloud className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Publier pour Utilisateurs</span>
+            <span className="hidden sm:inline">
+              {initialBot?._id ? 'Enregistrer les modifications' : 'Publier pour Utilisateurs'}
+            </span>
           </button>
         </div>
       </div>

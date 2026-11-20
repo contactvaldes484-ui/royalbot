@@ -11,7 +11,7 @@ import {
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
-  const { isAuthenticated, user, logout, theme, toggleTheme, platformSettings } = useStore()
+  const { isAuthenticated, user, logout, theme, toggleTheme, language, toggleLanguage, platformSettings } = useStore()
   const navigate = useNavigate()
   const pName = platformSettings?.platformName || 'RoyalBot'
   const pLogo = platformSettings?.logoUrl
@@ -63,6 +63,13 @@ export default function Navbar() {
 
         {/* Actions */}
         <div className="flex items-center gap-3">
+          <button
+            onClick={toggleLanguage}
+            className="px-2.5 py-1 rounded-md border border-border text-xs font-bold hover:bg-accent transition-colors"
+            title="Switch Language (FR / EN)"
+          >
+            {language === 'en' ? '🇬🇧 EN' : '🇫🇷 FR'}
+          </button>
           <button onClick={toggleTheme} className="p-2 rounded-md hover:bg-accent transition-colors">
             {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>

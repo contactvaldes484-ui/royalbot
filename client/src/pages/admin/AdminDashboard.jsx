@@ -2637,6 +2637,7 @@ export function AdminSettings() {
     binanceReferralLink: '',
     bybitReferralLink: '',
     freeTrialDays: 7,
+    freeTrialUnit: 'days',
     freeTrialEnabled: true,
     allRobotsFree: false,
     subscriptionsEnabled: true,
@@ -2702,6 +2703,7 @@ export function AdminSettings() {
             binanceReferralLink: s.binanceReferralLink || '',
             bybitReferralLink: s.bybitReferralLink || '',
             freeTrialDays: s.freeTrialDays !== undefined ? s.freeTrialDays : 7,
+            freeTrialUnit: s.freeTrialUnit || 'days',
             freeTrialEnabled: s.freeTrialEnabled !== undefined ? s.freeTrialEnabled : true,
             allRobotsFree: s.allRobotsFree !== undefined ? s.allRobotsFree : false,
             subscriptionsEnabled: s.subscriptionsEnabled !== undefined ? s.subscriptionsEnabled : true,
@@ -3595,20 +3597,31 @@ export function AdminSettings() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium mb-1.5 block">Durée de l'essai gratuit (jours)</label>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="365"
-                        value={form.freeTrialDays}
-                        onChange={e => {
-                          const parsed = parseInt(e.target.value, 10)
-                          const val = isNaN(parsed) ? 0 : Math.max(0, parsed)
-                          update('freeTrialDays', val)
-                          update('derivTrialDays', val)
-                          if (val === 0) update('freeTrialEnabled', false)
-                        }}
-                        className="font-mono text-xs"
-                      />
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min="0"
+                          max="10080"
+                          value={form.freeTrialDays}
+                          onChange={e => {
+                            const parsed = parseInt(e.target.value, 10)
+                            const val = isNaN(parsed) ? 0 : Math.max(0, parsed)
+                            update('freeTrialDays', val)
+                            update('derivTrialDays', val)
+                            if (val === 0) update('freeTrialEnabled', false)
+                          }}
+                          className="font-mono text-xs flex-1"
+                        />
+                        <select
+                          value={form.freeTrialUnit || 'days'}
+                          onChange={e => update('freeTrialUnit', e.target.value)}
+                          className="h-9 px-2.5 rounded-md border border-input bg-background text-xs font-semibold"
+                        >
+                          <option value="minutes">Minutes</option>
+                          <option value="hours">Heures</option>
+                          <option value="days">Jours</option>
+                        </select>
+                      </div>
                       <div className="flex items-center justify-between gap-2 mt-1.5">
                         <p className="text-[10px] text-muted-foreground">
                           Appliqué aux robots Deriv SmartTrader, Binance et Bybit (0 = supprimé).

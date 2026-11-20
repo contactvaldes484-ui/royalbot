@@ -98,6 +98,20 @@ router.post('/bots/upload-file', async (req, res) => {
       fileType: parsed.fileType,
       fileContent: fileContent,
       parsedLogic: parsed.parsedLogic,
+      initialSnapshot: {
+        name: botName,
+        contractType: parsed.contractType,
+        symbols: parsed.symbols,
+        strategyType: 'file_custom',
+        defaultSettings: cleanDefaultSettings,
+        winRate: parsed.winRate || '80-86%',
+        badge: parsed.fileType === 'json' ? 'Fichier Bot JSON' : 'Fichier Bot XML',
+        description: customDescription || parsed.description,
+        fileName: parsed.fileName,
+        fileType: parsed.fileType,
+        fileContent,
+        parsedLogic: parsed.parsedLogic,
+      },
     });
 
     res.status(201).json({ success: true, bot, message: `Robot Deriv « ${bot.name} » créé avec succès à partir du fichier.` });
@@ -108,9 +122,61 @@ router.post('/bots/upload-file', async (req, res) => {
 
 router.put('/bots/:id', async (req, res) => {
   try {
-    const bot = await fallbackStore.updateDerivBot(req.params.id, req.body);
-    if (!bot) return res.status(404).json({ error: 'Robot introuvable.' });
+    const existing = await fallbackStore.findDerivBotById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Robot introuvable.' });
+
+    const updates = { ...req.body };
+    // Sauvegarder l'état initial automatiquement avant la 1ère modification si absent
+    if (!existing.initialSnapshot) {
+      updates.initialSnapshot = {
+        name: existing.name,
+        contractType: existing.contractType,
+        symbols: existing.symbols,
+        strategyType: existing.strategyType,
+        defaultSettings: existing.defaultSettings,
+        winRate: existing.winRate,
+        badge: existing.badge,
+        description: existing.description,
+        fileName: existing.fileName,
+        fileType: existing.fileType,
+        fileContent: existing.fileContent || '',
+        parsedLogic: existing.parsedLogic || {},
+      };
+    }
+
+    const bot = await fallbackStore.updateDerivBot(req.params.id, updates);
     res.json({ success: true, bot });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Revenir à l'état initial du robot et enregistrer immédiatement
+router.post('/bots/:id/reset-initial', async (req, res) => {
+  try {
+    const existing = await fallbackStore.findDerivBotById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Robot introuvable.' });
+    if (!existing.initialSnapshot) {
+      return res.status(400).json({ error: 'Aucune sauvegarde initiale disponible pour ce robot (il est déjà à son état initial).' });
+    }
+
+    const snap = existing.initialSnapshot;
+    const restored = await fallbackStore.updateDerivBot(req.params.id, {
+      name: snap.name,
+      contractType: snap.contractType,
+      symbols: snap.symbols,
+      strategyType: snap.strategyType,
+      defaultSettings: snap.defaultSettings,
+      winRate: snap.winRate,
+      badge: snap.badge,
+      description: snap.description,
+      fileName: snap.fileName,
+      fileType: snap.fileType,
+      fileContent: snap.fileContent || '',
+      parsedLogic: snap.parsedLogic || {},
+    });
+
+    res.json({ success: true, bot: restored, message: `Robot « ${restored.name} » restauré à son état initial avec succès !` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

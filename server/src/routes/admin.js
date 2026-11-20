@@ -607,7 +607,7 @@ router.put('/settings', async (req, res) => {
       'bybitReferralLink', 'bybitAffiliateCode',
       'derivReferralLink', 'derivPartnerId', 'derivAppId', 'derivWsUrl', 'derivTrialDays',
       'derivBotBuilderEnabled',
-      'freeTrialDays', 'freeTrialEnabled', 'allRobotsFree', 'subscriptionsEnabled',
+      'freeTrialDays', 'freeTrialUnit', 'freeTrialEnabled', 'allRobotsFree', 'subscriptionsEnabled',
       'usdtTronAddress', 'trongridApiKey',
       'binancePayId', 'binancePayMerchantId', 'binancePayApiKey', 'binancePaySecretKey', 'binancePayEmail',
       'sebpayBaseUrl', 'sebpayPublicKey', 'sebpaySecretKey',
