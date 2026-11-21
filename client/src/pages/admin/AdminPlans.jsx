@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
@@ -113,8 +113,15 @@ export default function AdminPlans() {
 
   useEffect(() => { load() }, [])
 
-  const startCreate = () => setEditing(emptyPlan())
-  const startEdit = (plan) => setEditing({ ...plan, highlights: plan.highlights || [], features: plan.features || {} })
+  const formRef = useRef(null)
+  const startCreate = () => {
+    setEditing(emptyPlan())
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
+  }
+  const startEdit = (plan) => {
+    setEditing({ ...plan, highlights: plan.highlights || [], features: plan.features || {} })
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
+  }
   const cancelEdit = () => setEditing(null)
 
   const submitPlan = async (e) => {
@@ -455,7 +462,7 @@ export default function AdminPlans() {
       )}
 
       {editing && (
-        <Card className="border-violet-500/40">
+        <Card ref={formRef} className="border-violet-500/40">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">{editing._id ? 'Modifier le plan' : 'Nouveau plan'}</CardTitle>

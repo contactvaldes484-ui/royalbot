@@ -140,7 +140,7 @@ router.post('/plans/:id/toggle-free', handleToggleFree);
 router.put('/plans/:id/toggle-free', handleToggleFree);
 
 // Quick toggle Referral Activation
-router.post('/plans/:id/toggle-referral', async (req, res) => {
+const handleToggleReferral = async (req, res) => {
   try {
     const plan = await SubscriptionPlan.findById(req.params.id);
     if (!plan) return res.status(404).json({ error: 'Plan introuvable.' });
@@ -149,10 +149,12 @@ router.post('/plans/:id/toggle-referral', async (req, res) => {
     await planCache.refreshCache();
     res.json({ success: true, plan });
   } catch (err) { res.status(500).json({ error: err.message }); }
-});
+};
+router.post('/plans/:id/toggle-referral', handleToggleReferral);
+router.put('/plans/:id/toggle-referral', handleToggleReferral);
 
 // Quick toggle Paid Subscription Activation
-router.post('/plans/:id/toggle-payment', async (req, res) => {
+const handleTogglePayment = async (req, res) => {
   try {
     const plan = await SubscriptionPlan.findById(req.params.id);
     if (!plan) return res.status(404).json({ error: 'Plan introuvable.' });
@@ -161,7 +163,9 @@ router.post('/plans/:id/toggle-payment', async (req, res) => {
     await planCache.refreshCache();
     res.json({ success: true, plan });
   } catch (err) { res.status(500).json({ error: err.message }); }
-});
+};
+router.post('/plans/:id/toggle-payment', handleTogglePayment);
+router.put('/plans/:id/toggle-payment', handleTogglePayment);
 
 // Delete plan (désactive les anciens abonnements liés pour permettre la suppression)
 router.delete('/plans/:id', async (req, res) => {

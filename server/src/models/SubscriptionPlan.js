@@ -23,8 +23,8 @@ const subscriptionPlanSchema = new mongoose.Schema({
   temporaryFreeUntil: { type: Date }, // Période de gratuité temporaire configurable
 
   // Category & Platform separation
-  category: { type: String, enum: ['crypto', 'deriv', 'all'], default: 'deriv', index: true },
-  broker: { type: String, enum: ['binance_bybit', 'deriv', 'all'], default: 'all' },
+  category: { type: String, default: 'deriv', index: true },
+  broker: { type: String, default: 'all' },
   referralEligible: { type: Boolean, default: true }, // Can be unlocked for free via referral
   referralUnlockNote: { type: String, default: 'Ou gratuit à vie en vous inscrivant avec notre lien partenaire' },
   allowPaidSubscription: { type: Boolean, default: true }, // Can be purchased via monthly paid subscription
