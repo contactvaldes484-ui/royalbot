@@ -71,7 +71,11 @@ router.post('/plans', async (req, res) => {
     const existing = await SubscriptionPlan.findOne({ slug });
     if (existing) return res.status(409).json({ error: 'Slug déjà utilisé.' });
 
-    const plan = await SubscriptionPlan.create(req.body);
+    const payload = { ...req.body };
+    if (payload.temporaryFreeUntil === '') payload.temporaryFreeUntil = null;
+    if (!payload.broker) payload.broker = 'all';
+
+    const plan = await SubscriptionPlan.create(payload);
     await planCache.refreshCache();
     if (plan.isActive !== false && !plan.isFree && Number(plan.priceMonthly) > 0) {
       await resetTrialForAllDerivAccounts();
@@ -86,6 +90,8 @@ router.post('/plans', async (req, res) => {
 router.put('/plans/:id', async (req, res) => {
   try {
     const update = { ...req.body };
+    if (update.temporaryFreeUntil === '') update.temporaryFreeUntil = null;
+    if (!update.broker) update.broker = 'all';
     delete update._id;
     delete update.createdAt;
     delete update.updatedAt;
