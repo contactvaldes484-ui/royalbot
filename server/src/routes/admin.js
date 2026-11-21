@@ -883,7 +883,7 @@ router.put('/wallet/fee', async (req, res) => {
 
 router.post('/wallet/withdraw', async (req, res) => {
   try {
-    const { amount, phoneNumber, operator, country = 'CI', currency = 'XOF' } = req.body;
+    const { amount, phoneNumber, operator, country = 'CM', currency = 'XAF' } = req.body;
     const grossAmount = Number(amount);
     if (!grossAmount || grossAmount <= 0) {
       return res.status(400).json({ error: 'Montant invalide.' });

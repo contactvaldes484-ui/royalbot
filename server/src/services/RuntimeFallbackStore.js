@@ -525,7 +525,7 @@ class RuntimeFallbackStore {
       ikeepayEnabled: false,
       ikeepayPublicKey: '',
       ikeepaySecretKey: '',
-      ikeepayCurrency: 'XOF',
+      ikeepayCurrency: 'XAF',
       adminWithdrawalFeePercent: 6,
       binanceRobotsPublicEnabled: false,
       bybitRobotsPublicEnabled: false,

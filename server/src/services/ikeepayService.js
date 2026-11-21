@@ -12,7 +12,7 @@ async function getCredentials() {
   let pub = process.env.IKEEPAY_PUBLIC_KEY;
   let sec = process.env.IKEEPAY_SECRET_KEY;
   let enabled = process.env.IKEEPAY_ENABLED === 'true';
-  let currency = process.env.IKEEPAY_CURRENCY || 'XOF';
+  let currency = process.env.IKEEPAY_CURRENCY || 'XAF';
 
   try {
     const s = await fallbackStore.getSettings();
@@ -28,7 +28,7 @@ async function getCredentials() {
     publicKey: String(pub || '').trim(),
     secretKey: String(sec || '').trim(),
     enabled: Boolean(enabled && (sec || pub)),
-    currency: currency || 'XOF',
+    currency: currency || 'XAF',
   };
 }
 
@@ -37,7 +37,7 @@ async function isConfigured() {
   return Boolean(creds.enabled && creds.secretKey);
 }
 
-function buildCheckoutUrl({ publicKey, amount, currency = 'XOF', orderId, redirectUrl = '' }) {
+function buildCheckoutUrl({ publicKey, amount, currency = 'XAF', orderId, redirectUrl = '' }) {
   const params = new URLSearchParams({
     pk: String(publicKey),
     amount: String(amount),
@@ -53,8 +53,8 @@ function buildCheckoutUrl({ publicKey, amount, currency = 'XOF', orderId, redire
  */
 async function initPayin({
   amount,
-  currency = 'XOF',
-  country = 'CI',
+  currency = 'XAF',
+  country = 'CM',
   phoneNumber,
   operator,
   externalReference,
@@ -68,8 +68,8 @@ async function initPayin({
 
   const payload = {
     amount: Number(amount),
-    currency: String(currency || creds.currency || 'XOF').toUpperCase(),
-    country: String(country || 'CI').toUpperCase(),
+    currency: String(currency || creds.currency || 'XAF').toUpperCase(),
+    country: String(country || 'CM').toUpperCase(),
     phoneNumber: String(phoneNumber || '').replace(/[^\d]/g, ''),
     operator: String(operator || 'ORANGE').toUpperCase(),
     external_reference: String(externalReference),
@@ -109,8 +109,8 @@ async function initPayin({
  */
 async function initPayout({
   amount,
-  currency = 'XOF',
-  country = 'CI',
+  currency = 'XAF',
+  country = 'CM',
   phoneNumber,
   operator,
   externalReference,
@@ -122,8 +122,8 @@ async function initPayout({
 
   const payload = {
     amount: Number(amount),
-    currency: String(currency || creds.currency || 'XOF').toUpperCase(),
-    country: String(country || 'CI').toUpperCase(),
+    currency: String(currency || creds.currency || 'XAF').toUpperCase(),
+    country: String(country || 'CM').toUpperCase(),
     phoneNumber: String(phoneNumber || '').replace(/[^\d]/g, ''),
     operator: String(operator || 'ORANGE').toUpperCase(),
     external_reference: String(externalReference),

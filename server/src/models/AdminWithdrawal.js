@@ -6,7 +6,7 @@ const AdminWithdrawalSchema = new mongoose.Schema({
   feePercent: { type: Number, default: 6 },
   feeAmount: { type: Number, required: true, min: 0 },
   netAmount: { type: Number, required: true, min: 0.01 },
-  currency: { type: String, default: 'XOF' },
+  currency: { type: String, default: 'XAF' },
   country: { type: String, default: 'CI' },
   phoneNumber: { type: String, required: true },
   operator: { type: String, required: true },

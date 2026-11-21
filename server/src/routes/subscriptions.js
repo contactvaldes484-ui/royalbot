@@ -183,7 +183,7 @@ router.post('/subscribe', authenticate, subscribeLimiter, async (req, res) => {
         try {
           const payin = await ikeepayService.initPayin({
             amount,
-            currency: ikeepayCreds.currency || plan.currency || 'XOF',
+            currency: ikeepayCreds.currency || plan.currency || 'XAF',
             country: ctry,
             phoneNumber: phone,
             operator: op,
@@ -201,7 +201,7 @@ router.post('/subscribe', authenticate, subscribeLimiter, async (req, res) => {
             paymentLink: payin.paymentLink || undefined,
             checkoutUrl: payin.paymentLink || undefined,
             amount,
-            currency: ikeepayCreds.currency || 'XOF',
+            currency: ikeepayCreds.currency || 'XAF',
             message: payin.paymentLink
               ? 'Lien de paiement Wave/Orange généré. Finalisez le paiement.'
               : 'Demande de paiement iKeePay H2H envoyée. Confirmez sur votre téléphone.',
@@ -217,7 +217,7 @@ router.post('/subscribe', authenticate, subscribeLimiter, async (req, res) => {
       const checkoutUrl = ikeepayService.buildCheckoutUrl({
         publicKey: ikeepayCreds.publicKey,
         amount,
-        currency: ikeepayCreds.currency || plan.currency || 'XOF',
+        currency: ikeepayCreds.currency || plan.currency || 'XAF',
         orderId,
         redirectUrl: req.body.redirectUrl || '',
       });
@@ -228,7 +228,7 @@ router.post('/subscribe', authenticate, subscribeLimiter, async (req, res) => {
         checkoutUrl,
         publicKey: ikeepayCreds.publicKey,
         amount,
-        currency: ikeepayCreds.currency || 'XOF',
+        currency: ikeepayCreds.currency || 'XAF',
         message: 'Tunnel de paiement iKeePay prêt.',
         pendingValidation: true,
       });

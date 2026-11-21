@@ -1712,7 +1712,7 @@ export function AdminRevenue() {
   const [wallet, setWallet] = useState(null)
   const [feeInput, setFeeInput] = useState(6)
   const [savingFee, setSavingFee] = useState(false)
-  const [withdrawForm, setWithdrawForm] = useState({ amount: '', phoneNumber: '', operator: 'ORANGE', country: 'CI', currency: 'XOF' })
+  const [withdrawForm, setWithdrawForm] = useState({ amount: '', phoneNumber: '', operator: 'ORANGE', country: 'CM', currency: 'XAF' })
   const [withdrawing, setWithdrawing] = useState(false)
   const [walletMsg, setWalletMsg] = useState('')
   const [period, setPeriod] = useState('30d')
@@ -1900,8 +1900,8 @@ export function AdminRevenue() {
                 onChange={e => setWithdrawForm({ ...withdrawForm, currency: e.target.value })}
                 className="w-full h-9 px-2 rounded-md text-xs bg-slate-900 border border-slate-700 text-white font-mono"
               >
-                <option value="XOF">XOF</option>
                 <option value="XAF">XAF</option>
+                <option value="XOF">XOF</option>
                 <option value="USD">USD</option>
               </select>
             </div>
@@ -2742,7 +2742,7 @@ export function AdminSettings() {
             ikeepayEnabled: s.ikeepayEnabled !== undefined ? s.ikeepayEnabled : false,
             ikeepayPublicKey: s.ikeepayPublicKey || '',
             ikeepaySecretKey: s.ikeepaySecretKey || '',
-            ikeepayCurrency: s.ikeepayCurrency || 'XOF',
+            ikeepayCurrency: s.ikeepayCurrency || 'XAF',
             binanceRobotsPublicEnabled: s.binanceRobotsPublicEnabled !== undefined ? s.binanceRobotsPublicEnabled : false,
             bybitRobotsPublicEnabled: s.bybitRobotsPublicEnabled !== undefined ? s.bybitRobotsPublicEnabled : false,
             aiScannerUrl: s.aiScannerUrl || 'https://tradingkit.com/',
@@ -3441,15 +3441,16 @@ export function AdminSettings() {
                     Devise de paiement iKeePay
                   </label>
                   <select
-                    value={form.ikeepayCurrency || 'USD'}
+                    value={form.ikeepayCurrency || 'XAF'}
                     onChange={e => update('ikeepayCurrency', e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-slate-950 text-white text-xs font-mono"
                   >
+                    <option value="XAF">XAF (Franc CFA CEMAC)</option>
+                    <option value="XOF">XOF (Franc CFA UEMOA)</option>
                     <option value="USD">USD ($)</option>
-                    <option value="XOF">XOF (Franc CFA)</option>
                   </select>
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    Devise envoyée au tunnel de paiement iKeePay (défaut : USD).
+                    Devise envoyée au tunnel de paiement iKeePay (défaut : XAF).
                   </p>
                 </div>
               </div>
