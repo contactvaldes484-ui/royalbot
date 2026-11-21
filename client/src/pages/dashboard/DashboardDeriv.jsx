@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
-import { derivAPI, settingsAPI } from '../../lib/api'
+import { derivAPI, settingsAPI, subscriptionAPI } from '../../lib/api'
 import { startDerivOAuth } from '../../lib/derivOAuth'
 import useStore from '../../store/useStore'
 import ManualTradingWorkstation from '../../components/deriv/ManualTradingWorkstation'
@@ -23,6 +24,8 @@ export default function DashboardDeriv() {
   const [bots, setBots] = useState([])
   const [sessions, setSessions] = useState([])
   const [trades, setTrades] = useState([])
+  const [plans, setPlans] = useState([])
+  const [nowTs, setNowTs] = useState(Date.now())
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -65,12 +68,38 @@ export default function DashboardDeriv() {
   const isAdmin = isOwner || user?.role === 'admin' || user?.role === 'super_admin'
   const isBotBuilderVisible = settings?.derivBotBuilderEnabled !== false
   const liveTradesRef = useRef(null)
+  const hasActivePaidPlanCatalog =
+    settings?.subscriptionsEnabled !== false &&
+    !settings?.allRobotsFree &&
+    plans.some(p => p.isActive !== false && !p.isFree && p.allowPaidSubscription !== false && Number(p.priceMonthly) > 0)
   const freeTrialActiveGlobal = settings ? (settings.freeTrialEnabled !== false && Number(settings.derivTrialDays ?? settings.freeTrialDays ?? 7) > 0) : true
-  const isTrialValid = isOwner || (freeTrialActiveGlobal && selectedAccount?.isTrialValid !== false)
+  const rawTrialValid = selectedAccount?.trialExpiresAt
+    ? new Date(selectedAccount.trialExpiresAt).getTime() > nowTs
+    : selectedAccount?.isTrialValid !== false
+  const isTrialValid = isOwner || (freeTrialActiveGlobal && rawTrialValid)
   const trialDays = isOwner ? 9999 : (freeTrialActiveGlobal ? (selectedAccount?.trialDaysRemaining ?? 7) : 0)
   const isAffiliated = selectedAccount?.affiliateVerified === true
   const hasPaidPlan = isAdmin || user?.subscription?.plan?.startsWith('deriv') || user?.subscription?.plan === 'vip' || user?.subscription?.plan === 'institutional' || (user?.subscription?.isActive && user?.subscription?.plan !== 'free')
-  const canRunRobots = isAdmin || isTrialValid || isAffiliated || hasPaidPlan
+  const canRunRobots = !hasActivePaidPlanCatalog || isAdmin || isTrialValid || isAffiliated || hasPaidPlan
+
+  const trialCountdownText = React.useMemo(() => {
+    if (!selectedAccount?.trialExpiresAt) return `${trialDays}j`
+    const diff = Math.max(0, new Date(selectedAccount.trialExpiresAt).getTime() - nowTs)
+    if (diff <= 0) return '0s (Expiré)'
+    const d = Math.floor(diff / 86400000)
+    const h = Math.floor((diff % 86400000) / 3600000)
+    const m = Math.floor((diff % 3600000) / 60000)
+    const s = Math.floor((diff % 60000) / 1000)
+    if (d > 0) return `${d}j ${h}h ${m}m ${s}s`
+    if (h > 0) return `${h}h ${m}m ${s}s`
+    return `${m}m ${s}s`
+  }, [selectedAccount?.trialExpiresAt, nowTs, trialDays])
+
+  useEffect(() => {
+    if (!hasActivePaidPlanCatalog || !selectedAccount?.trialExpiresAt) return
+    const timer = setInterval(() => setNowTs(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [hasActivePaidPlanCatalog, selectedAccount?.trialExpiresAt])
 
   const allTrades = React.useMemo(() => {
     const map = new Map()
@@ -123,12 +152,14 @@ export default function DashboardDeriv() {
   async function loadData(forceRefresh = false) {
     setLoading(true)
     try {
-      const [accRes, botsRes, sessRes, tradesRes] = await Promise.all([
+      const [accRes, botsRes, sessRes, tradesRes, plansRes] = await Promise.all([
         derivAPI.getAccounts(forceRefresh ? { refresh: 1 } : undefined),
         derivAPI.getBots(),
         derivAPI.getSessions(),
         derivAPI.getTrades(),
+        subscriptionAPI.getPlans().catch(() => ({ data: { plans: [] } })),
       ])
+      setPlans(plansRes?.data?.plans || [])
       const fetchedAccounts = accRes.data?.accounts || []
       setAccounts(fetchedAccounts)
       if (fetchedAccounts.length && !selectedAccountId) {
@@ -292,23 +323,36 @@ export default function DashboardDeriv() {
       <div className="rounded-2xl p-6 bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-950 border border-emerald-500/30 shadow-xl relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
               <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
                 Pôle Deriv SmartTrader
               </Badge>
-              {isTrialValid && (
-                <Badge variant="outline" className="text-amber-400 border-amber-500/40 flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> Essai gratuit : {trialDays} jour(s) restant(s)
+              {!hasActivePaidPlanCatalog ? (
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" /> Accès 100% Gratuit
                 </Badge>
+              ) : (
+                <>
+                  {isTrialValid && !isAffiliated && !hasPaidPlan && !isAdmin && (
+                    <Badge variant="outline" className="text-amber-400 border-amber-500/40 flex items-center gap-1 font-mono">
+                      <Clock className="w-3 h-3" /> Free Trial : {trialCountdownText}
+                    </Badge>
+                  )}
+                  {!isTrialValid && !isAffiliated && !hasPaidPlan && !isAdmin && (
+                    <Badge className="bg-rose-500/20 text-rose-300 border-rose-500/40 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> Free Trial expiré
+                    </Badge>
+                  )}
+                </>
               )}
               {isAffiliated && (
                 <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-500/40 flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3" /> Affilié Partenaire (Accès Gratuit Illimité)
+                  <ShieldCheck className="w-3 h-3" /> Affilié Partenaire (Accès Gratuit à Vie)
                 </Badge>
               )}
               {hasPaidPlan && (
                 <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/40">
-                  Abonnement Pro Actif
+                  Abonnement Actif
                 </Badge>
               )}
             </div>
@@ -367,12 +411,12 @@ export default function DashboardDeriv() {
                 <li><strong>Option 2 (100% Gratuit à vie) :</strong> Créez un nouveau compte Deriv via notre lien de parrainage et connectez-vous <strong>toujours avec ce compte partenaire</strong>.</li>
               </ul>
               <div className="flex flex-wrap gap-2 pt-1">
-                <a
-                  href="/dashboard/pricing"
+                <Link
+                  to="/dashboard/subscription"
                   className="inline-block text-xs font-bold text-white bg-emerald-600 px-3 py-1.5 rounded-lg hover:bg-emerald-500"
                 >
-                  Payer l'Abonnement Mensuel
-                </a>
+                  Payer l&apos;Abonnement (Mensuel / Annuel)
+                </Link>
                 {settings?.derivReferralLink && (
                   <a
                     href={settings.derivReferralLink}
