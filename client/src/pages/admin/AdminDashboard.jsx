@@ -47,7 +47,7 @@ export function AdminLayout() {
     { icon: Gift,            label: 'Plans & Tarifs',  href: '/admin/plans', badge: null },
     { icon: CreditCard,      label: 'Abonnements',     href: '/admin/subscriptions', badge: null },
     { icon: Coins,           label: 'Commandes',       href: '/admin/orders', badge: null },
-    { icon: BarChart3,       label: 'Revenus',         href: '/admin/revenue', badge: null },
+    { icon: Wallet,          label: 'Portefeuille & Revenus', href: '/admin/revenue', badge: 'iKeePay' },
     { icon: Shield,          label: 'Sécurité',        href: '/admin/security', badge: null },
     { icon: Bell,            label: 'Notifications',   href: '/admin/notifications', badge: null },
     { icon: MessageCircle,    label: 'Groupes VIP',     href: '/admin/groups', badge: null },
@@ -428,14 +428,19 @@ export function AdminReviews() {
 // â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 export default function AdminOverview() {
   const [stats, setStats] = useState(null)
+  const [wallet, setWallet] = useState(null)
   const [loading, setLoading] = useState(true)
   const { user } = useStore()
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const { data } = await adminAPI.getStats()
+        const [{ data }, walletRes] = await Promise.all([
+          adminAPI.getStats(),
+          adminAPI.getWallet().catch(() => ({ data: null })),
+        ])
         setStats(data)
+        if (walletRes?.data) setWallet(walletRes.data)
       } catch (err) {
         console.error('Admin stats error:', err)
       } finally { setLoading(false) }
@@ -474,7 +479,12 @@ export default function AdminOverview() {
             Voici un aperÃ§u de votre plateforme Â· <span className="text-xs">{now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Link to="/admin/revenue">
+            <Button size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white">
+              <Wallet className="h-4 w-4" /> Portefeuille Admin
+            </Button>
+          </Link>
           <Link to="/admin/users">
             <Button variant="outline" size="sm" className="gap-2"><Users className="h-4 w-4" /> Utilisateurs</Button>
           </Link>
@@ -489,6 +499,28 @@ export default function AdminOverview() {
           </Link>
         </div>
       </div>
+
+      {/* Portefeuille Admin Abonnements (accès direct depuis Vue d'ensemble) */}
+      <Card className="border-emerald-500/30 bg-emerald-500/5">
+        <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <Wallet className="h-5 w-5 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-sm font-bold">Portefeuille Abonnements &amp; Retrait Direct iKeePay</p>
+              <p className="text-xs text-muted-foreground">
+                Solde disponible : <span className="font-bold text-emerald-400">{formatCurrency(wallet?.availableBalance || 0)}</span> · Réduction retrait : <span className="font-semibold">{wallet?.feePercent ?? 6}%</span>
+              </p>
+            </div>
+          </div>
+          <Link to="/admin/revenue">
+            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 w-full sm:w-auto">
+              <Wallet className="h-4 w-4" /> Ouvrir le Portefeuille &amp; Retirer
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
 
       {/* KPI Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2710,14 +2742,15 @@ export function AdminSettings() {
             ikeepayEnabled: s.ikeepayEnabled !== undefined ? s.ikeepayEnabled : false,
             ikeepayPublicKey: s.ikeepayPublicKey || '',
             ikeepaySecretKey: s.ikeepaySecretKey || '',
-            ikeepayCurrency: s.ikeepayCurrency || 'USD',
+            ikeepayCurrency: s.ikeepayCurrency || 'XOF',
             binanceRobotsPublicEnabled: s.binanceRobotsPublicEnabled !== undefined ? s.binanceRobotsPublicEnabled : false,
             bybitRobotsPublicEnabled: s.bybitRobotsPublicEnabled !== undefined ? s.bybitRobotsPublicEnabled : false,
             aiScannerUrl: s.aiScannerUrl || 'https://tradingkit.com/',
           })
         }
       } catch (err) {
-        setMessage({ type: 'error', text: 'Impossible de charger les paramÃ¨tres.' })
+        const detail = err.response?.data?.error || err.message || 'Erreur réseau'
+        setMessage({ type: 'error', text: `Impossible de charger les paramètres (${detail}).` })
       } finally {
         setLoading(false)
       }
