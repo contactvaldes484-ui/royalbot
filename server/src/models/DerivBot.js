@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const DerivBotSchema = new mongoose.Schema({
   name:        { type: String, required: true, trim: true },
   slug:        { type: String, required: true, unique: true, lowercase: true, trim: true },
-  tier:        { type: String, enum: ['deriv-starter', 'deriv-pro', 'all'], default: 'all' },
+  tier:        { type: String, default: 'all', trim: true },
   description: { type: String, default: '' },
 
   // Type de contrat Deriv SmartTrader

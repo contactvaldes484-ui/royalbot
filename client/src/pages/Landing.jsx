@@ -409,7 +409,7 @@ export default function Landing() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen overflow-x-hidden w-full max-w-full">
       <SEO
         path="/"
         description="Plateforme de robots de trading crypto automatisés sur Binance (Spot & Futures). BTC, ETH, BNB, SOL. Trading automatique, signaux en direct, analytics avancés."
@@ -462,16 +462,16 @@ export default function Landing() {
               </motion.div>
 
               <motion.p variants={fadeUp} className="mt-4 text-sm text-slate-400 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
                 <span>Indices synthétiques actifs 24h/24 & 7j/7 sans interruption de week-end.</span>
               </motion.p>
             </motion.div>
 
             {/* Right: animated trading chart */}
             <motion.div
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.3 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
             >
               <TradingChart />
             </motion.div>
@@ -500,7 +500,7 @@ export default function Landing() {
       </section>
 
       {/* ── SECTION MARKETING : CHOIX LIBRE DES 3 ACTEURS ── */}
-      <section className="py-20 relative overflow-hidden bg-slate-950/60 border-y border-slate-800/80">
+      <section className="py-20 relative overflow-hidden bg-[#0B0E11] force-dark-surface border-y border-slate-800">
         <div className="container mx-auto px-4">
           <div className="text-center max-w-3xl mx-auto mb-14">
             <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 mb-3 px-3 py-1">
@@ -516,7 +516,7 @@ export default function Landing() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {/* CARTE 1 : DERIV EN AVANT (#1 RECOMMANDÉ) */}
-            <div className="p-8 rounded-3xl bg-slate-900/95 border-2 border-emerald-500 hover:border-emerald-400 transition-all shadow-2xl shadow-emerald-500/20 flex flex-col justify-between group hover:scale-[1.03] relative overflow-hidden ring-1 ring-emerald-500/50">
+            <div className="p-8 rounded-3xl bg-[#12161F] border-2 border-emerald-500 hover:border-emerald-400 transition-colors shadow-2xl shadow-emerald-500/10 flex flex-col justify-between group relative overflow-hidden ring-1 ring-emerald-500/50">
               <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[10px] font-black px-4 py-1.5 rounded-bl-xl uppercase tracking-wider">
                 Recommandé #1 · 7 Jours Gratuits
               </div>
@@ -564,7 +564,7 @@ export default function Landing() {
             </div>
 
             {/* CARTE 2 : BINANCE */}
-            <div className="p-8 rounded-3xl bg-slate-900/60 border border-slate-800 shadow-xl flex flex-col justify-between opacity-80">
+            <div className="p-8 rounded-3xl bg-[#12161F] border border-slate-800 shadow-xl flex flex-col justify-between">
               <div>
                 <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-6">
                   <span className="text-2xl font-black text-amber-400">BN</span>
@@ -597,7 +597,7 @@ export default function Landing() {
             </div>
 
             {/* CARTE 3 : BYBIT */}
-            <div className="p-8 rounded-3xl bg-slate-900/60 border border-slate-800 shadow-xl flex flex-col justify-between opacity-80">
+            <div className="p-8 rounded-3xl bg-[#12161F] border border-slate-800 shadow-xl flex flex-col justify-between">
               <div>
                 <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-6">
                   <span className="text-2xl font-black text-blue-400">BY</span>
@@ -856,16 +856,16 @@ export default function Landing() {
       {/* CTA */}
       <section className="py-20">
         <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto text-center bg-gradient-to-r from-blue-500/10 via-violet-500/10 to-purple-500/10 rounded-2xl p-12 border">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+          <div className="max-w-4xl mx-auto text-center bg-gradient-to-r from-blue-500/10 via-violet-500/10 to-purple-500/10 rounded-2xl p-6 sm:p-12 border overflow-hidden">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 break-words">
               Prêt à automatiser votre trading ?
             </h2>
-            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
               Rejoignez des milliers de traders qui utilisent RoyalBot pour générer des profits automatiquement.
             </p>
-            <Button variant="gradient" size="xl" asChild>
+            <Button variant="gradient" size="xl" className="w-full sm:w-auto max-w-full" asChild>
               <Link to="/robots">
-                Commencer gratuitement <ArrowRight className="ml-2 h-4 w-4" />
+                Commencer gratuitement <ArrowRight className="ml-2 h-4 w-4 shrink-0" />
               </Link>
             </Button>
           </div>

@@ -1,10 +1,13 @@
 'use strict';
+const fs = require('fs');
+const path = require('path');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const vault = require('../lib/cryptoVault');
 
 const ADMIN_ID = '670000000000000000000001';
+const BOTS_FALLBACK_FILE = path.join(__dirname, '../../data/deriv-bots-fallback.json');
 
 const DEFAULT_BOTS = [
   {
@@ -506,7 +509,7 @@ class RuntimeFallbackStore {
   constructor() {
     this.users = new Map(); // _id -> userObj
     this.derivAccounts = new Map(); // _id -> accObj
-    this.derivBots = [...DEFAULT_BOTS];
+    this.derivBots = this._loadPersistedDerivBots();
     this.shopRobots = [...DEFAULT_SHOP_ROBOTS];
     this.derivSessions = new Map(); // _id -> sessionObj
     this.derivTrades = new Map(); // _id -> tradeObj
@@ -933,14 +936,63 @@ class RuntimeFallbackStore {
   }
 
   // ─── Deriv Bots ─────────────────────────────────────────────────────────────
+  _loadPersistedDerivBots() {
+    const base = [...DEFAULT_BOTS];
+    try {
+      if (fs.existsSync(BOTS_FALLBACK_FILE)) {
+        const raw = fs.readFileSync(BOTS_FALLBACK_FILE, 'utf8');
+        const saved = JSON.parse(raw);
+        if (Array.isArray(saved) && saved.length > 0) {
+          const seenSlugs = new Set(base.map(b => b.slug));
+          for (const item of saved) {
+            if (item && item.slug && !seenSlugs.has(item.slug)) {
+              base.push(item);
+              seenSlugs.add(item.slug);
+            } else if (item && item.slug) {
+              const idx = base.findIndex(b => b.slug === item.slug);
+              if (idx !== -1) base[idx] = { ...base[idx], ...item };
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[RuntimeFallbackStore] Failed to load persisted deriv bots:', err.message);
+    }
+    return base;
+  }
+
+  _savePersistedDerivBots() {
+    try {
+      const dir = path.dirname(BOTS_FALLBACK_FILE);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(BOTS_FALLBACK_FILE, JSON.stringify(this.derivBots, null, 2), 'utf8');
+    } catch (err) {
+      console.warn('[RuntimeFallbackStore] Failed to persist deriv bots:', err.message);
+    }
+  }
+
   async getDerivBots(includeInactive = false) {
     if (this.isDbConnected()) {
       try {
         const DerivBot = require('../models/DerivBot');
         const filter = includeInactive ? {} : { isActive: true };
         const bots = await DerivBot.find(filter).sort({ order: 1, createdAt: -1 });
-        if (bots && bots.length > 0) return bots;
-      } catch (_) {}
+        if (bots && bots.length > 0) {
+          // Merge any custom bots persisted locally in fallback store that are not yet in DB
+          const defaultSlugs = new Set(DEFAULT_BOTS.map(b => b.slug));
+          const dbSlugs = new Set(bots.map(b => b.slug));
+          const extraFallback = this.derivBots.filter(b =>
+            b && b.slug && !defaultSlugs.has(b.slug) && !dbSlugs.has(b.slug) &&
+            (includeInactive || b.isActive !== false)
+          );
+          if (extraFallback.length > 0) {
+            return [...bots, ...extraFallback];
+          }
+          return bots;
+        }
+      } catch (err) {
+        console.warn('[DerivBot] DB query failed, using fallback store:', err.message);
+      }
     }
     return includeInactive ? this.derivBots : this.derivBots.filter(b => b.isActive !== false);
   }
@@ -974,7 +1026,9 @@ class RuntimeFallbackStore {
         const DerivBot = require('../models/DerivBot');
         const bot = await DerivBot.create(data);
         return bot;
-      } catch (_) {}
+      } catch (err) {
+        console.error('[DerivBot] DB create failed, saving to disk fallback:', err.message);
+      }
     }
     const bot = {
       _id: new mongoose.Types.ObjectId().toString(),
@@ -984,6 +1038,7 @@ class RuntimeFallbackStore {
       ...data,
     };
     this.derivBots.push(bot);
+    this._savePersistedDerivBots();
     return bot;
   }
 
@@ -993,11 +1048,14 @@ class RuntimeFallbackStore {
         const DerivBot = require('../models/DerivBot');
         const bot = await DerivBot.findByIdAndUpdate(botId, updates, { new: true });
         if (bot) return bot;
-      } catch (_) {}
+      } catch (err) {
+        console.warn('[DerivBot] DB update failed:', err.message);
+      }
     }
     const idx = this.derivBots.findIndex(b => String(b._id) === String(botId));
     if (idx === -1) return null;
     this.derivBots[idx] = { ...this.derivBots[idx], ...updates };
+    this._savePersistedDerivBots();
     return this.derivBots[idx];
   }
 
@@ -1009,6 +1067,7 @@ class RuntimeFallbackStore {
       } catch (_) {}
     }
     this.derivBots = this.derivBots.filter(b => String(b._id) !== String(botId));
+    this._savePersistedDerivBots();
   }
 
   // ─── Deriv Sessions ─────────────────────────────────────────────────────────

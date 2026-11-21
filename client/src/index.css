@@ -54,6 +54,11 @@
   * {
     @apply border-border;
   }
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', sans-serif;
@@ -75,9 +80,35 @@
   background: hsl(var(--muted-foreground) / 0.5);
 }
 
-/* Gradient text — Binance gold */
+/* Gradient text — Binance gold (noir net en mode lumière) */
 .gradient-text {
   @apply bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500;
+}
+
+html:not(.dark) .gradient-text {
+  background-image: none;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+  -webkit-text-fill-color: #0B0E11;
+  color: #0B0E11;
+}
+
+html:not(.dark) .force-dark-surface .gradient-text {
+  background-image: linear-gradient(to right, #facc15, #fbbf24, #eab308);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Textes jaunes/ambre transformés en noir en mode lumière (sauf sur surfaces sombres forcées) */
+html:not(.dark) .text-yellow-300:not(.force-dark-surface *),
+html:not(.dark) .text-yellow-400:not(.force-dark-surface *),
+html:not(.dark) .text-yellow-500:not(.force-dark-surface *),
+html:not(.dark) .text-amber-300:not(.force-dark-surface *),
+html:not(.dark) .text-amber-400:not(.force-dark-surface *),
+html:not(.dark) .text-amber-500:not(.force-dark-surface *) {
+  color: #0B0E11 !important;
 }
 
 /* Glass effect */
