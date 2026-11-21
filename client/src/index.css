@@ -93,7 +93,10 @@ html:not(.dark) .gradient-text {
   color: #0B0E11;
 }
 
-html:not(.dark) .force-dark-surface .gradient-text {
+html:not(.dark) .force-dark-surface .gradient-text,
+html:not(.dark) [class*="bg-slate-9"] .gradient-text,
+html:not(.dark) [class*="bg-[#0"] .gradient-text,
+html:not(.dark) [class*="bg-[#1"] .gradient-text {
   background-image: linear-gradient(to right, #facc15, #fbbf24, #eab308);
   -webkit-background-clip: text;
   background-clip: text;
@@ -101,14 +104,54 @@ html:not(.dark) .force-dark-surface .gradient-text {
   color: transparent;
 }
 
-/* Textes jaunes/ambre transformés en noir en mode lumière (sauf sur surfaces sombres forcées) */
-html:not(.dark) .text-yellow-300:not(.force-dark-surface *),
-html:not(.dark) .text-yellow-400:not(.force-dark-surface *),
-html:not(.dark) .text-yellow-500:not(.force-dark-surface *),
-html:not(.dark) .text-amber-300:not(.force-dark-surface *),
-html:not(.dark) .text-amber-400:not(.force-dark-surface *),
-html:not(.dark) .text-amber-500:not(.force-dark-surface *) {
+/* Textes jaunes/ambre transformés en noir en mode lumière uniquement sur fond clair */
+html:not(.dark) .text-yellow-300,
+html:not(.dark) .text-yellow-400,
+html:not(.dark) .text-yellow-500,
+html:not(.dark) .text-amber-300,
+html:not(.dark) .text-amber-400,
+html:not(.dark) .text-amber-500 {
   color: #0B0E11 !important;
+}
+
+/* Préserver le jaune/ambre lisible à l'intérieur des cartes/conteneurs sombres en mode lumière */
+html:not(.dark) .force-dark-surface .text-yellow-300,
+html:not(.dark) .force-dark-surface .text-yellow-400,
+html:not(.dark) .force-dark-surface .text-yellow-500,
+html:not(.dark) .force-dark-surface .text-amber-300,
+html:not(.dark) .force-dark-surface .text-amber-400,
+html:not(.dark) .force-dark-surface .text-amber-500,
+html:not(.dark) [class*="bg-slate-9"] .text-yellow-300,
+html:not(.dark) [class*="bg-slate-9"] .text-yellow-400,
+html:not(.dark) [class*="bg-slate-9"] .text-yellow-500,
+html:not(.dark) [class*="bg-slate-9"] .text-amber-300,
+html:not(.dark) [class*="bg-slate-9"] .text-amber-400,
+html:not(.dark) [class*="bg-slate-9"] .text-amber-500,
+html:not(.dark) [class*="bg-emerald-950"] .text-amber-400,
+html:not(.dark) [class*="bg-amber-950"] .text-amber-300,
+html:not(.dark) [class*="bg-amber-950"] .text-amber-400,
+html:not(.dark) [class*="bg-[#0"] .text-yellow-400,
+html:not(.dark) [class*="bg-[#0"] .text-amber-400,
+html:not(.dark) [class*="bg-[#1"] .text-yellow-400,
+html:not(.dark) [class*="bg-[#1"] .text-amber-400 {
+  color: #fbbf24 !important;
+}
+
+/* Empêcher les fonds noirs/sombres semi-transparents d'être délavés/floutés en mode lumière */
+html:not(.dark) [class*="bg-slate-900/"] {
+  background-color: #0f172a !important;
+}
+html:not(.dark) [class*="bg-slate-950/"] {
+  background-color: #070b14 !important;
+}
+html:not(.dark) [class*="bg-emerald-950/"] {
+  background-color: #04241a !important;
+}
+html:not(.dark) [class*="bg-amber-950/"] {
+  background-color: #291804 !important;
+}
+html:not(.dark) [class*="bg-rose-950/"] {
+  background-color: #2b0912 !important;
 }
 
 /* Glass effect */

@@ -244,6 +244,7 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
     statusText: 'Bot is not running'
   })
   const [rightTab, setRightTab] = useState('summary')
+  const [mobileBlocksOpen, setMobileBlocksOpen] = useState(false)
   const [transactions, setTransactions] = useState([])
   const [journal, setJournal] = useState([
     { id: 1, time: new Date().toISOString().slice(11, 19), level: 'info', text: 'RoyalBot Builder prêt. Connectez votre compte Démo Deriv et cliquez sur Run.' }
@@ -1202,8 +1203,16 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
           </div>
         </div>
 
-        {/* Zoom & Undo Controls */}
+        {/* Mobile Blocks Menu Toggle + Zoom Controls */}
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setMobileBlocksOpen(o => !o)}
+            className="lg:hidden px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700"
+          >
+            <Layers className="w-3.5 h-3.5 text-cyan-400" />
+            <span>{mobileBlocksOpen ? 'Masquer Blocs' : 'Blocks Menu'}</span>
+          </button>
           <button
             type="button"
             onClick={() => setZoomLevel(z => Math.max(60, z - 10))}
@@ -1223,9 +1232,9 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
       </div>
 
       {/* ── 3. MAIN WORKSPACE WITH LEFT BLOCKS MENU + CANVAS ──────────────── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
         {/* LEFT BLOCKS MENU (Style DBotPro / Royalbot Studio) */}
-        <div className="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c111d] p-3 space-y-2.5 overflow-y-auto hidden md:block shrink-0">
+        <div className={`${mobileBlocksOpen ? 'block w-full border-b max-h-[60vh]' : 'hidden'} lg:block lg:w-64 lg:border-r lg:border-b-0 border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c111d] p-3 space-y-2.5 overflow-y-auto shrink-0`}>
           {/* AI Bot Generator Button */}
           <button
             type="button"
@@ -2393,7 +2402,7 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
           </div>
 
           {/* Badge Alerte Flottant "⚠️ Risk Disclaimer" (Capture 1) */}
-          <div className="fixed bottom-14 left-6 z-30">
+          <div className="hidden lg:block fixed bottom-14 left-6 z-30">
             <div className="px-3 py-1 rounded-lg bg-amber-500/90 text-slate-950 font-bold text-[11px] shadow-lg flex items-center gap-1.5 border border-amber-400">
               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
               <span>Risk Disclaimer</span>
@@ -2402,7 +2411,7 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
         </div>
 
         {/* RIGHT EXECUTION PANEL (Style DBotPro: Summary / Transactions / Journal + Run on Deriv Demo) */}
-        <div className="w-80 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c111d] flex flex-col shrink-0">
+        <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c111d] flex flex-col shrink-0">
           {/* Tabs: Summary | Transactions | Journal */}
           <div className="grid grid-cols-3 border-b border-slate-200 dark:border-slate-800 text-xs font-bold">
             {[

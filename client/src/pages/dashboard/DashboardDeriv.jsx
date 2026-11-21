@@ -320,7 +320,7 @@ export default function DashboardDeriv() {
   return (
     <div className="space-y-6">
       {/* ── BANNIÈRE D'ESSAI GRATUIT 7 JOURS & STATUT ─────────────────── */}
-      <div className="rounded-2xl p-6 bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-950 border border-emerald-500/30 shadow-xl relative overflow-hidden">
+      <div className="rounded-2xl p-5 sm:p-6 bg-[#061813] border border-emerald-500/40 shadow-xl relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -387,7 +387,7 @@ export default function DashboardDeriv() {
             <Button
               variant="outline"
               onClick={() => setShowConnectModal(true)}
-              className="border-emerald-500/40 text-emerald-300 hover:bg-emerald-950/50 text-xs font-semibold"
+              className="bg-slate-800 hover:bg-slate-700 border-emerald-500/40 text-emerald-300 text-xs font-semibold"
             >
               <Key className="w-3.5 h-3.5 mr-1.5" />
               Token Manuel
@@ -553,40 +553,40 @@ export default function DashboardDeriv() {
       </div>
 
       {/* ── ONGLETS : TRADING MANUEL VS ROBOTS AUTOMATIQUES VS BOT BUILDER ── */}
-      <div className="flex border-b border-slate-800 space-x-2 overflow-x-auto no-scrollbar">
+      <div className="flex flex-wrap border-b border-slate-800 gap-1.5 pb-1">
         <button
           onClick={() => setActiveTab('manual')}
-          className={`flex items-center gap-2 py-3 px-6 font-bold text-sm border-b-2 transition whitespace-nowrap ${
+          className={`flex items-center gap-1.5 py-2.5 px-3 sm:px-5 font-bold text-xs sm:text-sm border-b-2 transition rounded-t-lg ${
             activeTab === 'manual'
-              ? 'border-emerald-500 text-emerald-400'
-              : 'border-transparent text-slate-400 hover:text-white'
+              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10'
+              : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
           }`}
         >
-          <BarChart2 className="w-4 h-4" />
-          Trading Manuel SmartTrader
+          <BarChart2 className="w-4 h-4 shrink-0" />
+          <span>Trading Manuel SmartTrader</span>
         </button>
         <button
           onClick={() => setActiveTab('robots')}
-          className={`flex items-center gap-2 py-3 px-6 font-bold text-sm border-b-2 transition whitespace-nowrap ${
+          className={`flex items-center gap-1.5 py-2.5 px-3 sm:px-5 font-bold text-xs sm:text-sm border-b-2 transition rounded-t-lg ${
             activeTab === 'robots'
-              ? 'border-emerald-500 text-emerald-400'
-              : 'border-transparent text-slate-400 hover:text-white'
+              ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10'
+              : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
           }`}
         >
-          <Bot className="w-4 h-4" />
-          Robots Automatiques ({bots.length})
+          <Bot className="w-4 h-4 shrink-0" />
+          <span>Robots Automatiques ({bots.length})</span>
         </button>
         {isBotBuilderVisible && (
           <button
             onClick={() => setActiveTab('builder')}
-            className={`flex items-center gap-2 py-3 px-6 font-bold text-sm border-b-2 transition whitespace-nowrap ${
+            className={`flex items-center gap-1.5 py-2.5 px-3 sm:px-5 font-bold text-xs sm:text-sm border-b-2 transition rounded-t-lg ${
               activeTab === 'builder'
                 ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10'
-                : 'border-transparent text-slate-400 hover:text-white'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
             }`}
           >
-            <Sparkles className="w-4 h-4 text-cyan-400" />
-            Bot Builder Studio
+            <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span>Bot Builder Studio</span>
           </button>
         )}
       </div>
@@ -692,21 +692,19 @@ export default function DashboardDeriv() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-slate-800 text-slate-300 font-mono text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="bg-slate-800 text-slate-300 font-mono text-xs whitespace-nowrap">
                     {allTrades.length} contrat(s) au total
                   </Badge>
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <button
+                    type="button"
                     onClick={loadSessionsAndTrades}
-                    className="h-7 text-xs border-slate-700 text-slate-300 hover:text-white"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 whitespace-nowrap transition cursor-pointer"
                   >
-                    <RefreshCw className="w-3 h-3 mr-1" /> Actualiser
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
+                    <RefreshCw className="w-3 h-3" /> Actualiser
+                  </button>
+                  <button
+                    type="button"
                     onClick={async () => {
                       if (window.confirm('Voulez-vous vider le flux des contrats en direct ?')) {
                         useStore.getState().clearDerivLiveTrades?.()
@@ -716,10 +714,10 @@ export default function DashboardDeriv() {
                         } catch (_) {}
                       }
                     }}
-                    className="h-7 text-xs border-rose-500/30 text-rose-400 hover:bg-rose-500/10"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-950 hover:bg-rose-900 border border-rose-500/40 text-xs font-semibold text-rose-300 whitespace-nowrap transition cursor-pointer"
                   >
                     Vider le flux
-                  </Button>
+                  </button>
                 </div>
               </div>
             </CardHeader>
