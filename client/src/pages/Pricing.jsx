@@ -18,9 +18,10 @@ const ICON_MAP = { Sparkles, Zap, TrendingUp, Crown, Building2 }
 const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } }
 const stagger = { visible: { transition: { staggerChildren: 0.08 } } }
 
-function formatPrice(amount) {
+function formatPrice(amount, currency = 'XAF') {
   if (amount === 0 || amount == null) return 'Gratuit'
-  return `$${amount}`
+  if (currency === 'USD') return `$${amount}`
+  return `${Number(amount).toLocaleString('fr-FR')} ${currency}`
 }
 
 function PlanCard({ plan, billingCycle, currentPlanSlug, onSelect, settings }) {
@@ -91,8 +92,8 @@ function PlanCard({ plan, billingCycle, currentPlanSlug, onSelect, settings }) {
           {plan.tagline && <p className="text-xs text-muted-foreground mb-4">{plan.tagline}</p>}
 
           <div className="mb-5">
-            <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-bold">{isAllFree ? 'Gratuit' : formatPrice(price)}</span>
+            <div className="flex items-baseline gap-1 flex-wrap">
+              <span className="text-2xl sm:text-3xl font-bold">{isAllFree ? 'Gratuit' : formatPrice(price, plan.currency || 'XAF')}</span>
               {!isAllFree && price > 0 && (
                 <span className="text-sm text-muted-foreground">
                   / {billingCycle === 'yearly' ? 'an' : 'mois'}
@@ -101,7 +102,7 @@ function PlanCard({ plan, billingCycle, currentPlanSlug, onSelect, settings }) {
             </div>
             {!isAllFree && monthlyEquivalent && (
               <p className="text-xs text-muted-foreground mt-1">
-                ≈ ${monthlyEquivalent}/mois — économisez {Math.round((1 - plan.priceYearly / (plan.priceMonthly * 12)) * 100)}%
+                ≈ {formatPrice(monthlyEquivalent, plan.currency || 'XAF')}/mois
               </p>
             )}
           </div>

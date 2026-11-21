@@ -369,7 +369,7 @@ export default function Landing() {
   }, [])
 
   const sortedPlans = [...plans]
-    .filter(p => p.isActive !== false && p.isPublic !== false)
+    .filter(p => p.isActive !== false && p.isPublic !== false && (p.category === 'deriv' || p.broker === 'deriv' || p.slug?.startsWith('deriv')))
     .sort((a, b) => (a.tier || 0) - (b.tier || 0))
 
   const ps = platformSettings || {}
@@ -704,8 +704,14 @@ export default function Landing() {
                         {plan.tagline && <p className="text-sm text-muted-foreground mb-4">{plan.tagline}</p>}
 
                         <div className="mb-5">
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-4xl font-bold">{isFree ? 'Gratuit' : `$${price}`}</span>
+                          <div className="flex items-baseline gap-1 flex-wrap">
+                            <span className="text-2xl sm:text-3xl font-bold">
+                              {isFree
+                                ? 'Gratuit'
+                                : (plan.currency === 'USD'
+                                    ? `$${price}`
+                                    : `${Number(price).toLocaleString('fr-FR')} ${plan.currency || 'XAF'}`)}
+                            </span>
                             {price > 0 && (
                               <span className="text-sm text-muted-foreground">
                                 /{billingCycle === 'yearly' ? 'an' : 'mois'}
