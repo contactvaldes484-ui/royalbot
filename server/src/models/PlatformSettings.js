@@ -92,6 +92,7 @@ const platformSettingsSchema = new mongoose.Schema({
 
   // Admin Wallet & Retraits
   adminWithdrawalFeePercent: { type: Number, default: 6 }, // Réduction/Frais sur les retraits admin (6% par défaut, modifiable)
+  annualDiscountPercent: { type: Number, default: 10 }, // Réduction (%) sur les plans annuels (0 = annulée)
 
   // SEO
   metaTitle: { type: String, default: 'RoyalBot — Trading Automatisé' },

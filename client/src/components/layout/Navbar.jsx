@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../ui/button'
 import useStore from '../../store/useStore'
 import { BinanceLogo } from '../binance/BinanceKit'
+import BackButton from '../ui/BackButton'
 import {
   Menu, X, Sun, Moon, Bot, ChevronDown, User, LogOut,
   LayoutDashboard, Settings
@@ -13,6 +14,7 @@ export default function Navbar() {
   const [profileOpen, setProfileOpen] = useState(false)
   const { isAuthenticated, user, logout, theme, toggleTheme, language, toggleLanguage, platformSettings } = useStore()
   const navigate = useNavigate()
+  const location = useLocation()
   const pName = platformSettings?.platformName || 'RoyalBot'
   const pLogo = platformSettings?.logoUrl
 
@@ -36,8 +38,10 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-lg">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-2">
+        {/* Logo + Retour */}
+        <div className="flex items-center gap-2.5">
+          {location.pathname !== '/' && <BackButton fallback="/" label="" className="px-2 py-1.5" />}
+          <Link to="/" className="flex items-center gap-2">
           {pLogo ? (
             <img src={pLogo} alt={pName} className="h-8 w-8 rounded-lg object-cover" />
           ) : (
@@ -45,8 +49,9 @@ export default function Navbar() {
               <BinanceLogo size={22} />
             </div>
           )}
-          <span className="text-xl font-bold gradient-text">{pName}</span>
-        </Link>
+            <span className="text-xl font-bold gradient-text">{pName}</span>
+          </Link>
+        </div>
 
         {/* Desktop Nav */}
         <div className="hidden md:flex items-center gap-6">

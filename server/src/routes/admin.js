@@ -612,7 +612,7 @@ router.put('/settings', async (req, res) => {
       'binancePayId', 'binancePayMerchantId', 'binancePayApiKey', 'binancePaySecretKey', 'binancePayEmail',
       'sebpayBaseUrl', 'sebpayPublicKey', 'sebpaySecretKey',
       'ikeepayEnabled', 'ikeepayPublicKey', 'ikeepaySecretKey', 'ikeepayCurrency',
-      'adminWithdrawalFeePercent',
+      'adminWithdrawalFeePercent', 'annualDiscountPercent',
       'binanceRobotsPublicEnabled', 'bybitRobotsPublicEnabled', 'aiScannerUrl',
       'metaTitle', 'metaDescription',
     ];

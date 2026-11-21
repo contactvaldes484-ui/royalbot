@@ -24,9 +24,13 @@ function formatPrice(amount) {
 
 function PlanCard({ plan, billingCycle, currentPlanSlug, onSelect, settings }) {
   const Icon = ICON_MAP[plan.icon] || Sparkles
-  const price = billingCycle === 'yearly' ? plan.priceYearly : plan.priceMonthly
-  const monthlyEquivalent = billingCycle === 'yearly' && plan.priceYearly > 0
-    ? (plan.priceYearly / 12).toFixed(0)
+  const annualDiscount = settings?.annualDiscountPercent !== undefined ? Number(settings.annualDiscountPercent) : 10
+  const computedYearly = plan.priceYearly > 0
+    ? plan.priceYearly
+    : Math.round((plan.priceMonthly || 0) * 12 * (1 - Math.max(0, annualDiscount) / 100))
+  const price = billingCycle === 'yearly' ? computedYearly : plan.priceMonthly
+  const monthlyEquivalent = billingCycle === 'yearly' && price > 0
+    ? (price / 12).toFixed(0)
     : null
   const isCurrent = currentPlanSlug === plan.slug
   const isFree = price === 0

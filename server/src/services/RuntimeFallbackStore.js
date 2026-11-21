@@ -527,6 +527,7 @@ class RuntimeFallbackStore {
       ikeepaySecretKey: '',
       ikeepayCurrency: 'XAF',
       adminWithdrawalFeePercent: 6,
+      annualDiscountPercent: 10,
       binanceRobotsPublicEnabled: false,
       bybitRobotsPublicEnabled: false,
       aiScannerUrl: 'https://tradingkit.com/',

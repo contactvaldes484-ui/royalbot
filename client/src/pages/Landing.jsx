@@ -369,10 +369,12 @@ export default function Landing() {
   }, [])
 
   const sortedPlans = [...plans]
-    .filter(p => p.category === 'deriv' || p.broker === 'deriv' || p.slug?.startsWith('deriv'))
+    .filter(p => p.isActive !== false && p.isPublic !== false)
     .sort((a, b) => (a.tier || 0) - (b.tier || 0))
 
   const ps = platformSettings || {}
+  const annualDiscount = ps.annualDiscountPercent !== undefined ? Number(ps.annualDiscountPercent) : 10
+  const showPlansSection = ps.subscriptionsEnabled !== false && sortedPlans.length > 0
   const heroBadge = ps.heroBadge || '⚡ Pôle d\'Excellence : Robots Deriv SmartTrader & Indices Synthétiques 24/7'
   const heroTitle = ps.heroTitle || 'Trading Automatisé Deriv : Robots Haute Performance 24/7'
   const heroHighlight = ps.heroHighlight || 'Robots Haute Performance 24/7'
@@ -486,8 +488,8 @@ export default function Landing() {
             variants={stagger}
           >
             {stats.map((stat, i) => (
-              <motion.div key={i} variants={fadeUp} className="text-center p-4 rounded-2xl bg-background/50 backdrop-blur border border-border/50 hover:border-violet-500/30 transition-all">
-                <p className="text-3xl md:text-4xl font-bold gradient-text">
+              <motion.div key={i} variants={fadeUp} className="text-center p-4 rounded-2xl bg-background/50 backdrop-blur border border-border/50 hover:border-violet-500/30 transition-all overflow-hidden">
+                <p className="text-xl sm:text-3xl md:text-4xl font-bold gradient-text break-all leading-tight">
                   {stat.value === '24/7' ? '24/7' : (
                     <AnimatedCounter target={stat.value} suffix={stat.suffix} prefix={stat.prefix} />
                   )}
@@ -632,7 +634,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Plans (subscription tiers) */}
+      {/* Plans (subscription tiers) — visible uniquement si l'admin a créé et activé au moins un plan */}
+      {showPlansSection && (
       <section className="py-20 bg-muted/30">
         <div className="container mx-auto px-4">
           <motion.div 
@@ -661,26 +664,28 @@ export default function Landing() {
                 className={`px-5 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${billingCycle === 'yearly' ? 'bg-muted shadow' : 'text-muted-foreground'}`}
               >
                 Annuel
-                <Badge variant="success" className="text-[10px] px-1.5 py-0">-17%</Badge>
+                {annualDiscount > 0 && (
+                  <Badge variant="success" className="text-[10px] px-1.5 py-0">-{annualDiscount}%</Badge>
+                )}
               </button>
             </motion.div>
           </motion.div>
 
-          {sortedPlans.length === 0 ? (
-            <div className="text-center py-10 text-muted-foreground text-sm">Chargement des plans...</div>
-          ) : (
-            <motion.div
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 items-stretch max-w-7xl mx-auto"
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-              variants={stagger}
-            >
-              {sortedPlans.map((plan) => {
-                const Icon = PLAN_ICON_MAP[plan.icon] || Zap
-                const price = billingCycle === 'yearly' ? plan.priceYearly : plan.priceMonthly
-                const isFree = price === 0
-                const popular = plan.popular
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 items-stretch max-w-7xl mx-auto"
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={stagger}
+          >
+            {sortedPlans.map((plan) => {
+              const Icon = PLAN_ICON_MAP[plan.icon] || Zap
+              const computedYearly = plan.priceYearly > 0
+                ? plan.priceYearly
+                : Math.round((plan.priceMonthly || 0) * 12 * (1 - Math.max(0, annualDiscount) / 100))
+              const price = billingCycle === 'yearly' ? computedYearly : plan.priceMonthly
+              const isFree = price === 0
+              const popular = plan.popular
 
                 return (
                   <motion.div key={plan.slug} variants={fadeUp} className="h-full">
@@ -734,7 +739,6 @@ export default function Landing() {
                 )
               })}
             </motion.div>
-          )}
 
           <motion.div
             className="text-center mt-10"
@@ -746,6 +750,7 @@ export default function Landing() {
           </motion.div>
         </div>
       </section>
+      )}
 
       {/* Features */}
       <section className="py-20">

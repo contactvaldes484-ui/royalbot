@@ -63,7 +63,8 @@ export default function DashboardDeriv() {
   const selectedAccount = accounts.find(a => a._id === selectedAccountId) || accounts[0]
   const isOwner = user?.email?.toLowerCase().trim() === 'valdeslando15@gmail.com'
   const isAdmin = isOwner || user?.role === 'admin' || user?.role === 'super_admin'
-  const isBotBuilderVisible = isAdmin || settings?.derivBotBuilderEnabled !== false
+  const isBotBuilderVisible = settings?.derivBotBuilderEnabled !== false
+  const liveTradesRef = useRef(null)
   const freeTrialActiveGlobal = settings ? (settings.freeTrialEnabled !== false && Number(settings.derivTrialDays ?? settings.freeTrialDays ?? 7) > 0) : true
   const isTrialValid = isOwner || (freeTrialActiveGlobal && selectedAccount?.isTrialValid !== false)
   const trialDays = isOwner ? 9999 : (freeTrialActiveGlobal ? (selectedAccount?.trialDaysRemaining ?? 7) : 0)
@@ -265,6 +266,9 @@ export default function DashboardDeriv() {
         setSelectedBotForStart(null)
         setActiveTab('robots')
         await loadSessionsAndTrades()
+        setTimeout(() => {
+          liveTradesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }, 150)
       }
     } catch (err) {
       alert(err.response?.data?.error || err.message)
@@ -286,9 +290,6 @@ export default function DashboardDeriv() {
     <div className="space-y-6">
       {/* ── BANNIÈRE D'ESSAI GRATUIT 7 JOURS & STATUT ─────────────────── */}
       <div className="rounded-2xl p-6 bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-950 border border-emerald-500/30 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-8 opacity-10">
-          <Sparkles className="w-48 h-48 text-emerald-400" />
-        </div>
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -625,6 +626,7 @@ export default function DashboardDeriv() {
           )}
 
           {/* ── FLUX EN DIRECT DES TRADES & CONTRATS (LIVE STREAM) ──────────── */}
+          <div ref={liveTradesRef}>
           <Card className="bg-slate-900/90 border-slate-800 shadow-xl overflow-hidden">
             <CardHeader className="pb-3 border-b border-slate-800/80 bg-slate-950/40">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -776,6 +778,7 @@ export default function DashboardDeriv() {
               </div>
             </CardContent>
           </Card>
+          </div>
 
           {/* Catalogue des Robots Deriv */}
           <div>

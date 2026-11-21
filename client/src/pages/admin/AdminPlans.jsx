@@ -71,6 +71,8 @@ export default function AdminPlans() {
   const [editing, setEditing] = useState(null) // plan being edited (or empty for create)
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState(null)
+  const [annualDiscount, setAnnualDiscount] = useState(10)
+  const [savingDiscount, setSavingDiscount] = useState(false)
 
   const showMessage = (type, text) => {
     setMessage({ type, text })
@@ -80,12 +82,32 @@ export default function AdminPlans() {
   const load = async () => {
     setLoading(true)
     try {
-      const { data } = await adminAPI.getPlans()
+      const [{ data }, setRes] = await Promise.all([
+        adminAPI.getPlans(),
+        adminAPI.getSettings().catch(() => ({ data: null })),
+      ])
       setPlans(data.plans || [])
+      if (setRes?.data?.settings?.annualDiscountPercent !== undefined) {
+        setAnnualDiscount(Number(setRes.data.settings.annualDiscountPercent))
+      }
     } catch (err) {
       showMessage('error', 'Erreur de chargement des plans.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const saveAnnualDiscount = async (val) => {
+    setSavingDiscount(true)
+    try {
+      const pct = Math.max(0, Math.min(90, Number(val) || 0))
+      await adminAPI.updateSettings({ annualDiscountPercent: pct })
+      setAnnualDiscount(pct)
+      showMessage('success', pct === 0 ? 'Réduction annuelle annulée (0%).' : `Réduction annuelle mise à jour : -${pct}%.`)
+    } catch (err) {
+      showMessage('error', err.response?.data?.error || 'Erreur mise à jour réduction.')
+    } finally {
+      setSavingDiscount(false)
     }
   }
 
@@ -227,6 +249,37 @@ export default function AdminPlans() {
           {message.text}
         </div>
       )}
+
+      {/* Réglage Réduction Plan Annuel */}
+      <Card className="border-emerald-500/30 bg-emerald-500/5">
+        <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold">Réduction sur le Plan Annuel</p>
+            <p className="text-xs text-muted-foreground">
+              Pourcentage appliqué aux abonnements annuels (défaut : 10 %). Mettez 0 % ou cliquez sur Annuler pour supprimer la réduction.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Input
+              type="number"
+              min="0"
+              max="90"
+              value={annualDiscount}
+              onChange={e => setAnnualDiscount(e.target.value)}
+              className="w-20 h-9 text-center font-mono font-bold"
+            />
+            <span className="text-xs font-bold">%</span>
+            <Button size="sm" disabled={savingDiscount} onClick={() => saveAnnualDiscount(annualDiscount)}>
+              <Save className="h-3.5 w-3.5 mr-1" /> Enregistrer
+            </Button>
+            {Number(annualDiscount) > 0 && (
+              <Button size="sm" variant="outline" disabled={savingDiscount} onClick={() => saveAnnualDiscount(0)}>
+                Annuler (0%)
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filtrage par catégorie */}
       <div className="flex gap-2 border-b pb-3">

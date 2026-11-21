@@ -2,6 +2,8 @@ import React, { useState, Suspense } from 'react'
 import { Link, useLocation, Outlet, Navigate } from 'react-router-dom'
 import useStore from '../../store/useStore'
 import { BinanceLogo } from '../binance/BinanceKit'
+import PWAInstallBanner from '../PWAInstallBanner'
+import BackButton from '../ui/BackButton'
 import {
   LayoutDashboard, Bot, BarChart3, History, Wallet, Settings,
   CreditCard, Users, ChevronLeft, ChevronRight, LogOut, Crown,
@@ -157,7 +159,7 @@ export default function DashboardLayout() {
             {!collapsed && <span>{language === 'en' ? 'English (EN)' : 'Français (FR)'}</span>}
           </button>
           <button onClick={logout} className={`flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-destructive hover:bg-accent ${collapsed ? 'justify-center px-2' : ''}`}>
-            <LogOut className="h-4 w-4" />
+            <i className="fa-solid fa-right-from-bracket w-4 text-center" />
             {!collapsed && <span>Déconnexion</span>}
           </button>
         </div>
@@ -166,8 +168,8 @@ export default function DashboardLayout() {
       {/* Main */}
       <main className="flex-1 overflow-y-auto">
         {/* Mobile header */}
-        <div className="md:hidden flex h-14 items-center justify-between px-4 border-b bg-card">
-          <Link to="/" className="flex items-center gap-2">
+        <div className="md:hidden flex h-14 items-center justify-between px-3 border-b bg-card gap-2">
+          <Link to="/" className="flex items-center gap-2 shrink-0">
             {pLogo ? (
               <img src={pLogo} alt={pName} className="h-7 w-7 rounded-lg object-cover" />
             ) : (
@@ -177,12 +179,22 @@ export default function DashboardLayout() {
             )}
             <span className="font-bold gradient-text">{pName}</span>
           </Link>
-          <button
-            onClick={toggleLanguage}
-            className="px-2.5 py-1 rounded-md border border-border text-xs font-bold hover:bg-accent"
-          >
-            {language === 'en' ? '🇬🇧 EN' : '🇫🇷 FR'}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={toggleLanguage}
+              className="px-2 py-1 rounded-md border border-border text-xs font-bold hover:bg-accent"
+            >
+              {language === 'en' ? '🇬🇧 EN' : '🇫🇷 FR'}
+            </button>
+            <button
+              onClick={logout}
+              title="Déconnexion"
+              className="px-2.5 py-1 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-xs font-bold flex items-center gap-1 hover:bg-destructive/20 transition"
+            >
+              <i className="fa-solid fa-right-from-bracket" />
+              <span>Déconnexion</span>
+            </button>
+          </div>
         </div>
 
         {/* Mobile bottom nav */}
@@ -202,6 +214,10 @@ export default function DashboardLayout() {
         </div>
 
         <div className="p-4 md:p-6 pb-20 md:pb-6">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <BackButton fallback="/dashboard" />
+          </div>
+          <PWAInstallBanner />
           <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-500 border-t-transparent" /></div>}>
             <Outlet />
           </Suspense>

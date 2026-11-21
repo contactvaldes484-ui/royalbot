@@ -7,6 +7,7 @@ import { Input } from '../../components/ui/input'
 import useStore from '../../store/useStore'
 import { adminAPI, botAPI, groupAPI, reviewAPI } from '../../lib/api'
 import { formatCurrency, formatDate, formatNumber } from '../../lib/utils'
+import BackButton from '../../components/ui/BackButton'
 import {
   LayoutDashboard, Users, Bot, Wallet, BarChart3, Bell, Settings,
   TrendingUp, Crown, Activity, DollarSign, Loader2, Search,
@@ -175,6 +176,9 @@ export function AdminLayout() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+          <div className="mb-4">
+            <BackButton fallback="/admin" />
+          </div>
           <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-500 border-t-transparent" /></div>}>
             <Outlet />
           </Suspense>
