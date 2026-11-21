@@ -19,7 +19,10 @@ const subscribeLimiter = rateLimit({
 });
 
 // ─── Public: list plans ──────────────────────────────────────────────────────
-router.get('/plans', (req, res) => {
+router.get('/plans', async (req, res) => {
+  try {
+    await planCache.refreshCache().catch(() => {});
+  } catch (_) {}
   const plans = planCache.getPublicPlans();
   res.json({ plans });
 });

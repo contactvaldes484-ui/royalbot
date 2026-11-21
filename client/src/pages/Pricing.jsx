@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
 import { subscriptionAPI, settingsAPI } from '../lib/api'
+import { startDerivOAuth } from '../lib/derivOAuth'
 import useStore from '../store/useStore'
 import SEO from '../components/SEO'
 import {
@@ -161,6 +162,8 @@ function PlanCard({ plan, billingCycle, currentPlanSlug, onSelect, settings }) {
 
 export default function Pricing() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const isDerivConnectFlow = new URLSearchParams(location.search).get('deriv_connect') === '1' || sessionStorage.getItem('deriv_connect_pending') === '1'
   const { user, isAuthenticated } = useStore()
   const [selectedCategory, setSelectedCategory] = useState('deriv') // 'deriv' par défaut pour le plan tout-en-un
   const [plans, setPlans] = useState([])
@@ -214,6 +217,31 @@ export default function Pricing() {
       <SEO title="Tarifs & Plans" path="/pricing" description="Choisissez votre formule de trading sur Deriv, Binance et Bybit. Gratuit via parrainage ou abonnement flexible." />
 
       <div className="container mx-auto px-4">
+        {isDerivConnectFlow && (
+          <div className="mb-8 p-4 rounded-2xl bg-emerald-950 border border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-emerald-300">
+                Étape 1/2 : Choisissez votre plan payant pour continuer votre connexion Deriv
+              </p>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Sélectionnez et payez un plan ci-dessous (ou utilisez votre accès partenaire) puis poursuivez vers Deriv OAuth.
+              </p>
+            </div>
+            {(user?.subscription?.isActive && user?.subscription?.plan !== 'free') && (
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white shrink-0"
+                onClick={() => {
+                  sessionStorage.removeItem('deriv_connect_pending')
+                  startDerivOAuth(settings?.derivAppId, { skipPlanGate: true })
+                }}
+              >
+                Continuer la connexion Deriv <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+              </Button>
+            )}
+          </div>
+        )}
+
         <motion.div className="text-center max-w-3xl mx-auto mb-10" initial="hidden" animate="visible" variants={stagger}>
           <motion.div variants={fadeUp}>
             <Badge variant="outline" className="mb-4 px-3 py-1 text-emerald-400 border-emerald-500/40">

@@ -28,7 +28,40 @@ async function generateCodeChallenge(verifier) {
   return base64UrlEncode(digest)
 }
 
-export async function startDerivOAuth(appId) {
+export async function startDerivOAuth(appId, options = {}) {
+  if (!options?.skipPlanGate) {
+    try {
+      const [setRes, plansRes] = await Promise.all([
+        fetch('/api/settings').then(r => r.json()).catch(() => ({})),
+        fetch('/api/subscriptions/plans').then(r => r.json()).catch(() => ({})),
+      ])
+      const s = setRes?.settings || {}
+      const plans = plansRes?.plans || []
+      const hasActivePaidPlans =
+        s.subscriptionsEnabled !== false &&
+        !s.allRobotsFree &&
+        plans.some(p => p.isActive !== false && p.isPublic !== false && !p.isFree && Number(p.priceMonthly) > 0)
+
+      let hasPaidOrAdmin = false
+      try {
+        const rawUser = JSON.parse(localStorage.getItem('user') || 'null')
+        const role = rawUser?.role
+        const sub = rawUser?.subscription
+        hasPaidOrAdmin =
+          role === 'admin' ||
+          role === 'super_admin' ||
+          (sub?.isActive && sub?.plan && sub.plan !== 'free') ||
+          sessionStorage.getItem('deriv_plan_paid') === '1'
+      } catch (_) {}
+
+      if (hasActivePaidPlans && !hasPaidOrAdmin) {
+        sessionStorage.setItem('deriv_connect_pending', '1')
+        window.location.href = '/pricing?deriv_connect=1'
+        return
+      }
+    } catch (_) {}
+  }
+
   const resolvedAppId = String(appId || '34HkkJSIK047dAEWEgXML').trim()
   const redirectUri = `${window.location.origin}/deriv/callback`
 

@@ -140,7 +140,8 @@ export default function AdminPlans() {
   const toggleActive = async (plan) => {
     try {
       const { data } = await adminAPI.togglePlanActive(plan._id)
-      showMessage('success', data.isActive ? `Plan "${plan.name}" activé.` : `Plan "${plan.name}" désactivé.`)
+      const activeNow = data?.plan?.isActive ?? !plan.isActive
+      showMessage('success', activeNow ? `Plan "${plan.name}" activé.` : `Plan "${plan.name}" désactivé.`)
       await load()
     } catch (err) {
       showMessage('error', err.response?.data?.error || 'Action impossible.')

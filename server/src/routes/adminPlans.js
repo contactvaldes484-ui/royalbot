@@ -93,6 +93,9 @@ router.put('/plans/:id', async (req, res) => {
     const plan = await SubscriptionPlan.findByIdAndUpdate(req.params.id, update, { new: true });
     if (!plan) return res.status(404).json({ error: 'Plan introuvable.' });
     await planCache.refreshCache();
+    if (plan.isActive !== false && !plan.isFree && Number(plan.priceMonthly) > 0) {
+      await resetTrialForAllDerivAccounts();
+    }
     res.json({ plan });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -154,19 +157,13 @@ router.post('/plans/:id/toggle-payment', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Delete plan (only if no active subscriptions linked)
+// Delete plan (désactive les anciens abonnements liés pour permettre la suppression)
 router.delete('/plans/:id', async (req, res) => {
   try {
     const plan = await SubscriptionPlan.findById(req.params.id);
     if (!plan) return res.status(404).json({ error: 'Plan introuvable.' });
 
-    const activeCount = await Subscription.countDocuments({ plan: plan.slug, isActive: true });
-    if (activeCount > 0) {
-      return res.status(409).json({
-        error: `Impossible de supprimer : ${activeCount} abonnement(s) actif(s) sur ce plan.`,
-      });
-    }
-
+    await Subscription.updateMany({ plan: plan.slug, isActive: true }, { $set: { isActive: false } }).catch(() => {});
     await SubscriptionPlan.deleteOne({ _id: plan._id });
     await planCache.refreshCache();
     res.json({ message: 'Plan supprimé.' });
