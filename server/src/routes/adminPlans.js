@@ -5,10 +5,32 @@ const User = require('../models/User');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const planCache = require('../services/planCache');
 const subService = require('../services/subscriptionService');
+const DerivAccount = require('../models/DerivAccount');
+const fallbackStore = require('../services/RuntimeFallbackStore');
 
 const router = express.Router();
 
 router.use(authenticate, requireAdmin);
+
+async function resetTrialForAllDerivAccounts() {
+  try {
+    const s = await fallbackStore.getSettings().catch(() => ({}));
+    if (s?.freeTrialEnabled === false) return;
+    const val = Number(s?.derivTrialDays ?? s?.freeTrialDays ?? 7);
+    if (!val || val <= 0) return;
+    const unit = s?.freeTrialUnit || 'days';
+    const msPerUnit = unit === 'minutes' ? 60 * 1000 : unit === 'hours' ? 3600 * 1000 : 86400 * 1000;
+    const newExpiry = new Date(Date.now() + val * msPerUnit);
+    await DerivAccount.updateMany({}, { $set: { trialExpiresAt: newExpiry } }).catch(() => {});
+    if (fallbackStore.derivAccounts instanceof Map) {
+      for (const acc of fallbackStore.derivAccounts.values()) {
+        acc.trialExpiresAt = newExpiry;
+      }
+    }
+  } catch (err) {
+    console.warn('[AdminPlans] resetTrialForAllDerivAccounts:', err.message);
+  }
+}
 
 // ─── Plans CRUD ──────────────────────────────────────────────────────────────
 
@@ -51,6 +73,9 @@ router.post('/plans', async (req, res) => {
 
     const plan = await SubscriptionPlan.create(req.body);
     await planCache.refreshCache();
+    if (plan.isActive !== false && !plan.isFree && Number(plan.priceMonthly) > 0) {
+      await resetTrialForAllDerivAccounts();
+    }
     res.status(201).json({ plan });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -82,6 +107,9 @@ const handleToggleActive = async (req, res) => {
     plan.isActive = !plan.isActive;
     await plan.save();
     await planCache.refreshCache();
+    if (plan.isActive && !plan.isFree && Number(plan.priceMonthly) > 0) {
+      await resetTrialForAllDerivAccounts();
+    }
     res.json({ success: true, plan });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };

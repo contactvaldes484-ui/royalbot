@@ -1,5 +1,5 @@
-import React, { useState, Suspense } from 'react'
-import { Link, useLocation, Outlet, Navigate } from 'react-router-dom'
+import React, { useState, useRef, useEffect, Suspense } from 'react'
+import { Link, useLocation, useNavigate, Outlet, Navigate } from 'react-router-dom'
 import useStore from '../../store/useStore'
 import { BinanceLogo } from '../binance/BinanceKit'
 import PWAInstallBanner from '../PWAInstallBanner'
@@ -14,10 +14,29 @@ export default function DashboardLayout() {
   const [collapsed, setCollapsed] = useState(false)
   const { user, isAuthenticated, logout, theme, toggleTheme, language, toggleLanguage, platformSettings } = useStore()
   const location = useLocation()
+  const navigate = useNavigate()
+  const loggedOutRef = useRef(false)
   const pName = platformSettings?.platformName || 'RoyalBot'
   const pLogo = platformSettings?.logoUrl
 
-  if (!isAuthenticated) return <Navigate to="/login" replace />
+  useEffect(() => {
+    if (isAuthenticated) {
+      loggedOutRef.current = false
+      sessionStorage.removeItem('royalbot_logged_out')
+    }
+  }, [isAuthenticated])
+
+  const handleLogout = () => {
+    loggedOutRef.current = true
+    sessionStorage.setItem('royalbot_logged_out', '1')
+    logout()
+    navigate('/', { replace: true })
+  }
+
+  if (!isAuthenticated) {
+    const goHome = loggedOutRef.current || sessionStorage.getItem('royalbot_logged_out') === '1'
+    return <Navigate to={goHome ? '/' : '/login'} replace />
+  }
 
   const isOwner = user?.email?.toLowerCase().trim() === 'valdeslando15@gmail.com'
   const isAdmin = isOwner || user?.role === 'admin' || user?.role === 'super_admin'
@@ -158,7 +177,7 @@ export default function DashboardLayout() {
             <span>{language === 'en' ? '🇬🇧' : '🇫🇷'}</span>
             {!collapsed && <span>{language === 'en' ? 'English (EN)' : 'Français (FR)'}</span>}
           </button>
-          <button onClick={logout} className={`flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-destructive hover:bg-accent ${collapsed ? 'justify-center px-2' : ''}`}>
+          <button onClick={handleLogout} className={`flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-destructive hover:bg-accent ${collapsed ? 'justify-center px-2' : ''}`}>
             <i className="fa-solid fa-right-from-bracket w-4 text-center" />
             {!collapsed && <span>Déconnexion</span>}
           </button>
@@ -187,7 +206,7 @@ export default function DashboardLayout() {
               {language === 'en' ? '🇬🇧 EN' : '🇫🇷 FR'}
             </button>
             <button
-              onClick={logout}
+              onClick={handleLogout}
               title="Déconnexion"
               className="px-2.5 py-1 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-xs font-bold flex items-center gap-1 hover:bg-destructive/20 transition"
             >

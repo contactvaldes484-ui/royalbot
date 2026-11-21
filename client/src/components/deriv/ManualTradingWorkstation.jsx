@@ -1057,7 +1057,7 @@ export default function ManualTradingWorkstation({
             </div>
 
             {/* Tabs */}
-            <div className="flex items-center gap-4 text-xs border-b border-slate-100 dark:border-slate-800 pb-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs border-b border-slate-100 dark:border-slate-800 pb-1.5">
               {[
                 { id: 'summary', label: `Summary (${allContracts.length})` },
                 { id: 'orders', label: 'Orders (SOON)' },
