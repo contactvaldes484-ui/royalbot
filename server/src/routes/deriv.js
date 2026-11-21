@@ -511,11 +511,12 @@ router.get('/bots', async (req, res) => {
 router.post('/sessions/start', authenticate, async (req, res) => {
   try {
     const { accountId, botId, settings } = req.body;
-    if (!accountId || !botId) {
-      return res.status(400).json({ error: 'accountId et botId requis.' });
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId requis.' });
     }
 
-    const session = await derivEngine.startSession(req.user._id, accountId, botId, settings || {});
+    const effectiveBotId = botId || 'custom-builder';
+    const session = await derivEngine.startSession(req.user._id, accountId, effectiveBotId, settings || {});
     res.json({ success: true, session });
   } catch (err) {
     res.status(400).json({ error: err.message });

@@ -35,6 +35,7 @@ const TRADE_TYPES = [
   { value: 'rise_fall', label: 'Up/Down > Rise/Fall', category: 'Up/Down' },
   { value: 'high_low', label: 'High/Low > Higher/Lower', category: 'Up/Down' },
   { value: 'runs', label: 'Runs > Only Ups / Only Downs', category: 'Runs' },
+  { value: 'asians', label: 'Asians > Asian Up/Asian Down', category: 'Asians' },
   { value: 'accumulators', label: 'Accumulators (Growth)', category: 'Accumulator' },
 ]
 
@@ -231,15 +232,92 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
   const [publishSuccessMsg, setPublishSuccessMsg] = useState('')
   const [publishErrorMsg, setPublishErrorMsg] = useState('')
 
-  // Simulation / Exécution en direct
+  // Simulation / Exécution en direct + Panneau Droit (Summary / Transactions / Journal)
   const [simStats, setSimStats] = useState({
     runs: 0,
     wins: 0,
     losses: 0,
     profit: 0,
+    totalStake: 0,
+    totalPayout: 0,
     currentStake: 0.8,
     statusText: 'Bot is not running'
   })
+  const [rightTab, setRightTab] = useState('summary')
+  const [transactions, setTransactions] = useState([])
+  const [journal, setJournal] = useState([
+    { id: 1, time: new Date().toISOString().slice(11, 19), level: 'info', text: 'RoyalBot Builder prêt. Connectez votre compte Démo Deriv et cliquez sur Run.' }
+  ])
+  const [expandedMenus, setExpandedMenus] = useState({
+    analysis_logics: true,
+    market_structure: false,
+    analysis_group: false,
+    utility_group: false,
+    royalbot_tools: true,
+  })
+  const [sellEnabled, setSellEnabled] = useState(false)
+  const [sellRule, setSellRule] = useState('Resell when profit >= target %')
+  const [sellTargetPct, setSellTargetPct] = useState('50')
+  const tradeParamsRef = useRef(null)
+  const sellCondRef = useRef(null)
+  const restartCondRef = useRef(null)
+
+  const addJournal = (text, level = 'info') => {
+    const time = new Date().toISOString().slice(11, 19)
+    setJournal(prev => [{ id: Date.now() + Math.random(), time, level, text }, ...prev].slice(0, 80))
+  }
+
+  const handleResetStats = () => {
+    setSimStats({
+      runs: 0,
+      wins: 0,
+      losses: 0,
+      profit: 0,
+      totalStake: 0,
+      totalPayout: 0,
+      currentStake: parseFloat(stake) || 0.8,
+      statusText: demoSession ? 'Running on Deriv Demo' : 'Bot is not running',
+    })
+    setTransactions([])
+    addJournal('Statistiques et transactions réinitialisées.', 'info')
+  }
+
+  const handleInsertBlock = (block) => {
+    if (block.action === 'vh') {
+      setVhEnabled(true)
+      setShowVhModal(true)
+    } else if (block.action === 'martingale') {
+      setMartingaleEnabled(true)
+      setRestartRecoveryMode('Result is Loss')
+      restartCondRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    } else if (block.action === 'alternate') {
+      setAlternateMarkets(true)
+      tradeParamsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    } else if (block.action === 'sell') {
+      setSellEnabled(true)
+      sellCondRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    } else if (block.action === 'variable') {
+      setXmlVariables(prev => [...prev, { name: block.varName || `Var_${prev.length + 1}`, value: block.varValue || '1' }])
+    } else if (block.action === 'condition') {
+      setInitialAnalysisEnabled(true)
+      setInitialAnalysisMode(block.analysisMode || 'Pattern Analysis')
+      setInitialConditions(prev => [
+        ...prev,
+        {
+          target: block.target || 'Last Digit',
+          operator: block.operator || '>=',
+          value: block.value || '2',
+          purchaseAction: block.purchaseAction || contractType || 'DIGITOVER',
+        }
+      ])
+    } else if (block.action === 'notify') {
+      addJournal(`Notification personnalisée ajoutée : ${block.label}`, 'success')
+    } else if (block.action === 'reset_stats') {
+      handleResetStats()
+      return
+    }
+    addJournal(`Bloc inséré / activé : ${block.label}`, 'success')
+  }
 
   // Modals additionnels
   const [showAiModal, setShowAiModal] = useState(false)
@@ -262,15 +340,59 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
     }).catch(() => {})
   }, [])
 
+  useEffect(() => {
+    if (!demoSession?._id) return
+    const interval = setInterval(async () => {
+      try {
+        const [tradesRes, accRes] = await Promise.all([
+          derivAPI.getTrades().catch(() => null),
+          derivAPI.getAccounts().catch(() => null),
+        ])
+        if (accRes?.data?.accounts) setDemoAccounts(accRes.data.accounts)
+        const allTrades = tradesRes?.data?.trades || []
+        const sessionTrades = allTrades.filter(t => String(t.session) === String(demoSession._id) || t.botName === botName)
+        if (sessionTrades.length > 0) {
+          const wins = sessionTrades.filter(t => Number(t.profit) > 0).length
+          const losses = sessionTrades.filter(t => Number(t.profit) <= 0).length
+          const totalStake = sessionTrades.reduce((s, t) => s + Number(t.stake || 0), 0)
+          const totalProfit = sessionTrades.reduce((s, t) => s + Number(t.profit || 0), 0)
+          setSimStats(prev => ({
+            ...prev,
+            runs: sessionTrades.length,
+            wins,
+            losses,
+            totalStake,
+            totalPayout: totalStake + totalProfit,
+            profit: totalProfit,
+            statusText: `Deriv Démo actif (${sessionTrades.length} trades)`,
+          }))
+          setTransactions(sessionTrades.slice(0, 30).map(t => ({
+            id: t._id || t.contractId || Math.random(),
+            type: t.contractType || contractType,
+            entry: t.entrySpot || t.symbol || selectedMarket,
+            exit: t.exitSpot || t.status || '-',
+            stake: Number(t.stake || 0),
+            profit: Number(t.profit || 0),
+          })))
+        }
+      } catch (_) {}
+    }, 3500)
+    return () => clearInterval(interval)
+  }, [demoSession?._id, botName, contractType, selectedMarket])
+
   async function handleTestOnDemo() {
-    if (!selectedDemoId) return alert('Veuillez d\'abord connecter un compte Démo Deriv dans SmartTrader.')
-    if (!initialBot?._id) return alert('Publiez ou sélectionnez d\'abord un robot existant pour le tester sur votre solde Démo Deriv.')
+    if (!selectedDemoId) {
+      addJournal('Aucun compte Démo Deriv connecté. Connectez un compte Démo dans SmartTrader.', 'error')
+      return alert('Veuillez d\'abord connecter un compte Démo Deriv dans SmartTrader.')
+    }
     setDemoLoading(true)
     try {
       const res = await derivAPI.startSession({
         accountId: selectedDemoId,
-        botId: initialBot._id,
+        botId: initialBot?._id || 'custom-builder',
         settings: {
+          botName,
+          contractType,
           symbol: selectedMarket,
           initialStake: parseFloat(stake) || 0.5,
           takeProfit: parseFloat(takeProfit) || 10,
@@ -285,9 +407,13 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
       })
       if (res.data?.session) {
         setDemoSession(res.data.session)
+        setSimStats(prev => ({ ...prev, statusText: `Deriv Démo actif (${selectedMarket})` }))
+        addJournal(`Session Démo Deriv démarrée sur ${selectedMarket} (${contractType}, mise ${stake}$).`, 'success')
       }
     } catch (err) {
-      alert(err.response?.data?.error || err.message)
+      const msg = err.response?.data?.error || err.message
+      addJournal(`Erreur démarrage Démo : ${msg}`, 'error')
+      alert(msg)
     } finally {
       setDemoLoading(false)
     }
@@ -1098,9 +1224,19 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
 
       {/* ── 3. MAIN WORKSPACE WITH LEFT BLOCKS MENU + CANVAS ──────────────── */}
       <div className="flex-1 flex overflow-hidden">
-        {/* LEFT BLOCKS MENU (Style Deriv / TraderScheme - Capture 2) */}
-        <div className="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c111d] p-3 space-y-3 overflow-y-auto hidden md:block shrink-0">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+        {/* LEFT BLOCKS MENU (Style DBotPro / Royalbot Studio) */}
+        <div className="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c111d] p-3 space-y-2.5 overflow-y-auto hidden md:block shrink-0">
+          {/* AI Bot Generator Button */}
+          <button
+            type="button"
+            onClick={() => setShowAiModal(true)}
+            className="w-full py-2.5 px-3 rounded-lg bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-md shadow-rose-500/20 flex items-center justify-center gap-1.5 transition cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>AI Bot Generator</span>
+          </button>
+
+          <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300 pt-1">
             <span>Blocks menu</span>
             <span className="text-[10px] text-slate-400">▲</span>
           </div>
@@ -1112,7 +1248,7 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
               type="text"
               value={searchBlock}
               onChange={e => setSearchBlock(e.target.value)}
-              placeholder="Search blocks..."
+              placeholder="Search..."
               className="w-full pl-8 pr-2 py-1.5 text-xs bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-800 dark:text-slate-200"
             />
           </div>
@@ -1120,32 +1256,128 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
           {/* Block Categories List */}
           <div className="space-y-1 text-xs font-semibold">
             {[
-              { id: 'analysis_logics', label: 'Analysis Logics 🔥' },
-              { id: 'trade_params', label: 'Trade parameters' },
-              { id: 'purchase_cond', label: 'Purchase conditions' },
-              { id: 'sell_cond', label: 'Sell conditions (optional)' },
-              { id: 'restart_cond', label: 'Restart trading conditions' },
-              { id: 'analysis_group', label: 'Analysis ˅' },
-              { id: 'utility_group', label: 'Utility ˅' },
-              { id: 'vh_switcher', label: 'Virtual Hook Switcher' },
-              { id: 'custom_notify', label: 'Custom Notification' },
-            ].map(cat => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => {
-                  setActiveBlocksMenu(cat.id)
-                  if (cat.id === 'vh_switcher') setShowVhModal(true)
-                }}
-                className={`w-full text-left px-3 py-2 rounded-lg transition flex items-center justify-between ${
-                  activeBlocksMenu === cat.id
-                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900/60'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                }`}
-              >
-                <span>{cat.label}</span>
-              </button>
-            ))}
+              {
+                id: 'analysis_logics',
+                label: 'Analysis Logics 🔥',
+                expandable: true,
+                items: [
+                  { label: 'Digit Frequency Analyzer', action: 'condition', analysisMode: 'Pattern Analysis', target: 'Digit Frequency', operator: '>=', value: '30', purchaseAction: 'DIGITOVER' },
+                  { label: 'Over / Under Threshold', action: 'condition', analysisMode: 'Pattern Analysis', target: 'Last Digit', operator: '>', value: '2', purchaseAction: 'DIGITOVER' },
+                  { label: 'Even / Odd Streak Detector', action: 'condition', analysisMode: 'Pattern Analysis', target: 'Even Streak', operator: '>=', value: '3', purchaseAction: 'Odd' },
+                  { label: 'Rise / Fall Momentum', action: 'condition', analysisMode: 'Trend Analysis', target: 'EMA Slope', operator: '>', value: '0', purchaseAction: 'CALL' },
+                  { label: 'Asian Up / Down Analyzer', action: 'condition', analysisMode: 'Trend Analysis', target: 'Asian Avg', operator: '>', value: '0', purchaseAction: 'ASIANU' },
+                ],
+              },
+              {
+                id: 'market_structure',
+                label: 'Market Structure 🏗️',
+                expandable: true,
+                items: [
+                  { label: 'Support / Resistance Bounce', action: 'condition', analysisMode: 'Trend Analysis', target: 'S/R Level', operator: '<=', value: '0.2', purchaseAction: 'CALL' },
+                  { label: 'Higher High / Lower Low', action: 'condition', analysisMode: 'Trend Analysis', target: 'HH/LL Swing', operator: '==', value: '1', purchaseAction: 'CALL' },
+                  { label: 'Break of Structure (BOS)', action: 'condition', analysisMode: 'Trend Analysis', target: 'BOS Signal', operator: '==', value: '1', purchaseAction: 'PUT' },
+                  { label: 'Range / Consolidation Filter', action: 'condition', analysisMode: 'Pattern Analysis', target: 'ATR Range', operator: '<', value: '0.5', purchaseAction: 'DIGITDIFF' },
+                ],
+              },
+              { id: 'trade_params', label: 'Trade parameters', scrollTo: 'trade' },
+              { id: 'purchase_cond', label: 'Purchase conditions', scrollTo: 'purchase' },
+              { id: 'sell_cond', label: 'Sell conditions (optional)', scrollTo: 'sell' },
+              { id: 'restart_cond', label: 'Restart trading conditions', scrollTo: 'restart' },
+              {
+                id: 'analysis_group',
+                label: 'Analysis',
+                expandable: true,
+                items: [
+                  { label: 'Ticks List / Last Tick', action: 'condition', analysisMode: 'Pattern Analysis', target: 'Last Tick', operator: '>', value: '0', purchaseAction: contractType },
+                  { label: 'Last Digit Stats', action: 'condition', analysisMode: 'Pattern Analysis', target: 'Last Digit', operator: '>=', value: '2', purchaseAction: 'DIGITOVER' },
+                  { label: 'RSI (Relative Strength)', action: 'condition', analysisMode: 'Trend Analysis', target: 'RSI(14)', operator: '<=', value: '30', purchaseAction: 'CALL' },
+                  { label: 'SMA / EMA Crossover', action: 'condition', analysisMode: 'Trend Analysis', target: 'EMA(5)>EMA(13)', operator: '==', value: '1', purchaseAction: 'CALL' },
+                  { label: 'MACD & Bollinger Bands', action: 'condition', analysisMode: 'Trend Analysis', target: 'MACD Hist', operator: '>', value: '0', purchaseAction: 'CALL' },
+                ],
+              },
+              {
+                id: 'utility_group',
+                label: 'Utility',
+                expandable: true,
+                items: [
+                  { label: 'If / Else Condition', action: 'condition', analysisMode: 'Pattern Analysis', target: 'Profit', operator: '>=', value: '0', purchaseAction: contractType },
+                  { label: 'Set Variable (Stake / Martingale)', action: 'variable', varName: 'Stake_Custom', varValue: '1' },
+                  { label: 'Math Operation (+, -, ×, ÷)', action: 'variable', varName: 'Martingale_Factor', varValue: '2' },
+                  { label: 'Custom Notification', action: 'notify' },
+                ],
+              },
+              {
+                id: 'royalbot_tools',
+                label: 'Royalbot Tools',
+                expandable: true,
+                items: [
+                  { label: 'Virtual Hook (VH) ⚡', action: 'vh' },
+                  { label: 'Martingale Split & Recovery', action: 'martingale' },
+                  { label: 'Alternate Markets Switcher', action: 'alternate' },
+                  { label: 'Early Sell Profit Guard', action: 'sell' },
+                  { label: 'Reset Stats & Journal', action: 'reset_stats' },
+                ],
+              },
+            ]
+              .filter(cat => {
+                const q = searchBlock.trim().toLowerCase()
+                if (!q) return true
+                if (cat.label.toLowerCase().includes(q)) return true
+                return (cat.items || []).some(it => it.label.toLowerCase().includes(q))
+              })
+              .map(cat => {
+                const isExpanded = Boolean(expandedMenus[cat.id]) || Boolean(searchBlock.trim())
+                return (
+                  <div key={cat.id} className="space-y-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveBlocksMenu(cat.id)
+                        if (cat.expandable) {
+                          setExpandedMenus(prev => ({ ...prev, [cat.id]: !prev[cat.id] }))
+                        } else if (cat.scrollTo === 'trade') {
+                          tradeParamsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                        } else if (cat.scrollTo === 'sell') {
+                          setSellEnabled(true)
+                          sellCondRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                        } else if (cat.scrollTo === 'restart') {
+                          restartCondRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                        } else if (cat.scrollTo === 'purchase') {
+                          setViewMode('cards')
+                        }
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg transition flex items-center justify-between ${
+                        activeBlocksMenu === cat.id
+                          ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900/60'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <span>{cat.label}</span>
+                      {cat.expandable && (
+                        isExpanded ? <ChevronDown className="w-3.5 h-3.5 opacity-60" /> : <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                      )}
+                    </button>
+
+                    {cat.expandable && isExpanded && (
+                      <div className="pl-3 pr-1 py-1 space-y-1 border-l-2 border-slate-200 dark:border-slate-800 ml-2.5">
+                        {(cat.items || [])
+                          .filter(it => !searchBlock.trim() || it.label.toLowerCase().includes(searchBlock.trim().toLowerCase()))
+                          .map((item, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleInsertBlock(item)}
+                              className="w-full text-left px-2 py-1.5 rounded-md text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center justify-between transition"
+                            >
+                              <span className="truncate">{item.label}</span>
+                              <Plus className="w-3 h-3 shrink-0 opacity-70" />
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
           </div>
 
           <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80">
@@ -1190,7 +1422,7 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
           {viewMode === 'blocks' && (
             <div className="flex flex-col lg:flex-row gap-6 items-start max-w-7xl">
               {/* ── BLOCK 1 : 1. TRADE PARAMETERS (Blockly Style) ──────────── */}
-              <div className="w-full lg:w-[480px] bg-[#f1f5f9] dark:bg-[#0f172a] rounded-xl border border-slate-300 dark:border-slate-800 shadow-xl overflow-hidden font-sans">
+              <div ref={tradeParamsRef} className="w-full lg:w-[480px] bg-[#f1f5f9] dark:bg-[#0f172a] rounded-xl border border-slate-300 dark:border-slate-800 shadow-xl overflow-hidden font-sans">
                 {/* Block Blue Header */}
                 <div className="bg-[#1e40af] text-white px-3.5 py-2 font-bold text-xs flex items-center gap-2">
                   <span className="font-mono text-cyan-300">⋮⋮</span>
@@ -1459,8 +1691,50 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
                 </div>
               </div>
 
-              {/* ── BLOCK 4 : 4. RESTART TRADING CONDITIONS (Capture 2) ───── */}
-              <div className="w-full lg:w-[480px] bg-[#f1f5f9] dark:bg-[#0f172a] rounded-xl border border-slate-300 dark:border-slate-800 shadow-xl overflow-hidden font-sans">
+              {/* ── BLOCK 3 : 3. SELL CONDITIONS (OPTIONAL) & BLOCK 4 : 4. RESTART TRADING CONDITIONS ───── */}
+              <div className="w-full lg:w-[480px] space-y-5">
+                <div ref={sellCondRef} className="bg-[#f1f5f9] dark:bg-[#0f172a] rounded-xl border border-slate-300 dark:border-slate-800 shadow-xl overflow-hidden font-sans">
+                  <div className="bg-[#1e40af] text-white px-3.5 py-2 font-bold text-xs flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-cyan-300">⋮⋮</span>
+                      <span>3. Sell conditions (optional)</span>
+                    </div>
+                    <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={sellEnabled}
+                        onChange={e => setSellEnabled(e.target.checked)}
+                        className="rounded accent-emerald-400"
+                      />
+                      <span>Activer</span>
+                    </label>
+                  </div>
+                  {sellEnabled && (
+                    <div className="p-3.5 space-y-2 text-xs text-slate-800 dark:text-slate-200 font-mono">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-slate-500">if</span>
+                        <select
+                          value={sellRule}
+                          onChange={e => setSellRule(e.target.value)}
+                          className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 text-[11px] font-bold"
+                        >
+                          <option>Resell when profit &gt;= target %</option>
+                          <option>Resell when loss &gt;= stop %</option>
+                          <option>Sell at market if trend reverses</option>
+                        </select>
+                        <input
+                          type="number"
+                          value={sellTargetPct}
+                          onChange={e => setSellTargetPct(e.target.value)}
+                          className="w-14 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-1.5 py-1 text-center font-bold text-emerald-500"
+                        />
+                        <span>% then Sell at market</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div ref={restartCondRef} className="bg-[#f1f5f9] dark:bg-[#0f172a] rounded-xl border border-slate-300 dark:border-slate-800 shadow-xl overflow-hidden font-sans">
                 {/* Block Blue Header */}
                 <div className="bg-[#1e40af] text-white px-3.5 py-2 font-bold text-xs flex items-center gap-2">
                   <span className="font-mono text-cyan-300">⋮⋮</span>
@@ -1529,6 +1803,7 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
                       </div>
                     </div>
                   </div>
+                </div>
                 </div>
               </div>
             </div>
@@ -2123,6 +2398,167 @@ export default function BotBuilder({ initialBot, onBotPublished }) {
               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
               <span>Risk Disclaimer</span>
             </div>
+          </div>
+        </div>
+
+        {/* RIGHT EXECUTION PANEL (Style DBotPro: Summary / Transactions / Journal + Run on Deriv Demo) */}
+        <div className="w-80 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c111d] flex flex-col shrink-0">
+          {/* Tabs: Summary | Transactions | Journal */}
+          <div className="grid grid-cols-3 border-b border-slate-200 dark:border-slate-800 text-xs font-bold">
+            {[
+              { id: 'summary', label: 'Summary' },
+              { id: 'transactions', label: `Transactions (${transactions.length})` },
+              { id: 'journal', label: 'Journal' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setRightTab(tab.id)}
+                className={`py-2.5 text-center border-b-2 transition ${
+                  rightTab === tab.id
+                    ? 'border-rose-500 text-slate-900 dark:text-white'
+                    : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Deriv Demo Account Connector & Run/Stop */}
+          <div className="p-3 border-b border-slate-200 dark:border-slate-800 space-y-2 bg-slate-50/70 dark:bg-slate-900/50">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="font-bold text-slate-600 dark:text-slate-300">Compte Démo Deriv</span>
+              {selectedDemoId && (
+                <span className="text-emerald-500 font-mono font-bold">
+                  {Number(demoAccounts.find(a => a._id === selectedDemoId)?.balance || 0).toFixed(2)} USD
+                </span>
+              )}
+            </div>
+            <select
+              value={selectedDemoId}
+              onChange={e => setSelectedDemoId(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs font-mono text-slate-800 dark:text-slate-200"
+            >
+              {demoAccounts.length === 0 ? (
+                <option value="">Aucun compte Deriv connecté</option>
+              ) : (
+                demoAccounts.map(acc => (
+                  <option key={acc._id} value={acc._id}>
+                    {acc.loginId} ({acc.isDemo ? 'Démo' : 'Réel'}) - {Number(acc.balance || 0).toFixed(2)} {acc.currency || 'USD'}
+                  </option>
+                ))
+              )}
+            </select>
+            <div className="grid grid-cols-2 gap-2">
+              {!demoSession ? (
+                <button
+                  type="button"
+                  onClick={handleTestOnDemo}
+                  disabled={demoLoading}
+                  className="py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer disabled:opacity-50"
+                >
+                  <Play className="w-3.5 h-3.5 fill-white" />
+                  <span>{demoLoading ? 'Lancement...' : 'Run (Démo)'}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleStopDemoTest}
+                  disabled={demoLoading}
+                  className="py-2 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
+                >
+                  <Square className="w-3.5 h-3.5 fill-white" />
+                  <span>Stop Démo</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleResetStats}
+                className="py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs transition cursor-pointer"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+
+          {/* Tab Content */}
+          <div className="flex-1 overflow-y-auto p-3 text-xs">
+            {rightTab === 'summary' && (
+              <div className="space-y-4">
+                {simStats.runs === 0 ? (
+                  <div className="p-4 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-center text-slate-500 dark:text-slate-400">
+                    When you're ready to trade, hit <strong>Run (Démo)</strong>. You'll be able to track your bot's performance here.
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 font-semibold text-center">
+                    {simStats.statusText}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    <div className="text-[10px] text-slate-400">Total stake</div>
+                    <div className="font-bold font-mono mt-0.5">{simStats.totalStake.toFixed(2)} USD</div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    <div className="text-[10px] text-slate-400">Total payout</div>
+                    <div className="font-bold font-mono mt-0.5">{simStats.totalPayout.toFixed(2)} USD</div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    <div className="text-[10px] text-slate-400">No. of runs</div>
+                    <div className="font-bold font-mono mt-0.5">{simStats.runs}</div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    <div className="text-[10px] text-slate-400">Contracts lost</div>
+                    <div className="font-bold font-mono text-rose-500 mt-0.5">{simStats.losses}</div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    <div className="text-[10px] text-slate-400">Contracts won</div>
+                    <div className="font-bold font-mono text-emerald-500 mt-0.5">{simStats.wins}</div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    <div className="text-[10px] text-slate-400">Total profit/loss</div>
+                    <div className={`font-bold font-mono mt-0.5 ${simStats.profit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {simStats.profit >= 0 ? '+' : ''}{simStats.profit.toFixed(2)} USD
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {rightTab === 'transactions' && (
+              <div className="space-y-2">
+                {transactions.length === 0 ? (
+                  <p className="text-center text-slate-400 py-8">Aucune transaction exécutée pour le moment.</p>
+                ) : (
+                  transactions.map(tr => (
+                    <div key={tr.id} className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between font-mono text-[11px]">
+                      <div>
+                        <div className="font-bold text-slate-700 dark:text-slate-200">{tr.type}</div>
+                        <div className="text-[10px] text-slate-400">Stake: {tr.stake.toFixed(2)}$</div>
+                      </div>
+                      <div className={`font-bold ${tr.profit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {tr.profit >= 0 ? '+' : ''}{tr.profit.toFixed(2)}$
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {rightTab === 'journal' && (
+              <div className="space-y-1.5 font-mono text-[10px]">
+                {journal.map(entry => (
+                  <div key={entry.id} className="p-2 rounded bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    <span className="text-slate-400 mr-1.5">[{entry.time}]</span>
+                    <span className={entry.level === 'error' ? 'text-rose-500' : entry.level === 'success' ? 'text-emerald-500' : 'text-slate-600 dark:text-slate-300'}>
+                      {entry.text}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

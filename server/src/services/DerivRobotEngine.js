@@ -389,12 +389,23 @@ class DerivRobotEngine {
       );
     }
 
-    const bot = await fallbackStore.findDerivBotById(botId);
+    const isCustomBuilder = !botId || botId === 'custom-builder' || botId === 'custom';
+    const bot = isCustomBuilder
+      ? {
+          _id: 'custom-builder',
+          name: overrides.botName || 'RoyalBot Builder Custom',
+          contractType: overrides.contractType || 'DIGITOVER',
+          symbols: [overrides.symbol || 'R_100'],
+          strategyType: overrides.strategyType || 'bot_builder_custom',
+          defaultSettings: overrides || {},
+          isActive: true,
+        }
+      : await fallbackStore.findDerivBotById(botId);
     if (!bot || bot.isActive === false) throw new Error('Robot Deriv introuvable ou inactif.');
 
     const defaultSettings = bot.defaultSettings || {};
     let symbol = overrides.symbol || bot.symbols?.[0] || 'R_100';
-    const cTypeUpper = String(bot.contractType || 'DIGITOVER').toUpperCase();
+    const cTypeUpper = String(overrides.contractType || bot.contractType || 'DIGITOVER').toUpperCase();
     // Deriv ne supporte pas CALL/PUT binaire sur BOOM/CRASH ; bascule automatique sur 1HZ100V
     if (/^(BOOM|CRASH)/i.test(symbol) && (cTypeUpper === 'CALL' || cTypeUpper === 'PUT')) {
       symbol = '1HZ100V';
