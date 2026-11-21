@@ -132,9 +132,16 @@ export default function DashboardSubscription() {
           console.warn('iKeePay verification error:', err)
         }
         setIkeepayModalOpen(false)
+        sessionStorage.setItem('deriv_plan_paid', '1')
+        const pendingDeriv = sessionStorage.getItem('deriv_connect_pending') === '1' || new URLSearchParams(window.location.search).get('deriv_connect') === '1'
         showMessage('success', 'Paiement iKeePay validé avec succès ! Votre abonnement est activé.')
         await fetchUser?.()
         await load()
+        if (pendingDeriv) {
+          sessionStorage.removeItem('deriv_connect_pending')
+          const { startDerivOAuth } = await import('../../lib/derivOAuth')
+          startDerivOAuth(useStore.getState()?.platformSettings?.derivAppId, { skipPlanGate: true })
+        }
       } else if (e.data === 'ikeepay-close') {
         setIkeepayModalOpen(false)
       }
@@ -393,7 +400,7 @@ export default function DashboardSubscription() {
                       <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30">💳 Cartes Visa / Mastercard</span>
                     </div>
                     <p className="text-[11px] text-muted-foreground pt-1">
-                      Montant : <strong>${billingCycle === 'yearly' ? planForCheckout.priceYearly : planForCheckout.priceMonthly} {payOptions?.ikeepay?.currency || 'USD'}</strong>. Le tunnel de paiement s'ouvrira directement sur cette page.
+                      Montant : <strong>{billingCycle === 'yearly' ? planForCheckout.priceYearly : planForCheckout.priceMonthly} {planForCheckout.currency || payOptions?.ikeepay?.currency || 'XAF'}</strong>. Le tunnel de paiement s'ouvrira directement sur cette page.
                     </p>
                   </div>
                 </div>

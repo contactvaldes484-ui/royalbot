@@ -146,7 +146,7 @@ function PlanCard({ plan, billingCycle, currentPlanSlug, onSelect, settings }) {
                 variant={plan.popular ? 'default' : (isFree ? 'outline' : 'default')}
                 size="sm"
               >
-                {isCurrent ? 'Plan actuel' : (isFree ? 'Commencer gratuitement' : `Abonnement ($${price}/mois)`)}
+                {isCurrent ? 'Plan actuel' : (isFree ? 'Commencer gratuitement' : `Abonnement (${formatPrice(price, plan.currency || 'XAF')}/${billingCycle === 'yearly' ? 'an' : 'mois'})`)}
                 {!isCurrent && <ArrowRight className="h-3.5 w-3.5 ml-1.5" />}
               </Button>
             ) : !isPlanDisabled ? (
@@ -204,11 +204,12 @@ export default function Pricing() {
   }, [plans, selectedCategory])
 
   const handleSelectPlan = (plan) => {
+    const targetUrl = `/dashboard/subscription?plan=${plan.slug}&cycle=${billingCycle}&method=ikeepay${isDerivConnectFlow ? '&deriv_connect=1' : ''}`
     if (!isAuthenticated) {
-      navigate(`/register?redirect=/dashboard/subscription&plan=${plan.slug}`)
+      navigate(`/register?redirect=${encodeURIComponent(targetUrl)}`)
       return
     }
-    navigate(`/dashboard/subscription?plan=${plan.slug}&cycle=${billingCycle}`)
+    navigate(targetUrl)
   }
 
   const isAllFree = Boolean(settings?.allRobotsFree)
@@ -263,30 +264,15 @@ export default function Pricing() {
             </motion.div>
           )}
 
-          {/* SÉLECTEUR DE FORMULE */}
+          {/* SÉLECTEUR DE FORMULE — Uniquement Deriv Brokers (Binance/Bybit masqué) */}
           <motion.div variants={fadeUp} className="flex justify-center mb-6">
             <div className="inline-flex p-1.5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl">
               <button
                 onClick={() => setSelectedCategory('deriv')}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition ${
-                  selectedCategory === 'deriv'
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-600/30'
-                    : 'text-slate-400 hover:text-white'
-                }`}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-600/30"
               >
                 <Zap className="w-4 h-4" />
                 Plan Deriv Brokers (Tout-en-Un)
-              </button>
-              <button
-                onClick={() => setSelectedCategory('crypto')}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition ${
-                  selectedCategory === 'crypto'
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <TrendingUp className="w-4 h-4" />
-                Options Dédiées Binance / Bybit
               </button>
             </div>
           </motion.div>
@@ -304,7 +290,11 @@ export default function Pricing() {
               className={`px-5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${billingCycle === 'yearly' ? 'bg-background shadow font-bold' : 'text-muted-foreground'}`}
             >
               Annuel
-              <Badge variant="success" className="text-[10px] px-1.5 py-0">-17%</Badge>
+              {(settings?.annualDiscountPercent ?? 10) > 0 && (
+                <Badge variant="success" className="text-[10px] px-1.5 py-0">
+                  -{settings?.annualDiscountPercent ?? 10}%
+                </Badge>
+              )}
             </button>
           </motion.div>
         </motion.div>
