@@ -121,6 +121,36 @@ router.post('/oauth-login', async (req, res) => {
     }
 
     // 3. Synchroniser tous les comptes Deriv (Réel + Démo) et leurs soldes en direct
+    if (req.body.paidOrderId) {
+      try {
+        const Subscription = require('../models/Subscription');
+        const User = require('../models/User');
+        const paidOrder = String(req.body.paidOrderId).trim();
+        const sub = await Subscription.findOne({ $or: [{ ikeepayOrderId: paidOrder }, { paymentId: paidOrder }] });
+        if (sub) {
+          sub.user = user._id;
+          await sub.save();
+          if (sub.paymentStatus === 'confirmed' || sub.isActive) {
+            const subData = {
+              plan: sub.plan,
+              billingCycle: sub.billingCycle,
+              isActive: true,
+              startDate: sub.startDate,
+              endDate: sub.endDate,
+            };
+            if (user.save) {
+              user.subscription = subData;
+              await user.save();
+            } else {
+              await User.findByIdAndUpdate(user._id, { subscription: subData }).catch(() => {});
+            }
+          }
+        }
+      } catch (linkErr) {
+        console.warn('Paid order link notice:', linkErr.message);
+      }
+    }
+
     const synced = [];
     for (const { token, cur, authData } of verifiedItems) {
       const isDemo = Boolean(authData.is_virtual === 1 || authData.loginid.startsWith('VRT') || String(authData.loginid).startsWith('DOT'));

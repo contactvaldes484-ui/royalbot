@@ -77,15 +77,18 @@ export default function DerivCallback() {
       const clientId = sessionStorage.getItem('deriv_client_id') || localStorage.getItem('deriv_client_id') || '34HkkJSIK047dAEWEgXML'
       const redirectUri = `${window.location.origin}/deriv/callback`
 
+      const paidOrderId = localStorage.getItem('royalbot_paid_order') || undefined
       const res = await derivAPI.oauthLogin({
         accounts,
         code: oauthCode || undefined,
         codeVerifier: codeVerifier || undefined,
         clientId,
         redirectUri,
+        paidOrderId,
       })
 
       localStorage.removeItem('pending_deriv_accounts')
+      localStorage.removeItem('royalbot_paid_order')
       sessionStorage.removeItem('deriv_pkce_verifier')
 
       if (res.data?.success && res.data?.accounts?.length) {

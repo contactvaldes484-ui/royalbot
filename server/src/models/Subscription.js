@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const subscriptionSchema = new mongoose.Schema({
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false, default: null, index: true },
 
   // Plan (slug — references SubscriptionPlan.slug, not enum-restricted to allow custom plans)
   plan: { type: String, required: true, index: true },

@@ -171,6 +171,12 @@ export default function Pricing() {
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [billingCycle, setBillingCycle] = useState('monthly')
+  const [checkoutPlan, setCheckoutPlan] = useState(null)
+  const [payForm, setPayForm] = useState({ country: 'CM', operator: 'ORANGE', phoneNumber: '', email: '' })
+  const [payLoading, setPayLoading] = useState(false)
+  const [payError, setPayError] = useState('')
+  const [payStep, setPayStep] = useState('form') // 'form' | 'pending' | 'paid'
+  const [paySession, setPaySession] = useState(null)
 
   const currentPlanSlug = user?.subscription?.plan || 'free'
 
@@ -204,12 +210,66 @@ export default function Pricing() {
   }, [plans, selectedCategory])
 
   const handleSelectPlan = (plan) => {
-    const targetUrl = `/dashboard/subscription?plan=${plan.slug}&cycle=${billingCycle}&method=ikeepay${isDerivConnectFlow ? '&deriv_connect=1' : ''}`
-    if (!isAuthenticated) {
-      navigate(`/register?redirect=${encodeURIComponent(targetUrl)}`)
+    if (isAuthenticated) {
+      const targetUrl = `/dashboard/subscription?plan=${plan.slug}&cycle=${billingCycle}&method=ikeepay${isDerivConnectFlow ? '&deriv_connect=1' : ''}`
+      navigate(targetUrl)
       return
     }
-    navigate(targetUrl)
+    setCheckoutPlan(plan)
+    setPayStep('form')
+    setPayError('')
+    setPaySession(null)
+  }
+
+  const handleGuestIkeepaySubmit = async (e) => {
+    e.preventDefault()
+    if (!checkoutPlan) return
+    setPayLoading(true)
+    setPayError('')
+    try {
+      const { data } = await subscriptionAPI.publicIkeepay({
+        planSlug: checkoutPlan.slug,
+        billingCycle,
+        country: payForm.country,
+        operator: payForm.operator,
+        phoneNumber: payForm.phoneNumber,
+        customerEmail: payForm.email,
+        redirectUrl: `${window.location.origin}/pricing?deriv_connect=1`,
+      })
+      if (data?.orderId) {
+        localStorage.setItem('royalbot_paid_order', data.orderId)
+      }
+      setPaySession(data)
+      setPayStep('pending')
+    } catch (err) {
+      setPayError(err.response?.data?.error || err.message || 'Erreur lors de l\'initialisation du paiement iKeePay.')
+    } finally {
+      setPayLoading(false)
+    }
+  }
+
+  const handleVerifyGuestPayment = async () => {
+    if (!paySession?.orderId) return
+    setPayLoading(true)
+    setPayError('')
+    try {
+      const { data } = await subscriptionAPI.verifyPublicIkeepay({
+        orderId: paySession.orderId,
+        subscriptionId: paySession.subscriptionId,
+      })
+      if (data?.confirmed) {
+        localStorage.setItem('royalbot_paid_order', paySession.orderId)
+        sessionStorage.setItem('deriv_plan_paid', '1')
+        sessionStorage.removeItem('deriv_connect_pending')
+        setPayStep('paid')
+      } else {
+        setPayError('Paiement encore en attente de confirmation. Validez sur votre téléphone puis réessayez.')
+      }
+    } catch (err) {
+      setPayError(err.response?.data?.error || err.message)
+    } finally {
+      setPayLoading(false)
+    }
   }
 
   const isAllFree = Boolean(settings?.allRobotsFree)
@@ -334,6 +394,162 @@ export default function Pricing() {
           </p>
         </div>
       </div>
+
+      {/* Modal Paiement iKeePay Direct (Pré-connexion Deriv) */}
+      {checkoutPlan && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700 p-5 space-y-4 text-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-white">
+                  {payStep === 'paid' ? 'Paiement Confirmé !' : `Paiement iKeePay — ${checkoutPlan.name}`}
+                </h3>
+                <p className="text-xs text-emerald-400 font-semibold">
+                  {formatPrice(
+                    billingCycle === 'yearly'
+                      ? (checkoutPlan.priceYearly > 0 ? checkoutPlan.priceYearly : Math.round((checkoutPlan.priceMonthly || 0) * 12 * (1 - Math.max(0, settings?.annualDiscountPercent ?? 10) / 100)))
+                      : checkoutPlan.priceMonthly,
+                    checkoutPlan.currency || 'XAF'
+                  )} / {billingCycle === 'yearly' ? 'an' : 'mois'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCheckoutPlan(null)}
+                className="text-slate-400 hover:text-white text-sm px-2 py-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {payError && (
+              <div className="p-2.5 rounded-lg bg-rose-950 border border-rose-500/40 text-xs text-rose-300">
+                {payError}
+              </div>
+            )}
+
+            {payStep === 'form' && (
+              <form onSubmit={handleGuestIkeepaySubmit} className="space-y-3 text-xs">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-slate-300 block mb-1 font-semibold">Pays</label>
+                    <select
+                      value={payForm.country}
+                      onChange={e => setPayForm({ ...payForm, country: e.target.value })}
+                      className="w-full h-9 rounded-lg bg-slate-950 border border-slate-700 px-2.5 text-white"
+                    >
+                      <option value="CM">Cameroun (CM)</option>
+                      <option value="CI">Côte d&apos;Ivoire (CI)</option>
+                      <option value="SN">Sénégal (SN)</option>
+                      <option value="BF">Burkina Faso (BF)</option>
+                      <option value="BJ">Bénin (BJ)</option>
+                      <option value="TG">Togo (TG)</option>
+                      <option value="GA">Gabon (GA)</option>
+                      <option value="CG">Congo (CG)</option>
+                      <option value="CD">RDC (CD)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-slate-300 block mb-1 font-semibold">Opérateur</label>
+                    <select
+                      value={payForm.operator}
+                      onChange={e => setPayForm({ ...payForm, operator: e.target.value })}
+                      className="w-full h-9 rounded-lg bg-slate-950 border border-slate-700 px-2.5 text-white"
+                    >
+                      <option value="ORANGE">Orange Money</option>
+                      <option value="MTN">MTN MoMo</option>
+                      <option value="WAVE">Wave</option>
+                      <option value="MOOV">Moov Money</option>
+                      <option value="AIRTEL">Airtel Money</option>
+                      <option value="VODACOM">Vodacom M-Pesa</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-slate-300 block mb-1 font-semibold">Numéro Mobile Money (avec indicatif, ex: 2376...)</label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="2376XXXXXXXX"
+                    value={payForm.phoneNumber}
+                    onChange={e => setPayForm({ ...payForm, phoneNumber: e.target.value })}
+                    className="w-full h-9 rounded-lg bg-slate-950 border border-slate-700 px-3 text-white font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-300 block mb-1 font-semibold">Email (optionnel)</label>
+                  <input
+                    type="email"
+                    placeholder="votre@email.com"
+                    value={payForm.email}
+                    onChange={e => setPayForm({ ...payForm, email: e.target.value })}
+                    className="w-full h-9 rounded-lg bg-slate-950 border border-slate-700 px-3 text-white"
+                  />
+                </div>
+
+                <Button type="submit" disabled={payLoading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold">
+                  {payLoading ? 'Initialisation iKeePay...' : 'Payer maintenant via iKeePay'}
+                </Button>
+              </form>
+            )}
+
+            {payStep === 'pending' && (
+              <div className="space-y-3 text-xs">
+                <div className="p-3 rounded-xl bg-amber-950 border border-amber-500/40 text-amber-200">
+                  {paySession?.message || 'Validez le paiement sur votre téléphone puis cliquez sur Vérifier ci-dessous.'}
+                </div>
+                {(paySession?.paymentLink || paySession?.checkoutUrl) && (
+                  <a
+                    href={paySession.paymentLink || paySession.checkoutUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold"
+                  >
+                    Ouvrir la page de paiement iKeePay <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+                <Button
+                  type="button"
+                  onClick={handleVerifyGuestPayment}
+                  disabled={payLoading}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                >
+                  {payLoading ? 'Vérification...' : 'Vérifier mon paiement & Continuer'}
+                </Button>
+              </div>
+            )}
+
+            {payStep === 'paid' && (
+              <div className="space-y-3 text-xs">
+                <div className="p-3 rounded-xl bg-emerald-950 border border-emerald-500/40 text-emerald-300 font-semibold">
+                  Votre paiement est confirmé ! Connectez maintenant votre compte Deriv (ou inscrivez-vous sur Deriv) pour accéder à votre Dashboard.
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => startDerivOAuth(settings?.derivAppId, { skipPlanGate: true })}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                >
+                  <Zap className="w-4 h-4 mr-1.5" />
+                  Se connecter avec mon compte Deriv
+                </Button>
+                <a
+                  href={settings?.derivReferralLink || 'https://deriv.com/signup/'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-200 font-semibold"
+                >
+                  Je n&apos;ai pas encore de compte — M&apos;inscrire sur Deriv <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+                <p className="text-[11px] text-slate-400 text-center">
+                  Après votre inscription sur Deriv, revenez et cliquez sur « Se connecter avec mon compte Deriv » pour accéder à votre Dashboard.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -308,6 +308,157 @@ router.post('/subscribe', authenticate, subscribeLimiter, async (req, res) => {
   }
 });
 
+// ─── Public (pré-connexion Deriv): Initier un paiement iKeePay avant connexion/inscription ───
+router.post('/public-ikeepay', subLimiter, async (req, res) => {
+  try {
+    const {
+      planSlug,
+      billingCycle = 'monthly',
+      phoneNumber,
+      operator,
+      country = 'CM',
+      customerEmail,
+      otp,
+      redirectUrl = '',
+    } = req.body;
+
+    if (!planSlug) return res.status(400).json({ error: 'planSlug requis.' });
+    await planCache.refreshCache().catch(() => {});
+    const plan = planCache.getPlan(planSlug);
+    if (!plan || plan.isActive === false) return res.status(400).json({ error: 'Plan invalide ou inactif.' });
+
+    const fallbackStore = require('../services/RuntimeFallbackStore');
+    const settings = await fallbackStore.getSettings().catch(() => ({}));
+    const annualDiscount = settings?.annualDiscountPercent !== undefined ? Number(settings.annualDiscountPercent) : 10;
+
+    const amount = billingCycle === 'yearly'
+      ? (plan.priceYearly > 0 ? plan.priceYearly : Math.round((plan.priceMonthly || 0) * 12 * (1 - Math.max(0, annualDiscount) / 100)))
+      : plan.priceMonthly;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Montant invalide pour ce plan.' });
+    }
+
+    const ikeepayCreds = await ikeepayService.getCredentials();
+    if (!ikeepayCreds.enabled || (!ikeepayCreds.secretKey && !ikeepayCreds.publicKey)) {
+      return res.status(400).json({ error: 'La passerelle de paiement iKeePay n\'est pas activée par l\'administrateur.' });
+    }
+
+    const startDate = new Date();
+    const endDate = new Date(startDate);
+    if (billingCycle === 'yearly') endDate.setFullYear(endDate.getFullYear() + 1);
+    else endDate.setMonth(endDate.getMonth() + 1);
+
+    const sub = await Subscription.create({
+      user: null,
+      plan: planSlug,
+      billingCycle,
+      amount,
+      currency: plan.currency || ikeepayCreds.currency || 'XAF',
+      paymentMethod: 'ikeepay',
+      paymentStatus: 'pending',
+      isActive: false,
+      mobileMoneyProvider: operator || '',
+      mobileMoneyNumber: phoneNumber || '',
+      startDate,
+      endDate,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    const orderId = `PUB_${sub._id}_${Date.now()}`;
+    sub.paymentId = orderId;
+    sub.ikeepayOrderId = orderId;
+
+    if (phoneNumber && operator && ikeepayCreds.secretKey) {
+      try {
+        const payin = await ikeepayService.initPayin({
+          amount,
+          currency: plan.currency || ikeepayCreds.currency || 'XAF',
+          country,
+          phoneNumber,
+          operator,
+          externalReference: orderId,
+          customerEmail: customerEmail || 'client@royal-bot.online',
+          otp,
+        });
+        sub.ikeepayRef = payin.providerReference || orderId;
+        await sub.save();
+
+        return res.json({
+          success: true,
+          orderId,
+          subscriptionId: sub._id,
+          providerReference: payin.providerReference,
+          paymentLink: payin.paymentLink || undefined,
+          checkoutUrl: payin.paymentLink || undefined,
+          amount,
+          currency: plan.currency || ikeepayCreds.currency || 'XAF',
+          message: payin.paymentLink
+            ? 'Lien de paiement généré. Finalisez le paiement.'
+            : 'Demande de paiement iKeePay envoyée. Validez sur votre téléphone puis cliquez sur Vérifier.',
+        });
+      } catch (err) {
+        await Subscription.deleteOne({ _id: sub._id });
+        return res.status(502).json({ error: `Erreur iKeePay H2H : ${err.message}` });
+      }
+    }
+
+    await sub.save();
+    const checkoutUrl = ikeepayService.buildCheckoutUrl({
+      publicKey: ikeepayCreds.publicKey,
+      amount,
+      currency: plan.currency || ikeepayCreds.currency || 'XAF',
+      orderId,
+      redirectUrl,
+    });
+
+    return res.json({
+      success: true,
+      orderId,
+      subscriptionId: sub._id,
+      checkoutUrl,
+      amount,
+      currency: plan.currency || ikeepayCreds.currency || 'XAF',
+      message: 'Tunnel de paiement iKeePay prêt.',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Public (pré-connexion Deriv): Vérifier le statut d'un paiement iKeePay ─
+router.post('/public-ikeepay/verify', async (req, res) => {
+  try {
+    const { orderId, subscriptionId } = req.body;
+    const sub = await Subscription.findOne(
+      subscriptionId ? { _id: subscriptionId } : { $or: [{ ikeepayOrderId: orderId }, { paymentId: orderId }] }
+    );
+    if (!sub) return res.status(404).json({ error: 'Transaction introuvable.' });
+
+    if (sub.paymentStatus === 'confirmed' && sub.isActive) {
+      return res.json({ confirmed: true, orderId: sub.ikeepayOrderId || sub.paymentId, subscription: sub });
+    }
+
+    const ref = sub.ikeepayOrderId || sub.ikeepayRef || sub.paymentId;
+    const check = await ikeepayService.verifyTransaction(ref);
+    if (check.ok && ['completed', 'success', 'paid', 'succeeded'].includes(String(check.status || '').toLowerCase())) {
+      sub.paymentStatus = 'confirmed';
+      sub.isActive = true;
+      await sub.save();
+      return res.json({ confirmed: true, orderId: sub.ikeepayOrderId || sub.paymentId, subscription: sub });
+    }
+
+    return res.json({
+      confirmed: false,
+      status: check.status || sub.paymentStatus || 'pending',
+      error: check.error || undefined,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── User: verify a USDT payment on-chain for a pending subscription ─────────
 router.post('/:id/verify-usdt', authenticate, async (req, res) => {
   try {
