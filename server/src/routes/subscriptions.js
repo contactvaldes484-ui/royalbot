@@ -309,7 +309,7 @@ router.post('/subscribe', authenticate, subscribeLimiter, async (req, res) => {
 });
 
 // ─── Public (pré-connexion Deriv): Initier un paiement iKeePay avant connexion/inscription ───
-router.post('/public-ikeepay', subLimiter, async (req, res) => {
+router.post('/public-ikeepay', subscribeLimiter, async (req, res) => {
   try {
     const {
       planSlug,
