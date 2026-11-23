@@ -258,7 +258,12 @@ export default function DashboardDeriv() {
   }
 
   async function handleStartBot(bot) {
+    if (!selectedAccount) {
+      setShowConnectModal(true)
+      return alert('Veuillez d\'abord connecter un compte Deriv (Connexion 1-Clic ou Token) pour lancer ce robot.')
+    }
     if (!canRunRobots) {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
       return alert('Période d\'essai gratuite expirée. Activez l\'accès via notre lien partenaire Deriv ou via abonnement.')
     }
     setSelectedBotForStart(bot)
@@ -851,11 +856,12 @@ export default function DashboardDeriv() {
 
                     <Button
                       onClick={() => handleStartBot(bot)}
-                      disabled={!canRunRobots || !selectedAccount}
-                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
                     >
                       <Play className="w-4 h-4 mr-2" />
-                      Lancer ce Robot
+                      {!selectedAccount
+                        ? 'Connecter Deriv pour lancer'
+                        : (!canRunRobots ? 'Débloquer pour lancer' : 'Lancer ce Robot')}
                     </Button>
                   </CardContent>
                 </Card>
