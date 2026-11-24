@@ -199,15 +199,17 @@ export default function Pricing() {
   }, [])
 
   const filteredPlans = useMemo(() => {
+    if (settings?.subscriptionsEnabled === false) return []
     return plans
       .filter((p) => {
+        if (p.isActive === false || p.isPublic === false) return false
         if (selectedCategory === 'deriv') {
           return p.category === 'deriv' || p.slug?.startsWith('deriv')
         }
         return p.category !== 'deriv' && !p.slug?.startsWith('deriv')
       })
       .sort((a, b) => (a.tier || 0) - (b.tier || 0))
-  }, [plans, selectedCategory])
+  }, [plans, selectedCategory, settings?.subscriptionsEnabled])
 
   const handleSelectPlan = (plan) => {
     if (isAuthenticated) {

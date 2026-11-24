@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
 import { adminAPI } from '../../lib/api'
+import useStore from '../../store/useStore'
 import {
   Loader2, Plus, Pencil, Trash2, RefreshCw, Star, Save, X,
   Sparkles, Zap, TrendingUp, Crown, Building2, AlertCircle, Check, Power, PowerOff
@@ -73,6 +74,8 @@ export default function AdminPlans() {
   const [message, setMessage] = useState(null)
   const [annualDiscount, setAnnualDiscount] = useState(10)
   const [savingDiscount, setSavingDiscount] = useState(false)
+  const [subscriptionsEnabled, setSubscriptionsEnabled] = useState(true)
+  const [togglingAll, setTogglingAll] = useState(false)
 
   const showMessage = (type, text) => {
     setMessage({ type, text })
@@ -89,6 +92,9 @@ export default function AdminPlans() {
       setPlans(data.plans || [])
       if (setRes?.data?.settings?.annualDiscountPercent !== undefined) {
         setAnnualDiscount(Number(setRes.data.settings.annualDiscountPercent))
+      }
+      if (setRes?.data?.settings?.subscriptionsEnabled !== undefined) {
+        setSubscriptionsEnabled(setRes.data.settings.subscriptionsEnabled !== false)
       }
     } catch (err) {
       showMessage('error', 'Erreur de chargement des plans.')
@@ -232,6 +238,26 @@ export default function AdminPlans() {
   const addHighlight = () => setEditing((p) => ({ ...p, highlights: [...(p.highlights || []), ''] }))
   const removeHighlight = (idx) => setEditing((p) => ({ ...p, highlights: p.highlights.filter((_, i) => i !== idx) }))
 
+  const toggleAllSitePlans = async () => {
+    const next = !subscriptionsEnabled
+    setTogglingAll(true)
+    try {
+      await adminAPI.updateSettings({ subscriptionsEnabled: next })
+      setSubscriptionsEnabled(next)
+      await useStore.getState().fetchPlatformSettings?.().catch(() => {})
+      showMessage(
+        'success',
+        next
+          ? 'Tous les plans ont été activés et sont à nouveau visibles sur le site.'
+          : 'Tous les plans ont été désactivés : aucun plan n\'est visible sur le site.'
+      )
+    } catch (err) {
+      showMessage('error', err.response?.data?.error || 'Impossible de modifier le statut global des plans.')
+    } finally {
+      setTogglingAll(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -239,7 +265,19 @@ export default function AdminPlans() {
           <h1 className="text-2xl font-bold">Gestion des plans</h1>
           <p className="text-sm text-muted-foreground">Créez, modifiez et supprimez les plans d'abonnement.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant={subscriptionsEnabled ? 'destructive' : 'default'}
+            className={!subscriptionsEnabled ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : ''}
+            disabled={togglingAll}
+            onClick={toggleAllSitePlans}
+          >
+            {subscriptionsEnabled ? (
+              <><PowerOff className="h-4 w-4 mr-2" /> Désactiver tous les plans</>
+            ) : (
+              <><Power className="h-4 w-4 mr-2" /> Activer tous les plans</>
+            )}
+          </Button>
           <Button variant="outline" onClick={resetDefaults}>
             <RefreshCw className="h-4 w-4 mr-2" /> Réinitialiser défauts
           </Button>
