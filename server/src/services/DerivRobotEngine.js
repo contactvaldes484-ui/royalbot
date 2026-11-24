@@ -106,10 +106,23 @@ class DerivRobotEngine {
    */
   _evaluateMarketSignal(bot, history, contractType, barrier, skippedCount = 0, session = null) {
     const prices = history?.prices || [];
-    // Si l'historique est court ou si la session a déjà sauté des ticks, on utilise les derniers prix disponibles
+    // Si l'historique est court, appliquer malgré tout le changement de barrière de récupération pour les robots importés
     if (!prices || prices.length < 3) {
-      // Trade par défaut haute probabilité si manque d'historique au premier lancement
-      return { shouldTrade: true, contractType, barrier: barrier || (contractType === 'DIGITOVER' ? 2 : (contractType === 'DIGITUNDER' ? 7 : 0)), reason: 'Initial quick start signal' };
+      const consecutiveLosses = Number(session?.stats?.consecutiveLosses || 0);
+      const unrecoveredLoss = Number(session?.stats?.unrecoveredLoss || 0);
+      const inRecovery = consecutiveLosses >= 1 || unrecoveredLoss > 0.02;
+      let fallbackBarrier = barrier !== undefined && barrier !== null && barrier !== '' ? Number(barrier) : (contractType === 'DIGITOVER' ? 2 : (contractType === 'DIGITUNDER' ? 8 : 0));
+      if (contractType === 'DIGITUNDER' && fallbackBarrier <= 2) fallbackBarrier = 8;
+      if (inRecovery) {
+        if (bot?.parsedLogic?.recoveryBarrier !== undefined) {
+          fallbackBarrier = Number(bot.parsedLogic.recoveryBarrier);
+        } else if (contractType === 'DIGITUNDER' && fallbackBarrier >= 7) {
+          fallbackBarrier = 6;
+        } else if (contractType === 'DIGITOVER' && fallbackBarrier <= 2) {
+          fallbackBarrier = 4;
+        }
+      }
+      return { shouldTrade: true, contractType, barrier: fallbackBarrier, reason: 'Initial quick start signal' };
     }
 
     const lastDigits = prices.map(p => {
@@ -143,12 +156,16 @@ class DerivRobotEngine {
     if (contractType === 'DIGITOVER') {
       const baseBarrier = barrier !== undefined && barrier !== null && barrier !== '' ? Number(barrier) : 2;
       const consecutiveLosses = Number(session?.stats?.consecutiveLosses || 0);
-      const isImportedXmlBot = bot?.strategyType === 'file_custom' || bot?.fileType === 'xml';
+      const unrecoveredLoss = Number(session?.stats?.unrecoveredLoss || 0);
+      const inRecovery = consecutiveLosses >= 1 || unrecoveredLoss > 0.02;
+      const isImportedXmlBot = bot?.strategyType === 'file_custom' || bot?.fileType === 'xml' || bot?.fileType === 'json';
 
       if (isImportedXmlBot) {
         let xmlBarrier = baseBarrier;
-        if (consecutiveLosses >= 1 && bot?.parsedLogic?.recoveryBarrier !== undefined) {
-          xmlBarrier = Number(bot.parsedLogic.recoveryBarrier);
+        if (inRecovery) {
+          xmlBarrier = bot?.parsedLogic?.recoveryBarrier !== undefined
+            ? Number(bot.parsedLogic.recoveryBarrier)
+            : (baseBarrier <= 2 ? 4 : baseBarrier);
         }
         return {
           shouldTrade: true,
@@ -213,9 +230,31 @@ class DerivRobotEngine {
       return { shouldTrade: false };
     }
 
-    // ── 2. DIGITUNDER (Digit Under Sniper) ──
+    // ── 2. DIGITUNDER (Respect strict des XML importés Dual-Barrier 8 -> 6 + Sniper natif) ──
     if (contractType === 'DIGITUNDER') {
-      const targetBarrier = barrier !== undefined && barrier !== null && barrier !== '' ? Number(barrier) : 7;
+      const rawB = barrier !== undefined && barrier !== null && barrier !== '' ? Number(barrier) : 8;
+      const baseBarrier = rawB <= 2 ? 8 : rawB;
+      const consecutiveLosses = Number(session?.stats?.consecutiveLosses || 0);
+      const unrecoveredLoss = Number(session?.stats?.unrecoveredLoss || 0);
+      const inRecovery = consecutiveLosses >= 1 || unrecoveredLoss > 0.02;
+      const isImportedXmlBot = bot?.strategyType === 'file_custom' || bot?.fileType === 'xml' || bot?.fileType === 'json';
+
+      if (isImportedXmlBot) {
+        let xmlBarrier = baseBarrier;
+        if (inRecovery) {
+          xmlBarrier = bot?.parsedLogic?.recoveryBarrier !== undefined
+            ? Number(bot.parsedLogic.recoveryBarrier)
+            : (baseBarrier >= 7 ? 6 : baseBarrier);
+        }
+        return {
+          shouldTrade: true,
+          contractType,
+          barrier: xmlBarrier,
+          reason: `XML Bot execution (DIGITUNDER ${xmlBarrier})`,
+        };
+      }
+
+      const targetBarrier = inRecovery && baseBarrier >= 7 ? 6 : baseBarrier;
 
       // Épuisement des chiffres élevés (>= 7) -> pullback vers les petits chiffres
       if (lastDigit >= targetBarrier) {
@@ -409,6 +448,30 @@ class DerivRobotEngine {
     const defaultSettings = bot.defaultSettings || {};
     let symbol = overrides.symbol || bot.symbols?.[0] || 'R_100';
     const cTypeUpper = String(overrides.contractType || bot.contractType || 'DIGITOVER').toUpperCase();
+
+    // Auto-réparation à la volée des robots XML/JSON déjà importés (ex: WEALTH GENERATOR où le shadow '1' avait écrasé la barrière 8 -> 6)
+    if (bot.fileContent && (bot.strategyType === 'file_custom' || bot.fileType === 'xml' || bot.fileType === 'json')) {
+      try {
+        const parser = require('./DerivBotFileParser');
+        const reparsed = parser.parse(bot.fileContent, bot.fileName || bot.name || 'bot.xml');
+        if (reparsed?.defaultSettings?.barrier !== undefined) {
+          defaultSettings.barrier = reparsed.defaultSettings.barrier;
+        }
+        if (reparsed?.parsedLogic) {
+          bot.parsedLogic = { ...(bot.parsedLogic || {}), ...reparsed.parsedLogic };
+        }
+        if (bot._id && bot._id !== 'custom-builder') {
+          fallbackStore.updateDerivBot(bot._id, {
+            'defaultSettings.barrier': defaultSettings.barrier,
+            parsedLogic: bot.parsedLogic,
+          }).catch(() => {});
+        }
+      } catch (_) {}
+    }
+    if (cTypeUpper === 'DIGITUNDER' && (defaultSettings.barrier === undefined || Number(defaultSettings.barrier) <= 2)) {
+      defaultSettings.barrier = '8';
+      bot.parsedLogic = { ...(bot.parsedLogic || {}), barrier: '8', recoveryBarrier: bot.parsedLogic?.recoveryBarrier || '6' };
+    }
     // Deriv ne supporte pas CALL/PUT binaire sur BOOM/CRASH ; bascule automatique sur 1HZ100V
     if (/^(BOOM|CRASH)/i.test(symbol) && (cTypeUpper === 'CALL' || cTypeUpper === 'PUT')) {
       symbol = '1HZ100V';
@@ -880,14 +943,37 @@ class DerivRobotEngine {
             const hasVh = Boolean(vhConfig?.enabled);
             const vState = this.virtualStates.get(sessionId);
 
+            const isImportedDigitBot =
+              (bot?.strategyType === 'file_custom' || bot?.fileType === 'xml' || bot?.fileType === 'json') &&
+              (updatedSession.contractType === 'DIGITUNDER' || updatedSession.contractType === 'DIGITOVER');
+
+            let unrecoveredLoss = Number(updatedSession.stats.unrecoveredLoss || 0);
+
             if (isWon) {
               updatedSession.stats.wins += 1;
-              updatedSession.stats.consecutiveLosses = 0;
-              // Règle : Si le trade gagne, retour immédiat au prix initial
-              updatedSession.stats.currentStake = updatedSession.settings.initialStake;
+
+              if (isImportedDigitBot && unrecoveredLoss > 0) {
+                // Split-Recovery DBotPro (ex: WEALTH GENERATOR : 1.00$ perdu -> 1.01$ gagne +0.54$ -> reste 0.46$ -> continue en recovery jusqu'à remboursement total)
+                unrecoveredLoss = +(unrecoveredLoss - Math.abs(profit)).toFixed(2);
+                if (unrecoveredLoss > 0.02) {
+                  updatedSession.stats.unrecoveredLoss = unrecoveredLoss;
+                  updatedSession.stats.consecutiveLosses = Math.max(1, Number(updatedSession.stats.consecutiveLosses || 1));
+                  // Conserver la même mise de récupération pour le 2e split (ex: 1.01$ ou 1.47$)
+                } else {
+                  // Toute la perte du cycle est remboursée -> retour à la barrière 8 et mise initiale 1.00$
+                  updatedSession.stats.unrecoveredLoss = 0;
+                  updatedSession.stats.consecutiveLosses = 0;
+                  updatedSession.stats.currentStake = updatedSession.settings.initialStake;
+                }
+              } else {
+                updatedSession.stats.unrecoveredLoss = 0;
+                updatedSession.stats.consecutiveLosses = 0;
+                // Règle : Si le trade gagne, retour immédiat au prix initial
+                updatedSession.stats.currentStake = updatedSession.settings.initialStake;
+              }
 
               // Si le Virtual Hook est activé, retour en mode virtuel pour filtrer la prochaine entrée !
-              if (hasVh && vState) {
+              if (hasVh && vState && Number(updatedSession.stats.unrecoveredLoss || 0) === 0) {
                 vState.inVirtualMode = true;
                 vState.virtualLosses = 0;
               }
@@ -895,34 +981,47 @@ class DerivRobotEngine {
               updatedSession.stats.losses += 1;
               updatedSession.stats.consecutiveLosses += 1;
 
-              const martiStart = Number(updatedSession.settings.martiStart || 1);
-              const martiFactor = Number(updatedSession.settings.martiFactor || updatedSession.settings.martingaleMultiplier || 1);
-              const maxSteps = Number(updatedSession.settings.maxMartingaleSteps || 4);
+              const maxStakeAllowed = updatedSession.settings.maxStake || 50;
 
-              // Vérification du déclenchement Martingale selon martiStart
-              if (hasActiveMartingale && updatedSession.stats.consecutiveLosses >= martiStart) {
-                let nextStake = updatedSession.stats.currentStake;
-                if (martiFactor > 0 && martiFactor < 1) {
-                  // Hausse fractionnaire progressive (ex: +45% par palier comme dans le robot Unicorn)
-                  nextStake = +(updatedSession.stats.currentStake * (1 + martiFactor)).toFixed(2);
-                } else if (martiFactor >= 1) {
-                  nextStake = +(updatedSession.stats.currentStake * martiFactor).toFixed(2);
-                }
-                const maxStakeAllowed = updatedSession.settings.maxStake || 50;
-                updatedSession.stats.currentStake = Math.min(nextStake, maxStakeAllowed);
+              if (isImportedDigitBot) {
+                // Calcul exact DBotPro Split-Recovery :
+                // 1ère perte (-1.00$) -> unrecoveredLoss = 1.00$ -> mise = 1.01$ (1.00 * 1.01)
+                // Si gain +0.54$ puis perte -1.01$ -> unrecoveredLoss = 1.00 - 0.54 + 1.01 = 1.47$ -> mise = 1.47$
+                const prevUnrecovered = unrecoveredLoss;
+                unrecoveredLoss = +(unrecoveredLoss + Math.abs(profit)).toFixed(2);
+                updatedSession.stats.unrecoveredLoss = unrecoveredLoss;
 
-                // Si le nombre max de paliers martingale est dépassé, réinitialisation de sécurité anti-ruine
-                if (updatedSession.stats.consecutiveLosses >= martiStart + maxSteps) {
-                  updatedSession.stats.currentStake = updatedSession.settings.initialStake;
-                  updatedSession.stats.consecutiveLosses = 0;
-                  if (hasVh && vState) {
-                    vState.inVirtualMode = true;
-                    vState.virtualLosses = 0;
-                  }
-                }
+                const nextRecoveryStake = prevUnrecovered === 0
+                  ? +(unrecoveredLoss * 1.01).toFixed(2)
+                  : +unrecoveredLoss.toFixed(2);
+
+                updatedSession.stats.currentStake = Math.min(Math.max(0.35, nextRecoveryStake), maxStakeAllowed);
               } else {
-                // Avant martiStart, la mise reste la mise initiale
-                updatedSession.stats.currentStake = updatedSession.settings.initialStake;
+                const martiStart = Number(updatedSession.settings.martiStart || 1);
+                const martiFactor = Number(updatedSession.settings.martiFactor || updatedSession.settings.martingaleMultiplier || 1);
+                const maxSteps = Number(updatedSession.settings.maxMartingaleSteps || 4);
+
+                // Vérification du déclenchement Martingale selon martiStart
+                if (hasActiveMartingale && updatedSession.stats.consecutiveLosses >= martiStart) {
+                  let nextStake = updatedSession.stats.currentStake;
+                  if (martiFactor > 0 && martiFactor < 1) {
+                    nextStake = +(updatedSession.stats.currentStake * (1 + martiFactor)).toFixed(2);
+                  } else if (martiFactor >= 1) {
+                    nextStake = +(updatedSession.stats.currentStake * martiFactor).toFixed(2);
+                  }
+                  updatedSession.stats.currentStake = Math.min(nextStake, maxStakeAllowed);
+
+                  if (updatedSession.stats.consecutiveLosses >= martiStart + maxSteps) {
+                    updatedSession.stats.currentStake = updatedSession.settings.initialStake;
+                    updatedSession.stats.consecutiveLosses = 0;
+                    if (hasVh && vState) {
+                      vState.inVirtualMode = true;
+                      vState.virtualLosses = 0;
+                    }
+                  }
+                } else {
+                  updatedSession.stats.currentStake = updatedSession.settings.initialStake;
+                }
               }
             }
 

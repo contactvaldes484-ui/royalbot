@@ -87,16 +87,40 @@ class DerivBotFileParser {
     let m;
     while ((m = varSetRegex.exec(initXml)) !== null) {
       const varName = m[1].trim().toLowerCase();
-      const valBlock = m[2];
-      // Chercher un math_number direct dans cette balise <value>
-      const numMatch = valBlock.match(/<field\s+name=["']NUM["']>(-?[\d.]+)<\/field>/i);
+      const valBlock = m[2].replace(/<shadow[^>]*>[\s\S]*?<\/shadow>/gi, '');
+      const numMatch = valBlock.match(/<field\s+name=["']NUM["']>(-?[\d.]+)<\/field>/i) || m[2].match(/<field\s+name=["']NUM["']>(-?[\d.]+)<\/field>/i);
       if (numMatch && varValues[varName] === undefined) {
         const parsedNum = parseFloat(numMatch[1]);
         if (!isNaN(parsedNum)) varValues[varName] = parsedNum;
       }
     }
 
-    // Helper pour extraire la valeur d'un champ <value name="...">...</value> sans déborder sur d'autres blocs
+    // Extraire également les paramètres passés aux procédures "Run once at start" (procedures_callnoreturn avec <arg name="..."> et <value name="ARG0..N">)
+    const procRegex = /<block[^>]*type=["']procedures_callnoreturn["'][^>]*>([\s\S]*?)(?=<\/block>\s*<\/statement>|<block[^>]*type=["'](?:trade_definition_tradeoptions|before_purchase|during_purchase|after_purchase)["']|$)/gi;
+    let pm;
+    while ((pm = procRegex.exec(initXml)) !== null) {
+      const procBody = pm[1];
+      const argNames = [];
+      const argTagRegex = /<arg\s+name=["']([^"']+)["']\s*\/?>/gi;
+      let am;
+      while ((am = argTagRegex.exec(procBody)) !== null) {
+        argNames.push(am[1].trim().toLowerCase());
+      }
+      argNames.forEach((argName, idx) => {
+        const valRegex = new RegExp(`<value\\s+name=["']ARG${idx}["'][^>]*>([\\s\\S]*?)<\\/value>`, 'i');
+        const vm = procBody.match(valRegex);
+        if (vm) {
+          const cleanVal = vm[1].replace(/<shadow[^>]*>[\s\S]*?<\/shadow>/gi, '');
+          const nm = cleanVal.match(/<field\s+name=["']NUM["']>(-?[\d.]+)<\/field>/i) || vm[1].match(/<field\s+name=["']NUM["']>(-?[\d.]+)<\/field>/i);
+          if (nm) {
+            const parsedNum = parseFloat(nm[1]);
+            if (!isNaN(parsedNum)) varValues[argName] = parsedNum;
+          }
+        }
+      });
+    }
+
+    // Helper pour extraire la valeur d'un champ <value name="...">...</value> sans capturer par erreur le <shadow> 1 de Blockly
     const extractValueField = (sourceXml, valueName) => {
       const valRegex = new RegExp(`<value\\s+name=["']${valueName}["'][^>]*>([\\s\\S]*?)<\\/value>`, 'i');
       const match = sourceXml.match(valRegex);
@@ -107,12 +131,22 @@ class DerivBotFileParser {
       if (varRef) {
         const refName = varRef[1].trim().toLowerCase();
         if (varValues[refName] !== undefined) return varValues[refName];
+        return undefined; // Ne pas retomber sur le <shadow> NUM=1 si la variable est dynamique
       }
-      // 2. Sinon nombre direct (math_number / math_number_positive)
-      const numDirect = inner.match(/<field\s+name=["']NUM["']>(-?[\d.]+)<\/field>/i);
-      if (numDirect) {
-        const n = parseFloat(numDirect[1]);
+      // 2. Nombre dans un vrai <block> (hors <shadow>)
+      const withoutShadow = inner.replace(/<shadow[^>]*>[\s\S]*?<\/shadow>/gi, '');
+      const numBlock = withoutShadow.match(/<field\s+name=["']NUM["']>(-?[\d.]+)<\/field>/i);
+      if (numBlock) {
+        const n = parseFloat(numBlock[1]);
         if (!isNaN(n)) return n;
+      }
+      // 3. Uniquement s'il n'y a aucun <block> dans <value>, utiliser le <shadow>
+      if (!/<block\b/i.test(withoutShadow)) {
+        const numShadow = inner.match(/<field\s+name=["']NUM["']>(-?[\d.]+)<\/field>/i);
+        if (numShadow) {
+          const n = parseFloat(numShadow[1]);
+          if (!isNaN(n)) return n;
+        }
       }
       return undefined;
     };
@@ -157,17 +191,68 @@ class DerivBotFileParser {
       duration = parseInt(extractedDur, 10) || duration;
     }
 
-    // 4. Extraction précise de la barrière / prédiction (gère 0 correctement !)
+    // 4. Extraction précise de la barrière initiale et de la barrière de récupération (Dual-Barrier / Split Martingale DBotPro)
     let barrier = undefined;
+    let recoveryBarrier = undefined;
     if (contractType.startsWith('DIGIT') && contractType !== 'DIGITEVEN' && contractType !== 'DIGITODD') {
-      const predVal = extractValueField(initXml, 'PREDICTION')
+      // Collecter toutes les valeurs de prédiction/barrière assignées dans le fichier XML
+      const assignedDigits = [];
+      const predAssignRegex = /<field\s+name=["']VAR["'][^>]*>([^<]*(?:prediction|barrier|under\s*digit|over\s*digit|digit\s*1|digit\s*2|1st|2nd)[^<]*)<\/field>[\s\S]{0,260}?<field\s+name=["']NUM["']>(\d)<\/field>/gi;
+      let pam;
+      while ((pam = predAssignRegex.exec(xmlStr)) !== null) {
+        const d = parseInt(pam[2], 10);
+        if (!isNaN(d) && d >= 0 && d <= 9 && !assignedDigits.includes(d)) {
+          assignedDigits.push(d);
+        }
+      }
+
+      const firstVarPred = findVarByKeywords(
+        ['1st under', '1st over', 'prediction 1', 'prediction before', 'initial prediction', 'first prediction', 'barrier 1', 'prediction', 'barrier', 'under digit', 'over digit'],
+        ['2nd', 'after', 'recovery', 'loss', 'win', 'stake', 'count', 'list', 'tick']
+      );
+      const secondVarPred = findVarByKeywords(
+        ['2nd under', '2nd over', 'prediction 2', 'prediction after', 'recovery prediction', 'second prediction', 'barrier 2', 'loss prediction'],
+        ['stake', 'count', 'list', 'tick']
+      );
+
+      const directPred = extractValueField(initXml, 'PREDICTION')
         ?? extractValueField(initXml, 'BARRIEROFFSET')
-        ?? extractValueField(initXml, 'BARRIER')
-        ?? findVarByKeywords(['prediction', 'barrier', 'digit'], ['loss', 'win', 'stake']);
-      if (predVal !== undefined && !isNaN(Number(predVal))) {
-        barrier = String(Math.max(0, Math.min(9, parseInt(predVal, 10))));
-      } else {
-        barrier = '2';
+        ?? extractValueField(initXml, 'BARRIER');
+
+      const rawPred = firstVarPred ?? directPred ?? assignedDigits[0];
+      if (rawPred !== undefined && !isNaN(Number(rawPred))) {
+        barrier = String(Math.max(0, Math.min(9, parseInt(rawPred, 10))));
+      }
+
+      if (secondVarPred !== undefined && !isNaN(Number(secondVarPred))) {
+        recoveryBarrier = String(Math.max(0, Math.min(9, parseInt(secondVarPred, 10))));
+      } else if (assignedDigits.length >= 2) {
+        if (contractType === 'DIGITUNDER') {
+          const sortedDesc = [...assignedDigits].sort((a, b) => b - a);
+          barrier = String(sortedDesc[0]);
+          recoveryBarrier = String(sortedDesc[1]);
+        } else if (contractType === 'DIGITOVER') {
+          const sortedAsc = [...assignedDigits].sort((a, b) => a - b);
+          barrier = String(sortedAsc[0]);
+          recoveryBarrier = String(sortedAsc[1]);
+        }
+      }
+
+      // Protection DIGITUNDER : ne jamais utiliser la valeur shadow '1' (10% winrate) par défaut sur un bot DIGITUNDER
+      if (contractType === 'DIGITUNDER') {
+        if (barrier === undefined || Number(barrier) <= 2) {
+          barrier = '8';
+        }
+        if (recoveryBarrier === undefined && Number(barrier) >= 7) {
+          recoveryBarrier = '6';
+        }
+      } else if (contractType === 'DIGITOVER') {
+        if (barrier === undefined) {
+          barrier = '2';
+        }
+        if (recoveryBarrier === undefined && Number(barrier) <= 2) {
+          recoveryBarrier = '4';
+        }
       }
     }
 
@@ -232,10 +317,9 @@ class DerivBotFileParser {
       if (!isNaN(val) && val > 0 && val <= 15) martiFactor = val;
     }
 
-    // Détection de prédiction alternative / Double Over dans after_purchase
-    let recoveryBarrier = undefined;
-    if (afterXml && contractType.startsWith('DIGIT')) {
-      const predAfter = afterXml.match(/<field\s+name=["']VAR["'][^>]*>[^<]*prediction[^<]*<\/field>[\s\S]{0,300}?<field\s+name=["']NUM["']>(\d)<\/field>/i);
+    // Détection supplémentaire de prédiction alternative dans after_purchase si non encore trouvée
+    if (!recoveryBarrier && afterXml && contractType.startsWith('DIGIT')) {
+      const predAfter = afterXml.match(/<field\s+name=["']VAR["'][^>]*>[^<]*(?:prediction|barrier|digit)[^<]*<\/field>[\s\S]{0,300}?<field\s+name=["']NUM["']>(\d)<\/field>/i);
       if (predAfter && predAfter[1] !== barrier) {
         recoveryBarrier = predAfter[1];
       }
