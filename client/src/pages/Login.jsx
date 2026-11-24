@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -15,9 +15,32 @@ export default function Login() {
   const [requires2FA, setRequires2FA] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [plansActive, setPlansActive] = useState(false)
   const { login, platformSettings } = useStore()
   const navigate = useNavigate()
   const location = useLocation()
+
+  const searchParams = new URLSearchParams(location.search)
+  const paidOrderFromUrl = searchParams.get('paid_order')
+  const isRegisteredNotice = searchParams.get('registered') === '1'
+
+  useEffect(() => {
+    if (paidOrderFromUrl) {
+      localStorage.setItem('royalbot_paid_order', paidOrderFromUrl)
+    }
+    Promise.all([
+      fetch('/api/settings').then(r => r.json()).catch(() => ({})),
+      fetch('/api/subscriptions/plans').then(r => r.json()).catch(() => ({})),
+    ]).then(([setRes, plansRes]) => {
+      const s = setRes?.settings || {}
+      const plans = plansRes?.plans || []
+      const active =
+        s.subscriptionsEnabled !== false &&
+        !s.allRobotsFree &&
+        plans.some(p => p.isActive !== false && p.isPublic !== false && !p.isFree && Number(p.priceMonthly) > 0)
+      setPlansActive(active)
+    }).catch(() => {})
+  }, [paidOrderFromUrl])
 
   const derivAppId = platformSettings?.derivAppId || '34HkkJSIK047dAEWEgXML'
   const derivSignupUrl = platformSettings?.derivReferralLink || 'https://track.deriv.com/_DEFAULT/'
@@ -69,6 +92,12 @@ export default function Login() {
             <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold flex items-center gap-2">
               <Zap className="h-4 w-4 shrink-0 text-emerald-400" />
               <span>Connectez-vous pour finaliser votre commande. Le fichier du robot vous sera envoyé par email.</span>
+            </div>
+          )}
+
+          {isRegisteredNotice && (
+            <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
+              Compte créé avec succès ! Connectez-vous maintenant pour accéder à votre Dashboard.
             </div>
           )}
 
@@ -139,7 +168,12 @@ export default function Login() {
 
           <div className="text-center text-sm">
             <span className="text-muted-foreground">Pas encore de compte ? </span>
-            <Link to="/register" className="text-primary hover:underline font-medium">Créer un compte</Link>
+            <Link
+              to={plansActive && !paidOrderFromUrl ? '/pricing?register_flow=1' : '/register'}
+              className="text-primary hover:underline font-medium"
+            >
+              Créer un compte
+            </Link>
           </div>
         </CardContent>
       </Card>

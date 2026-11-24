@@ -22,11 +22,13 @@ const useStore = create((set, get) => ({
   login: async (email, password, twoFactorCode) => {
     set({ isLoading: true, error: null })
     try {
-      const { data } = await authAPI.login({ email, password, twoFactorCode })
+      const paidOrderId = localStorage.getItem('royalbot_paid_order') || undefined
+      const { data } = await authAPI.login({ email, password, twoFactorCode, paidOrderId })
       if (data.requires2FA) {
         set({ isLoading: false })
         return { requires2FA: true }
       }
+      if (paidOrderId) localStorage.removeItem('royalbot_paid_order')
       localStorage.setItem('token', data.token)
       set({ user: data.user, token: data.token, isAuthenticated: true, isLoading: false })
       return data
@@ -40,7 +42,9 @@ const useStore = create((set, get) => ({
   register: async (userData) => {
     set({ isLoading: true, error: null })
     try {
-      const { data } = await authAPI.register(userData)
+      const paidOrderId = userData?.paidOrderId || localStorage.getItem('royalbot_paid_order') || undefined
+      const { data } = await authAPI.register({ ...userData, paidOrderId })
+      if (paidOrderId) localStorage.removeItem('royalbot_paid_order')
       localStorage.setItem('token', data.token)
       set({ user: data.user, token: data.token, isAuthenticated: true, isLoading: false })
       return data

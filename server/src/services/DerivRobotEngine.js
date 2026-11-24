@@ -364,13 +364,16 @@ class DerivRobotEngine {
     const userEmail = (user?.email || '').toLowerCase().trim();
     const isOwner = userEmail === 'valdeslando15@gmail.com' || (typeof fallbackStore.isPlatformOwner === 'function' && fallbackStore.isPlatformOwner(user));
     const isAdmin = isOwner || user?.role === 'super_admin' || user?.role === 'admin';
+    const isSubExpired = user?.subscription?.endDate ? new Date(user.subscription.endDate) <= new Date() : false;
     const hasPaidPlan =
       isAdmin ||
-      user?.subscription?.plan === 'deriv-starter' ||
-      user?.subscription?.plan === 'deriv-pro' ||
-      user?.subscription?.plan === 'vip' ||
-      user?.subscription?.plan === 'institutional' ||
-      (user?.subscription?.isActive && user?.subscription?.plan !== 'free');
+      (!isSubExpired && (
+        user?.subscription?.plan === 'deriv-starter' ||
+        user?.subscription?.plan === 'deriv-pro' ||
+        user?.subscription?.plan === 'vip' ||
+        user?.subscription?.plan === 'institutional' ||
+        (user?.subscription?.isActive && user?.subscription?.plan !== 'free')
+      ));
     const isAffiliated = acc.affiliateVerified === true;
     const settingsObj = await fallbackStore.getSettings().catch(() => ({}));
     const freeTrialEnabled = settingsObj?.freeTrialEnabled !== false && Number(settingsObj?.derivTrialDays ?? settingsObj?.freeTrialDays ?? 7) > 0;

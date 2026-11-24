@@ -524,27 +524,23 @@ export default function Pricing() {
             {payStep === 'paid' && (
               <div className="space-y-3 text-xs">
                 <div className="p-3 rounded-xl bg-emerald-950 border border-emerald-500/40 text-emerald-300 font-semibold">
-                  Votre paiement est confirmé ! Connectez maintenant votre compte Deriv (ou inscrivez-vous sur Deriv) pour accéder à votre Dashboard.
+                  Votre paiement est confirmé ! Créez maintenant votre compte (ou connectez-vous) pour accéder à votre Dashboard, puis connectez votre compte Deriv.
                 </div>
                 <Button
                   type="button"
-                  onClick={() => startDerivOAuth(settings?.derivAppId, { skipPlanGate: true })}
+                  onClick={() => navigate(`/register?paid_order=${encodeURIComponent(paySession?.orderId || '')}`)}
                   className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
                 >
-                  <Zap className="w-4 h-4 mr-1.5" />
-                  Se connecter avec mon compte Deriv
+                  S&apos;inscrire maintenant (Email) <ArrowRight className="w-4 h-4 ml-1.5" />
                 </Button>
-                <a
-                  href={settings?.derivReferralLink || 'https://deriv.com/signup/'}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-200 font-semibold"
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate(`/login?paid_order=${encodeURIComponent(paySession?.orderId || '')}`)}
+                  className="w-full border-slate-700 text-slate-200 hover:bg-slate-800 font-semibold"
                 >
-                  Je n&apos;ai pas encore de compte — M&apos;inscrire sur Deriv <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-                <p className="text-[11px] text-slate-400 text-center">
-                  Après votre inscription sur Deriv, revenez et cliquez sur « Se connecter avec mon compte Deriv » pour accéder à votre Dashboard.
-                </p>
+                  J&apos;ai déjà un compte — Me connecter
+                </Button>
               </div>
             )}
           </div>

@@ -34,11 +34,15 @@ export default function Register() {
     }
     setLoading(true)
     try {
-      await register({ firstName: form.firstName, lastName: form.lastName, email: form.email, password: form.password, referralCode: form.referralCode || undefined })
       const params = new URLSearchParams(location.search)
+      const paidOrder = params.get('paid_order') || localStorage.getItem('royalbot_paid_order') || undefined
+      await register({ firstName: form.firstName, lastName: form.lastName, email: form.email, password: form.password, referralCode: form.referralCode || undefined, paidOrderId: paidOrder })
       const redirectTo = params.get('redirect')
       const buySlug = params.get('buy')
-      if (redirectTo) {
+      if (paidOrder) {
+        useStore.getState().logout?.()
+        navigate('/login?registered=1')
+      } else if (redirectTo) {
         navigate(buySlug ? `${redirectTo}?buy=${buySlug}` : redirectTo)
       } else {
         navigate('/dashboard')

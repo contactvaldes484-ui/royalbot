@@ -3,6 +3,10 @@ import axios from 'axios'
 export const DEFAULT_PROD_API = 'https://web-production-19f31.up.railway.app/api'
 
 export function resolveApiUrl() {
+  if (typeof window !== 'undefined' && window.location.hostname.includes('royal-bot.online')) {
+    return `${window.location.origin}/api`
+  }
+
   const raw = String(import.meta.env.VITE_API_URL || '').trim()
   const isLocalHost =
     typeof window !== 'undefined' &&
@@ -49,7 +53,7 @@ export const API_URL = resolveApiUrl()
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 25000,
+  timeout: 45000,
   headers: { 'Content-Type': 'application/json' }
 })
 

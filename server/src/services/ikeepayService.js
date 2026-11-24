@@ -85,7 +85,7 @@ async function initPayin({
       'x-api-key': creds.secretKey,
     },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(30000),
   });
 
   const data = await resp.json().catch(() => ({}));
@@ -137,7 +137,7 @@ async function initPayout({
       'x-api-key': creds.secretKey,
     },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(30000),
   });
 
   const data = await resp.json().catch(() => ({}));

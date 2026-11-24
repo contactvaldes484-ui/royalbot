@@ -79,7 +79,8 @@ export default function DashboardDeriv() {
   const isTrialValid = isOwner || (freeTrialActiveGlobal && rawTrialValid)
   const trialDays = isOwner ? 9999 : (freeTrialActiveGlobal ? (selectedAccount?.trialDaysRemaining ?? 7) : 0)
   const isAffiliated = selectedAccount?.affiliateVerified === true
-  const hasPaidPlan = isAdmin || user?.subscription?.plan?.startsWith('deriv') || user?.subscription?.plan === 'vip' || user?.subscription?.plan === 'institutional' || (user?.subscription?.isActive && user?.subscription?.plan !== 'free')
+  const isSubExpired = user?.subscription?.endDate ? new Date(user.subscription.endDate) <= new Date() : false
+  const hasPaidPlan = isAdmin || (!isSubExpired && (user?.subscription?.plan?.startsWith('deriv') || user?.subscription?.plan === 'vip' || user?.subscription?.plan === 'institutional' || (user?.subscription?.isActive && user?.subscription?.plan !== 'free')))
   const canRunRobots = !hasActivePaidPlanCatalog || isAdmin || isTrialValid || isAffiliated || hasPaidPlan
 
   const trialCountdownText = React.useMemo(() => {

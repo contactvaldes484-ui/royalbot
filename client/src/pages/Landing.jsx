@@ -360,7 +360,7 @@ export default function Landing() {
   const [dbBots, setDbBots] = useState([])
   const [plans, setPlans] = useState([])
   const [billingCycle, setBillingCycle] = useState('monthly')
-  const { platformSettings } = useStore()
+  const { platformSettings, isAuthenticated } = useStore()
 
   useEffect(() => {
     screenshotAPI.getAll().then(({ data }) => setScreenshots(data.screenshots || [])).catch(() => {})
@@ -454,7 +454,7 @@ export default function Landing() {
               
               <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-4">
                 <Button size="xl" className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-600/30 text-base" asChild>
-                  <Link to="/dashboard/deriv">
+                  <Link to={isAuthenticated ? '/dashboard/deriv' : '/login'}>
                     <Zap className="mr-2 h-5 w-5" /> Lancer un Robot Deriv (Essai 7j)
                   </Link>
                 </Button>

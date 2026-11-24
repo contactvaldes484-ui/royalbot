@@ -51,6 +51,27 @@ router.post('/register', checkRegistrationSecurity, async (req, res) => {
     }
 
     const user = await fallbackStore.createUser(userData);
+    if (req.body.paidOrderId && fallbackStore.isDbConnected()) {
+      try {
+        const Subscription = require('../models/Subscription');
+        const paidOrder = String(req.body.paidOrderId).trim();
+        const sub = await Subscription.findOne({ $or: [{ ikeepayOrderId: paidOrder }, { paymentId: paidOrder }] });
+        if (sub) {
+          sub.user = user._id;
+          await sub.save();
+          if (sub.paymentStatus === 'confirmed' || sub.isActive) {
+            user.subscription = {
+              plan: sub.plan,
+              billingCycle: sub.billingCycle,
+              isActive: true,
+              startDate: sub.startDate,
+              endDate: sub.endDate,
+            };
+            if (user.save) await user.save();
+          }
+        }
+      } catch (_) {}
+    }
     const token = generateToken(user._id);
 
     if (fallbackStore.isDbConnected()) {
@@ -112,6 +133,26 @@ router.post('/login', checkLoginSecurity, async (req, res) => {
     const ip = req.clientIp || getClientIp(req);
     user.lastLogin = new Date();
     user.lastLoginIp = ip;
+    if (req.body.paidOrderId && fallbackStore.isDbConnected()) {
+      try {
+        const Subscription = require('../models/Subscription');
+        const paidOrder = String(req.body.paidOrderId).trim();
+        const sub = await Subscription.findOne({ $or: [{ ikeepayOrderId: paidOrder }, { paymentId: paidOrder }] });
+        if (sub) {
+          sub.user = user._id;
+          await sub.save();
+          if (sub.paymentStatus === 'confirmed' || sub.isActive) {
+            user.subscription = {
+              plan: sub.plan,
+              billingCycle: sub.billingCycle,
+              isActive: true,
+              startDate: sub.startDate,
+              endDate: sub.endDate,
+            };
+          }
+        }
+      } catch (_) {}
+    }
     if (user.save) await user.save().catch(() => {});
 
     if (fallbackStore.isDbConnected()) {
