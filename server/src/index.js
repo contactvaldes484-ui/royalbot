@@ -539,6 +539,20 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 6000 })
         console.log('✅ Deriv: 6 robots de trading par défaut initialisés');
       }
 
+      // Assurer la présence et le marquage isSystem=true des 10 robots système intégrés (sans écraser les robots importés)
+      const systemBotsList = fallbackStore.derivBots.filter(b => b.isSystem || b.order <= 10);
+      for (const sysBot of systemBotsList) {
+        const { _id, ...botFields } = sysBot;
+        await DerivBot.findOneAndUpdate(
+          { slug: sysBot.slug },
+          {
+            $setOnInsert: { ...botFields },
+            $set: { isSystem: true },
+          },
+          { upsert: true, new: true }
+        ).catch(() => {});
+      }
+
       // Synchroniser les paramètres avancés (Virtual Hook & Martingale progressive) pour les robots en base
       await DerivBot.updateMany(
         { name: /Unicorn/i },

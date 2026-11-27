@@ -67,6 +67,7 @@ const DerivBotSchema = new mongoose.Schema({
   icon:       { type: String, default: 'Bot' },
   color:      { type: String, default: 'from-emerald-500 to-teal-600' },
   isActive:   { type: Boolean, default: true },
+  isSystem:   { type: Boolean, default: false },
   isPopular:  { type: Boolean, default: false },
   order:      { type: Number, default: 0 },
 }, { timestamps: true });

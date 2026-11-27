@@ -40,29 +40,29 @@ class DerivRobotEngine {
     if (contractType === 'PUT' || contractType === 'LOWER') {
       return currentPrice < entryPrice;
     }
+    const pipSize = Math.max(2, ...prices.map(p => (String(p).split('.')[1] || '').length));
+    const lastDigitOf = (val) => {
+      const s = Number(val).toFixed(pipSize).replace('.', '');
+      return parseInt(s.charAt(s.length - 1), 10) || 0;
+    };
     if (contractType === 'DIGITOVER') {
-      const s = String(currentPrice).replace('.', '');
-      const d = parseInt(s.charAt(s.length - 1), 10) || 0;
+      const d = lastDigitOf(currentPrice);
       return d > Number(barrier !== undefined && barrier !== null ? barrier : 2);
     }
     if (contractType === 'DIGITUNDER') {
-      const s = String(currentPrice).replace('.', '');
-      const d = parseInt(s.charAt(s.length - 1), 10) || 0;
+      const d = lastDigitOf(currentPrice);
       return d < Number(barrier !== undefined && barrier !== null ? barrier : 7);
     }
     if (contractType === 'DIGITDIFF') {
-      const s = String(currentPrice).replace('.', '');
-      const d = parseInt(s.charAt(s.length - 1), 10) || 0;
+      const d = lastDigitOf(currentPrice);
       return d !== Number(barrier);
     }
     if (contractType === 'DIGITMATCH') {
-      const s = String(currentPrice).replace('.', '');
-      const d = parseInt(s.charAt(s.length - 1), 10) || 0;
+      const d = lastDigitOf(currentPrice);
       return d === Number(barrier);
     }
     if (contractType === 'DIGITEVEN') {
-      const s = String(currentPrice).replace('.', '');
-      const d = parseInt(s.charAt(s.length - 1), 10) || 0;
+      const d = lastDigitOf(currentPrice);
       return d % 2 === 0;
     }
     if (contractType === 'DIGITODD') {
@@ -125,13 +125,23 @@ class DerivRobotEngine {
       return { shouldTrade: true, contractType, barrier: fallbackBarrier, reason: 'Initial quick start signal' };
     }
 
+    const pipSize = Math.max(2, ...prices.map(p => (String(p).split('.')[1] || '').length));
     const lastDigits = prices.map(p => {
-      const s = String(p).replace('.', '');
+      const s = Number(p).toFixed(pipSize).replace('.', '');
       return parseInt(s.charAt(s.length - 1), 10) || 0;
     });
     const lastDigit = lastDigits[lastDigits.length - 1];
     const prevDigit = lastDigits[lastDigits.length - 2];
     const priceDelta = prices[prices.length - 1] - prices[prices.length - 2];
+
+    // Projection quantique du prochain tick (P_hat = P_t + vélocité pondérée 3-ticks) et extraction du chiffre projeté d_hat
+    const d1 = prices[prices.length - 1] - prices[prices.length - 2];
+    const d2 = prices.length >= 3 ? prices[prices.length - 2] - prices[prices.length - 3] : d1;
+    const d3 = prices.length >= 4 ? prices[prices.length - 3] - prices[prices.length - 4] : d2;
+    const expectedVelocity = 0.5 * d1 + 0.3 * d2 + 0.2 * d3;
+    const projectedNextPrice = Number(prices[prices.length - 1]) + expectedVelocity;
+    const projStr = projectedNextPrice.toFixed(pipSize).replace('.', '');
+    const projectedDigit = parseInt(projStr.charAt(projStr.length - 1), 10) || 0;
 
     // ── Logique personnalisée Super-Admin (injectable sur n'importe quel robot) ──
     const customCode = bot?.defaultSettings?.customLogicCode || bot?.customLogicCode;
@@ -175,12 +185,13 @@ class DerivRobotEngine {
         };
       }
 
-      // Récupération dynamique par changement de barrière pour Digit Over 2 Sniper natif :
-      // Palier 0 -> DIGITOVER 2 (~39% payout)
-      // Palier 1 (après 1 perte) -> DIGITOVER 3 (~62% payout -> couvre la perte avec x1.9 seulement)
-      // Palier 2+ (après 2+ pertes) -> DIGITOVER 4 (~95% payout -> couvre tout en 1 gain)
+      // Récupération dynamique par changement de barrière pour Digit Over 1/2 Sniper natif :
       let effectiveBarrier = baseBarrier;
-      if (baseBarrier <= 2 && consecutiveLosses === 1) {
+      if (inRecovery && bot?.parsedLogic?.recoveryBarrier !== undefined) {
+        effectiveBarrier = Number(bot.parsedLogic.recoveryBarrier);
+      } else if (baseBarrier === 1 && inRecovery) {
+        effectiveBarrier = 3;
+      } else if (baseBarrier <= 2 && consecutiveLosses === 1) {
         effectiveBarrier = 3;
       } else if (baseBarrier <= 2 && consecutiveLosses >= 2) {
         effectiveBarrier = 4;
@@ -197,18 +208,21 @@ class DerivRobotEngine {
         return { shouldTrade: false };
       }
 
-      // Setup A (Rebond Sniper après chiffre bas isolé dans un régime sain)
-      if (lastDigit <= effectiveBarrier && lowCount6 <= 2 && lowFreq25 <= 0.42) {
+      // Zone cœur sécurisée sur le cercle décimal : projectedDigit loin des bornes 0..effectiveBarrier et 9
+      const inSafeOverCore = projectedDigit >= effectiveBarrier + 2 && projectedDigit <= 8;
+
+      // Setup A (Projection quantique au cœur de la zone > effectiveBarrier + rebond ou régime sain)
+      if (inSafeOverCore && lowCount6 <= 2 && lowFreq25 <= 0.42) {
         return {
           shouldTrade: true,
           contractType,
           barrier: effectiveBarrier,
-          reason: `Sniper rebound (last=${lastDigit} <= ${effectiveBarrier}, freq25=${(lowFreq25 * 100).toFixed(0)}%)`,
+          reason: `Quantum Over core (proj=${projectedDigit} > ${effectiveBarrier}, freq25=${(lowFreq25 * 100).toFixed(0)}%)`,
         };
       }
 
-      // Setup B (Régime haute dominance > 72% sur 25 ticks + micro-tick haussier)
-      if (lowFreq25 <= 0.28 && lastDigit > effectiveBarrier && priceDelta >= 0) {
+      // Setup B (Régime haute dominance > 72% sur 25 ticks + projection > effectiveBarrier)
+      if (lowFreq25 <= 0.28 && projectedDigit > effectiveBarrier && lastDigit > effectiveBarrier) {
         return {
           shouldTrade: true,
           contractType,
@@ -217,13 +231,13 @@ class DerivRobotEngine {
         };
       }
 
-      // Setup C (Entrée adaptative sécurisée après attente en régime sain)
-      if (skippedCount >= 4 && lowFreq25 <= 0.36 && lastDigit > effectiveBarrier) {
+      // Setup C (Entrée adaptative sécurisée après attente si projection favorable)
+      if (skippedCount >= 4 && projectedDigit > effectiveBarrier && lowFreq25 <= 0.40) {
         return {
           shouldTrade: true,
           contractType,
           barrier: effectiveBarrier,
-          reason: `Adaptive sniper entry (freq25=${(lowFreq25 * 100).toFixed(0)}%)`,
+          reason: `Adaptive sniper entry (proj=${projectedDigit} > ${effectiveBarrier})`,
         };
       }
 
@@ -254,43 +268,67 @@ class DerivRobotEngine {
         };
       }
 
-      const targetBarrier = inRecovery && baseBarrier >= 7 ? 6 : baseBarrier;
+      const targetBarrier = inRecovery
+        ? (bot?.parsedLogic?.recoveryBarrier !== undefined ? Number(bot.parsedLogic.recoveryBarrier) : (baseBarrier >= 7 ? 6 : baseBarrier))
+        : baseBarrier;
 
-      // Épuisement des chiffres élevés (>= 7) -> pullback vers les petits chiffres
-      if (lastDigit >= targetBarrier) {
-        return { shouldTrade: true, contractType, barrier: targetBarrier, reason: `High-digit exhaustion pullback (last=${lastDigit})` };
+      const sample25 = lastDigits.slice(-25);
+      const sample6 = lastDigits.slice(-6);
+      const highCount6 = sample6.filter(d => d >= targetBarrier).length;
+      const highFreq25 = sample25.length > 0 ? sample25.filter(d => d >= targetBarrier).length / sample25.length : 0.2;
+
+      // Garde Anti-Cluster : bloquer si série de chiffres >= targetBarrier
+      if (highCount6 >= 3 || highFreq25 >= 0.45) {
+        return { shouldTrade: false };
       }
 
-      if (lastDigit <= 6 && priceDelta <= 0) {
-        return { shouldTrade: true, contractType, barrier: targetBarrier, reason: `Low-digit momentum (last=${lastDigit})` };
+      // Zone cœur sécurisée sur le cercle décimal : projectedDigit bien à l'intérieur de [1 .. targetBarrier - 2]
+      const inSafeUnderCore = projectedDigit >= 1 && projectedDigit <= Math.max(2, targetBarrier - 2);
+
+      if (inSafeUnderCore && highCount6 <= 2) {
+        return { shouldTrade: true, contractType, barrier: targetBarrier, reason: `Quantum Under core (proj=${projectedDigit} < ${targetBarrier})` };
       }
 
-      if (skippedCount >= 2) {
-        return { shouldTrade: true, contractType, barrier: targetBarrier, reason: `Adaptive sniper trade (skipped=${skippedCount})` };
+      if (projectedDigit < targetBarrier && lastDigit < targetBarrier && highFreq25 <= 0.25) {
+        return { shouldTrade: true, contractType, barrier: targetBarrier, reason: `Low-digit dominance (${((1 - highFreq25) * 100).toFixed(0)}% < ${targetBarrier})` };
+      }
+
+      if (skippedCount >= 3 && projectedDigit < targetBarrier && highFreq25 <= 0.38) {
+        return { shouldTrade: true, contractType, barrier: targetBarrier, reason: `Adaptive Under ${targetBarrier} sniper (proj=${projectedDigit})` };
       }
 
       return { shouldTrade: false };
     }
 
-    // ── 3. DIGITDIFF (Digit Differ Hunter - 90%+ Win Rate) ──
+    // ── 3. DIGITDIFF (Digit Differ Hunter & Quantum Differ Entropy VH - Markov Lag-1 + Distance Cercle Mod-10) ──
     if (contractType === 'DIGITDIFF') {
-      const sample = lastDigits.slice(-20);
+      const sample = lastDigits.slice(-30);
+      const recent4 = lastDigits.slice(-4);
       const counts = Array(10).fill(0);
+      const trans = Array(10).fill(0);
       sample.forEach(d => counts[d]++);
-
-      // Trouver le chiffre froid (le moins apparu sur les 20 derniers ticks)
-      let coldDigit = 0;
-      let minCount = Infinity;
-      for (let d = 0; d < 10; d++) {
-        if (counts[d] < minCount) {
-          minCount = counts[d];
-          coldDigit = d;
+      for (let i = 0; i < lastDigits.length - 1; i++) {
+        if (lastDigits[i] === lastDigit) {
+          trans[lastDigits[i + 1]]++;
         }
       }
 
-      // Si le chiffre froid n'est pas le tick actuel, sniper ce chiffre ! (Probabilité de réussite = 90%)
-      const selectedDiffer = lastDigit !== coldDigit ? coldDigit : (coldDigit + 1) % 10;
-      return { shouldTrade: true, contractType: 'DIGITDIFF', barrier: selectedDiffer, reason: `Cold digit differ: ${selectedDiffer} (freq=${minCount})` };
+      // Choisir le chiffre diamétralement opposé à projectedDigit sur le cercle mod-10 ET le plus froid
+      let bestDigit = (projectedDigit + 5) % 10;
+      let minScore = Infinity;
+      for (let d = 0; d < 10; d++) {
+        if (d === lastDigit || d === projectedDigit) continue;
+        const rawDist = Math.abs(d - projectedDigit);
+        const circleDist = Math.min(rawDist, 10 - rawDist); // 0..5 (5 = opposé exact)
+        const distPenalty = (5 - circleDist) * 6;
+        const score = counts[d] * 3 + trans[d] * 5 + (recent4.includes(d) ? 4 : 0) + distPenalty;
+        if (score < minScore) {
+          minScore = score;
+          bestDigit = d;
+        }
+      }
+
+      return { shouldTrade: true, contractType: 'DIGITDIFF', barrier: bestDigit, reason: `Markov Cold Differ: ${bestDigit} (proj=${projectedDigit}, freq=${counts[bestDigit]})` };
     }
 
     // ── 4. DIGITEVEN & DIGITODD (Even / Odd Quantum Flow - Haute Précision) ──
@@ -325,33 +363,34 @@ class DerivRobotEngine {
       return { shouldTrade: false };
     }
 
-    // ── 5. CALL / PUT (Rise / Fall AI & Boom/Crash Spiker - EMA + RSI + Momentum) ──
+    // ── 5. CALL / PUT (Rise / Fall AI, Boom/Crash Spiker & Synthetic Momentum Alpha 1s) ──
     if (contractType === 'CALL' || contractType === 'HIGHER' || contractType === 'PUT' || contractType === 'LOWER') {
-      const emaFast = this._calcEMA(prices, 5);
-      const emaSlow = this._calcEMA(prices, 13);
-      const rsi = this._calcRSI(prices, 7);
-      const is3Up = prices.length >= 4 && prices[prices.length - 1] > prices[prices.length - 2] && prices[prices.length - 2] > prices[prices.length - 3];
-      const is3Down = prices.length >= 4 && prices[prices.length - 1] < prices[prices.length - 2] && prices[prices.length - 2] < prices[prices.length - 3];
+      const ema3 = this._calcEMA(prices, 3);
+      const ema8 = this._calcEMA(prices, 8);
+      const ema13 = this._calcEMA(prices, 13);
+      const rsi = this._calcRSI(prices, 6);
+      const slope3 = prices.length >= 4 ? prices[prices.length - 1] - prices[prices.length - 4] : priceDelta;
+      const accel = prices.length >= 3 ? (prices[prices.length - 1] - prices[prices.length - 2]) - (prices[prices.length - 2] - prices[prices.length - 3]) : 0;
+
+      // Impulsion haussière alignée (EMA3 > EMA8 + pente 3-ticks positive + accélération)
+      if (ema3 && ema8 && ema3 > ema8 && slope3 > 0 && priceDelta > 0 && accel >= -0.02 && (rsi === null || (rsi >= 48 && rsi <= 78))) {
+        return { shouldTrade: true, contractType: 'CALL', barrier: undefined, reason: `Triple-momentum CALL (EMA3>EMA8, RSI=${rsi ? rsi.toFixed(1) : 'N/A'})` };
+      }
+      // Impulsion baissière alignée (EMA3 < EMA8 + pente 3-ticks négative + accélération)
+      if (ema3 && ema8 && ema3 < ema8 && slope3 < 0 && priceDelta < 0 && accel <= 0.02 && (rsi === null || (rsi >= 22 && rsi <= 52))) {
+        return { shouldTrade: true, contractType: 'PUT', barrier: undefined, reason: `Triple-momentum PUT (EMA3<EMA8, RSI=${rsi ? rsi.toFixed(1) : 'N/A'})` };
+      }
 
       // Rebond de sur-achat / sur-vente extrême (Mean Reversion RSI)
-      if (rsi !== null && rsi >= 82 && priceDelta < 0) {
+      if (rsi !== null && rsi >= 85 && priceDelta < 0 && slope3 < 0) {
         return { shouldTrade: true, contractType: 'PUT', barrier: undefined, reason: `Overbought reversal RSI=${rsi.toFixed(1)}` };
       }
-      if (rsi !== null && rsi <= 18 && priceDelta > 0) {
+      if (rsi !== null && rsi <= 15 && priceDelta > 0 && slope3 > 0) {
         return { shouldTrade: true, contractType: 'CALL', barrier: undefined, reason: `Oversold reversal RSI=${rsi.toFixed(1)}` };
       }
 
-      // Alignement de tendance confirmé (EMA5 vs EMA13 + RSI zone saine + impulsion)
-      if (emaFast && emaSlow && emaFast > emaSlow && (rsi === null || (rsi >= 50 && rsi <= 76)) && (is3Up || priceDelta > 0)) {
-        return { shouldTrade: true, contractType: 'CALL', barrier: undefined, reason: `Bullish EMA+RSI trend (RSI=${rsi ? rsi.toFixed(1) : 'N/A'})` };
-      }
-      if (emaFast && emaSlow && emaFast < emaSlow && (rsi === null || (rsi >= 24 && rsi <= 50)) && (is3Down || priceDelta < 0)) {
-        return { shouldTrade: true, contractType: 'PUT', barrier: undefined, reason: `Bearish EMA+RSI trend (RSI=${rsi ? rsi.toFixed(1) : 'N/A'})` };
-      }
-
-      // Entrée adaptative suivant la tendance dominante si 3 ticks sautés
-      if (skippedCount >= 3) {
-        const dir = (emaFast && emaSlow && emaFast >= emaSlow) ? 'CALL' : 'PUT';
+      if (skippedCount >= 2 && ema3 && ema13 && Math.abs(slope3) > 0.01) {
+        const dir = (ema3 >= ema13 && slope3 > 0) ? 'CALL' : 'PUT';
         return { shouldTrade: true, contractType: dir, barrier: undefined, reason: `Adaptive EMA trend follow (${dir})` };
       }
       return { shouldTrade: false };
@@ -944,7 +983,7 @@ class DerivRobotEngine {
             const vState = this.virtualStates.get(sessionId);
 
             const isImportedDigitBot =
-              (bot?.strategyType === 'file_custom' || bot?.fileType === 'xml' || bot?.fileType === 'json') &&
+              (bot?.strategyType === 'file_custom' || bot?.fileType === 'xml' || bot?.fileType === 'json' || bot?.parsedLogic?.splitRecovery === true) &&
               (updatedSession.contractType === 'DIGITUNDER' || updatedSession.contractType === 'DIGITOVER');
 
             let unrecoveredLoss = Number(updatedSession.stats.unrecoveredLoss || 0);
@@ -953,11 +992,12 @@ class DerivRobotEngine {
               updatedSession.stats.wins += 1;
 
               if (isImportedDigitBot && unrecoveredLoss > 0) {
-                // Split-Recovery DBotPro (ex: WEALTH GENERATOR : 1.00$ perdu -> 1.01$ gagne +0.54$ -> reste 0.46$ -> continue en recovery jusqu'à remboursement total)
+                // Split-Recovery DBotPro :
+                // 1.00$ perdu -> 1.01$ gagne +0.54$ -> reste 0.46$ (consecutiveLosses remis à 0 pour le split suivant)
                 unrecoveredLoss = +(unrecoveredLoss - Math.abs(profit)).toFixed(2);
                 if (unrecoveredLoss > 0.02) {
                   updatedSession.stats.unrecoveredLoss = unrecoveredLoss;
-                  updatedSession.stats.consecutiveLosses = Math.max(1, Number(updatedSession.stats.consecutiveLosses || 1));
+                  updatedSession.stats.consecutiveLosses = 0;
                   // Conserver la même mise de récupération pour le 2e split (ex: 1.01$ ou 1.47$)
                 } else {
                   // Toute la perte du cycle est remboursée -> retour à la barrière 8 et mise initiale 1.00$
@@ -985,17 +1025,32 @@ class DerivRobotEngine {
 
               if (isImportedDigitBot) {
                 // Calcul exact DBotPro Split-Recovery :
-                // 1ère perte (-1.00$) -> unrecoveredLoss = 1.00$ -> mise = 1.01$ (1.00 * 1.01)
-                // Si gain +0.54$ puis perte -1.01$ -> unrecoveredLoss = 1.00 - 0.54 + 1.01 = 1.47$ -> mise = 1.47$
+                // - 1ère perte (-1.00$) -> unrecoveredLoss = 1.00$ -> mise = 1.01$ (2-split)
+                // - Si 1er split gagne (+0.54$, consecutiveLosses=0) puis 2e split perd (-1.01$, consecutiveLosses=1) -> unrecoveredLoss = 1.47$ -> mise = 1.47$ (2-split)
+                // - Si 2 pertes consécutives sans gain intermédiaire (consecutiveLosses >= 2) -> récupération directe en 1 gain (unrecoveredLoss / 0.535)
                 const prevUnrecovered = unrecoveredLoss;
                 unrecoveredLoss = +(unrecoveredLoss + Math.abs(profit)).toFixed(2);
                 updatedSession.stats.unrecoveredLoss = unrecoveredLoss;
 
-                const nextRecoveryStake = prevUnrecovered === 0
-                  ? +(unrecoveredLoss * 1.01).toFixed(2)
-                  : +unrecoveredLoss.toFixed(2);
+                let nextRecoveryStake;
+                if (bot?.isSystem && bot?.parsedLogic?.splitRecovery) {
+                  // Pour les robots Système Dual-Barrier Pro : récupération intégrale en 1 seul gain sur Barrière 6/3 (60% de réussite par trade -> 93.6% en 3 essais)
+                  nextRecoveryStake = +((unrecoveredLoss * 1.04) / 0.535).toFixed(2);
+                } else if (prevUnrecovered === 0) {
+                  nextRecoveryStake = +(unrecoveredLoss * 1.01).toFixed(2);
+                } else if (updatedSession.stats.consecutiveLosses === 1) {
+                  nextRecoveryStake = +unrecoveredLoss.toFixed(2);
+                } else {
+                  nextRecoveryStake = +((unrecoveredLoss * 1.02) / 0.535).toFixed(2);
+                }
 
                 updatedSession.stats.currentStake = Math.min(Math.max(0.35, nextRecoveryStake), maxStakeAllowed);
+                const maxSteps = Number(updatedSession.settings.maxMartingaleSteps || 3);
+                if (updatedSession.stats.consecutiveLosses >= maxSteps || updatedSession.stats.unrecoveredLoss > maxStakeAllowed) {
+                  updatedSession.stats.unrecoveredLoss = 0;
+                  updatedSession.stats.consecutiveLosses = 0;
+                  updatedSession.stats.currentStake = updatedSession.settings.initialStake;
+                }
               } else {
                 const martiStart = Number(updatedSession.settings.martiStart || 1);
                 const martiFactor = Number(updatedSession.settings.martiFactor || updatedSession.settings.martingaleMultiplier || 1);

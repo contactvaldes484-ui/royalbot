@@ -454,9 +454,18 @@ export default function AdminDeriv() {
                   {bots.map(b => (
                     <tr key={b._id}>
                       <td className="py-3 font-bold text-white">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Bot className="w-4 h-4 text-emerald-400 shrink-0" />
                           <span>{b.name}</span>
+                          {(b.isSystem || (!b.fileName && b.strategyType !== 'file_custom')) ? (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-sans font-bold bg-violet-500/20 text-violet-300 border border-violet-500/40">
+                              Système
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-sans font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                              Importé
+                            </span>
+                          )}
                         </div>
                         {b.fileName && (
                           <div className="flex items-center gap-1 text-[10px] text-cyan-400 font-sans mt-0.5">
