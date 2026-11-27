@@ -68,6 +68,8 @@ export default function DashboardDeriv() {
   const [payOptions, setPayOptions] = useState(null)
   const [ikeepayUrl, setIkeepayUrl] = useState('')
   const [ikeepayModalOpen, setIkeepayModalOpen] = useState(false)
+  const [pendingUnlockTx, setPendingUnlockTx] = useState(null)
+  const [checkingUnlockTx, setCheckingUnlockTx] = useState(false)
   const ikeepaySessionRef = useRef({ orderId: '', subId: '' })
   const [botStake, setBotStake] = useState(1)
   const [botSL, setBotSL] = useState(20)
@@ -172,6 +174,7 @@ export default function DashboardDeriv() {
         derivAPI.getSessions(),
         derivAPI.getTrades(),
         subscriptionAPI.getPlans().catch(() => ({ data: { plans: [] } })),
+        useStore.getState().fetchUser?.().catch(() => null),
       ])
       setPlans(plansRes?.data?.plans || [])
       const fetchedAccounts = accRes.data?.accounts || []
@@ -276,25 +279,64 @@ export default function DashboardDeriv() {
     subscriptionAPI.getPaymentOptions().then(({ data }) => setPayOptions(data)).catch(() => {})
   }, [showUnlockModal])
 
+  async function verifyUnlockPayment(txInfo) {
+    const info = txInfo || pendingUnlockTx || ikeepaySessionRef.current
+    if (!info?.subId && !info?.orderId) return false
+    setCheckingUnlockTx(true)
+    try {
+      const { data } = await subscriptionAPI.verifyIkeepay({
+        subscriptionId: info.subId,
+        orderId: info.orderId,
+        reference: info.reference || info.orderId,
+      })
+      if (data?.confirmed) {
+        setIkeepayModalOpen(false)
+        setIkeepayUrl('')
+        setPendingUnlockTx(null)
+        setUnlockMsg('Paiement confirmé ! Robots débloqués immédiatement.')
+        await useStore.getState().fetchUser?.().catch(() => {})
+        await loadData()
+        setTimeout(() => {
+          setShowUnlockModal(false)
+          setSelectedUnlockPlan(null)
+        }, 800)
+        return true
+      }
+      // Fallback: vérifier si le webhook a déjà activé l'utilisateur
+      const freshUser = await useStore.getState().fetchUser?.().catch(() => null)
+      if (freshUser?.subscription?.isActive && freshUser?.subscription?.plan !== 'free') {
+        setIkeepayModalOpen(false)
+        setIkeepayUrl('')
+        setPendingUnlockTx(null)
+        setShowUnlockModal(false)
+        setSelectedUnlockPlan(null)
+        await loadData()
+        return true
+      }
+      if (data?.status === 'failed') {
+        setUnlockError(data?.message || 'Le paiement a échoué.')
+        setPendingUnlockTx(null)
+      }
+    } catch (_) {
+    } finally {
+      setCheckingUnlockTx(false)
+    }
+    return false
+  }
+
+  useEffect(() => {
+    if (!pendingUnlockTx) return
+    const timer = setInterval(() => {
+      verifyUnlockPayment(pendingUnlockTx)
+    }, 4000)
+    return () => clearInterval(timer)
+  }, [pendingUnlockTx])
+
   useEffect(() => {
     const onMsg = async (e) => {
+      if (e.data === 'ikeepay-ready') return
       if (e.data === 'ikeepay-success') {
-        const { orderId, subId } = ikeepaySessionRef.current
-        if (subId || orderId) {
-          try {
-            const { data } = await subscriptionAPI.verifyIkeepay({ subscriptionId: subId, orderId })
-            if (data?.confirmed) {
-              setIkeepayModalOpen(false)
-              setIkeepayUrl('')
-              setShowUnlockModal(false)
-              setSelectedUnlockPlan(null)
-              await useStore.getState().loadUser?.().catch(() => {})
-              await loadData()
-              return
-            }
-          } catch (_) {}
-        }
-        setIkeepayModalOpen(false)
+        await verifyUnlockPayment(ikeepaySessionRef.current)
       } else if (e.data === 'ikeepay-close') {
         setIkeepayModalOpen(false)
       }
@@ -325,7 +367,7 @@ export default function DashboardDeriv() {
       const { data } = await subscriptionAPI.subscribe(payload)
       if (data?.subscription?.paymentStatus === 'confirmed') {
         setUnlockMsg('Paiement confirmé ! Robots débloqués immédiatement.')
-        await useStore.getState().loadUser?.().catch(() => {})
+        await useStore.getState().fetchUser?.().catch(() => {})
         await loadData()
         setTimeout(() => {
           setShowUnlockModal(false)
@@ -333,15 +375,18 @@ export default function DashboardDeriv() {
         }, 1200)
         return
       }
+      const txInfo = {
+        orderId: data.orderId || data.subscription?.ikeepayOrderId || '',
+        subId: data.subscription?._id || '',
+        reference: data.providerReference || data.orderId || '',
+      }
+      ikeepaySessionRef.current = txInfo
+      setPendingUnlockTx(txInfo)
       if (data?.checkoutUrl) {
-        ikeepaySessionRef.current = {
-          orderId: data.orderId || data.subscription?.ikeepayOrderId || '',
-          subId: data.subscription?._id || '',
-        }
         setIkeepayUrl(data.checkoutUrl)
         setIkeepayModalOpen(true)
       } else {
-        setUnlockMsg(data?.message || 'Demande Mobile Money envoyée. Validez sur votre téléphone puis cliquez sur Vérifier.')
+        setUnlockMsg(data?.message || 'Demande envoyée sur votre téléphone. Confirmez le paiement : la vérification automatique est en cours...')
       }
     } catch (err) {
       setUnlockError(err.response?.data?.error || err.message || 'Erreur lors du paiement Mobile Money.')
@@ -1334,13 +1379,26 @@ export default function DashboardDeriv() {
                   </div>
                   {unlockError && <p className="text-xs text-rose-400 font-medium">{unlockError}</p>}
                   {unlockMsg && <p className="text-xs text-emerald-400 font-medium">{unlockMsg}</p>}
-                  <Button
-                    type="submit"
-                    disabled={unlockPaying}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-9"
-                  >
-                    {unlockPaying ? 'Initialisation du paiement...' : 'Payer immédiatement via Mobile Money'}
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                      type="submit"
+                      disabled={unlockPaying}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-9"
+                    >
+                      {unlockPaying ? 'Initialisation du paiement...' : 'Payer immédiatement via Mobile Money'}
+                    </Button>
+                    {pendingUnlockTx && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={checkingUnlockTx}
+                        onClick={() => verifyUnlockPayment(pendingUnlockTx)}
+                        className="border-emerald-500/50 text-emerald-300 hover:bg-emerald-950/50 font-bold text-xs h-9"
+                      >
+                        {checkingUnlockTx ? 'Vérification...' : 'Vérifier mon paiement'}
+                      </Button>
+                    )}
+                  </div>
                 </form>
               )}
             </div>

@@ -673,12 +673,17 @@ router.post('/ikeepay/verify', authenticate, async (req, res) => {
     }
 
     // Interroger l'API officielle iKeePay (GET /h2h-verify/:reference)
-    const check = await ikeepayService.verifyTransaction(ref);
+    const refsToTry = Array.from(new Set([sub.ikeepayRef, sub.ikeepayOrderId, ref].filter(Boolean)));
+    let check = { ok: false, status: 'pending' };
+    for (const candidate of refsToTry) {
+      check = await ikeepayService.verifyTransaction(candidate);
+      if (check.ok || check.status === 'failed') break;
+    }
     if (check.ok) {
-      sub.ikeepayRef = check.providerReference || ref;
+      sub.ikeepayRef = check.providerReference || sub.ikeepayRef || ref;
       await sub.save();
       const confirmed = await subService.confirmPendingSubscription(sub._id, {
-        txHash: check.providerReference || ref,
+        txHash: check.providerReference || sub.ikeepayRef || ref,
         adminNote: `Vérifié et confirmé via API iKeePay H2H (${check.providerReference || ref})`,
       });
       return res.json({ confirmed: true, subscription: confirmed, message: 'Paiement iKeePay validé, abonnement activé !' });
