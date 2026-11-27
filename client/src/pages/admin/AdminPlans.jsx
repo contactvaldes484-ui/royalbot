@@ -74,6 +74,8 @@ export default function AdminPlans() {
   const [message, setMessage] = useState(null)
   const [annualDiscount, setAnnualDiscount] = useState(10)
   const [savingDiscount, setSavingDiscount] = useState(false)
+  const [freeTrialDays, setFreeTrialDays] = useState(7)
+  const [savingTrialDays, setSavingTrialDays] = useState(false)
   const [subscriptionsEnabled, setSubscriptionsEnabled] = useState(true)
   const [freeTrialEnabled, setFreeTrialEnabled] = useState(true)
   const [togglingAll, setTogglingAll] = useState(false)
@@ -100,6 +102,9 @@ export default function AdminPlans() {
       }
       if (setRes?.data?.settings?.freeTrialEnabled !== undefined) {
         setFreeTrialEnabled(setRes.data.settings.freeTrialEnabled !== false)
+      }
+      if (setRes?.data?.settings?.freeTrialDays !== undefined || setRes?.data?.settings?.derivTrialDays !== undefined) {
+        setFreeTrialDays(Number(setRes.data.settings.derivTrialDays ?? setRes.data.settings.freeTrialDays ?? 7))
       }
     } catch (err) {
       showMessage('error', 'Erreur de chargement des plans.')
@@ -155,10 +160,30 @@ export default function AdminPlans() {
     }
   }
 
+  const saveFreeTrialDays = async (val) => {
+    setSavingTrialDays(true)
+    try {
+      const days = Math.max(0, Math.min(365, Number(val) || 0))
+      await adminAPI.updateSettings({ freeTrialDays: days, derivTrialDays: days })
+      setFreeTrialDays(days)
+      await useStore.getState().fetchPlatformSettings?.().catch(() => {})
+      showMessage('success', `Durée du Free Trial mise à jour : ${days} jour(s).`)
+    } catch (err) {
+      showMessage('error', err.response?.data?.error || 'Erreur de mise à jour du Free Trial.')
+    } finally {
+      setSavingTrialDays(false)
+    }
+  }
+
   const toggleActive = async (plan) => {
     try {
       const { data } = await adminAPI.togglePlanActive(plan._id)
       const activeNow = data?.plan?.isActive ?? !plan.isActive
+      if (activeNow && !subscriptionsEnabled) {
+        await adminAPI.updateSettings({ subscriptionsEnabled: true })
+        setSubscriptionsEnabled(true)
+        await useStore.getState().fetchPlatformSettings?.().catch(() => {})
+      }
       showMessage('success', activeNow ? `Plan "${plan.name}" activé.` : `Plan "${plan.name}" désactivé.`)
       await load()
     } catch (err) {
@@ -332,6 +357,47 @@ export default function AdminPlans() {
           {message.text}
         </div>
       )}
+
+      {/* Réglage Durée du Free Trial (jours) */}
+      <Card className="border-amber-500/30 bg-amber-500/5">
+        <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold">Durée du Free Trial (jours)</p>
+            <p className="text-xs text-muted-foreground">
+              Augmentez ou diminuez le nombre de jours d&apos;essai gratuit accordés avant le blocage des robots lorsque les plans sont activés.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={savingTrialDays || Number(freeTrialDays) <= 0}
+              onClick={() => saveFreeTrialDays(Math.max(0, Number(freeTrialDays) - 1))}
+            >
+              -1j
+            </Button>
+            <Input
+              type="number"
+              min="0"
+              max="365"
+              value={freeTrialDays}
+              onChange={e => setFreeTrialDays(e.target.value)}
+              className="w-20 h-9 text-center font-mono font-bold"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={savingTrialDays}
+              onClick={() => saveFreeTrialDays(Math.min(365, Number(freeTrialDays) + 1))}
+            >
+              +1j
+            </Button>
+            <Button size="sm" disabled={savingTrialDays} onClick={() => saveFreeTrialDays(freeTrialDays)}>
+              <Save className="h-3.5 w-3.5 mr-1" /> Enregistrer
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Réglage Réduction Plan Annuel */}
       <Card className="border-emerald-500/30 bg-emerald-500/5">

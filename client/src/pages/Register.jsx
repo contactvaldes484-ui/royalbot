@@ -39,13 +39,11 @@ export default function Register() {
       await register({ firstName: form.firstName, lastName: form.lastName, email: form.email, password: form.password, referralCode: form.referralCode || undefined, paidOrderId: paidOrder })
       const redirectTo = params.get('redirect')
       const buySlug = params.get('buy')
-      if (paidOrder) {
-        useStore.getState().logout?.()
-        navigate('/login?registered=1')
-      } else if (redirectTo) {
+      if (redirectTo) {
         navigate(buySlug ? `${redirectTo}?buy=${buySlug}` : redirectTo)
       } else {
-        navigate('/dashboard')
+        useStore.getState().logout?.()
+        navigate('/login?registered=1')
       }
     } catch (err) {
       setError(err.message)

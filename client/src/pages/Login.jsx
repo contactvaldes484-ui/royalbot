@@ -169,7 +169,7 @@ export default function Login() {
           <div className="text-center text-sm">
             <span className="text-muted-foreground">Pas encore de compte ? </span>
             <Link
-              to={plansActive && !paidOrderFromUrl ? '/pricing?register_flow=1' : '/register'}
+              to="/register"
               className="text-primary hover:underline font-medium"
             >
               Créer un compte

@@ -56,6 +56,7 @@ export default function DashboardDeriv() {
 
   // Démarrage de robot modal
   const [selectedBotForStart, setSelectedBotForStart] = useState(null)
+  const [showUnlockModal, setShowUnlockModal] = useState(false)
   const [botStake, setBotStake] = useState(1)
   const [botSL, setBotSL] = useState(20)
   const [botTP, setBotTP] = useState(50)
@@ -264,8 +265,8 @@ export default function DashboardDeriv() {
       return alert('Veuillez d\'abord connecter un compte Deriv (Connexion 1-Clic ou Token) pour lancer ce robot.')
     }
     if (!canRunRobots) {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      return alert('Période d\'essai gratuite expirée. Activez l\'accès via notre lien partenaire Deriv ou via abonnement.')
+      setShowUnlockModal(true)
+      return
     }
     setSelectedBotForStart(bot)
     setBotStake(bot.defaultSettings?.initialStake || 1)
@@ -417,12 +418,13 @@ export default function DashboardDeriv() {
                 <li><strong>Option 2 (100% Gratuit à vie) :</strong> Créez un nouveau compte Deriv via notre lien de parrainage et connectez-vous <strong>toujours avec ce compte partenaire</strong>.</li>
               </ul>
               <div className="flex flex-wrap gap-2 pt-1">
-                <Link
-                  to="/dashboard/subscription"
-                  className="inline-block text-xs font-bold text-white bg-emerald-600 px-3 py-1.5 rounded-lg hover:bg-emerald-500"
+                <button
+                  type="button"
+                  onClick={() => setShowUnlockModal(true)}
+                  className="inline-block text-xs font-bold text-white bg-emerald-600 px-3 py-1.5 rounded-lg hover:bg-emerald-500 cursor-pointer"
                 >
-                  Payer l&apos;Abonnement (Mensuel / Annuel)
-                </Link>
+                  Débloquer (Voir les plans activés / Parrainage)
+                </button>
                 {settings?.derivReferralLink && (
                   <a
                     href={settings.derivReferralLink}
@@ -1077,6 +1079,99 @@ export default function DashboardDeriv() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL DÉBLOCAGE : PLANS ACTIVÉS + LIEN DE PARRAINAGE ──────── */}
+      {showUnlockModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-amber-500/40 rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-amber-400" />
+                  Débloquer l&apos;accès aux Robots Deriv SmartTrader
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  {freeTrialActiveGlobal
+                    ? "Votre période d'essai gratuit est terminée. Choisissez un plan activé ou utilisez le lien de parrainage pour un accès à vie."
+                    : "L'essai gratuit est désactivé. Choisissez un plan d'abonnement activé ou inscrivez-vous via le lien de parrainage pour débloquer les robots à vie."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowUnlockModal(false)}
+                className="text-slate-400 hover:text-white text-sm font-bold px-2 py-1 rounded-lg hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Option 1 : Plans d'abonnement activés */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                Option 1 — Payer un abonnement (Plans activés)
+              </h4>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {plans
+                  .filter(p => p.isActive !== false && p.isPublic !== false && !p.isFree && Number(p.priceMonthly) > 0)
+                  .map(plan => (
+                    <div key={plan._id || plan.slug} className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between gap-3">
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-white text-sm">{plan.name}</span>
+                          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs">
+                            ${plan.priceMonthly}/mois
+                          </Badge>
+                        </div>
+                        {plan.description && (
+                          <p className="text-[11px] text-slate-400 mt-1">{plan.description}</p>
+                        )}
+                      </div>
+                      <Link
+                        to={`/dashboard/subscription?plan=${encodeURIComponent(plan.slug)}`}
+                        onClick={() => setShowUnlockModal(false)}
+                        className="w-full inline-flex items-center justify-center py-2 px-3 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition"
+                      >
+                        Choisir &amp; Payer ce plan
+                      </Link>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            {/* Option 2 : Lien de parrainage Deriv */}
+            <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-500/40 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                Option 2 — Accès 100% Gratuit à Vie via Lien de Parrainage
+              </h4>
+              <p className="text-xs text-slate-300">
+                Inscrivez-vous sur Deriv via notre lien de parrainage administrateur puis connectez votre nouveau compte Deriv ici pour débloquer tous les robots gratuitement à vie.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {settings?.derivReferralLink && (
+                  <a
+                    href={settings.derivReferralLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center text-xs font-bold text-white bg-amber-600 px-3.5 py-2 rounded-lg hover:bg-amber-500"
+                  >
+                    S&apos;inscrire via le Lien de Parrainage
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUnlockModal(false)
+                    setShowConnectModal(true)
+                  }}
+                  className="inline-flex items-center justify-center text-xs font-bold text-amber-200 border border-amber-500/40 px-3.5 py-2 rounded-lg hover:bg-amber-900/40 cursor-pointer"
+                >
+                  Se connecter avec mon Compte Partenaire
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

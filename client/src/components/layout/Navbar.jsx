@@ -22,7 +22,6 @@ export default function Navbar() {
     { label: 'Accueil', href: '/' },
     { label: 'Robots Deriv & Crypto', href: '/robots' },
     { label: 'Marchés', href: '/markets' },
-    { label: 'Tarifs & Essai 7j', href: '/pricing' },
     { label: 'Leaderboard', href: '/leaderboard' },
     { label: 'Blog', href: '/blog' },
     { label: 'FAQ', href: '/faq' },
@@ -123,7 +122,7 @@ export default function Navbar() {
                 <Link to="/login">Connexion</Link>
               </Button>
               <Button variant="gradient" size="sm" asChild>
-                <Link to="/robots">Commencer</Link>
+                <Link to="/login">Commencer</Link>
               </Button>
             </div>
           )}
@@ -155,7 +154,7 @@ export default function Navbar() {
                   <Link to="/login" onClick={() => setMobileOpen(false)}>Connexion</Link>
                 </Button>
                 <Button variant="gradient" size="sm" asChild>
-                  <Link to="/robots" onClick={() => setMobileOpen(false)}>Commencer gratuitement</Link>
+                  <Link to="/login" onClick={() => setMobileOpen(false)}>Commencer gratuitement</Link>
                 </Button>
               </div>
             )}

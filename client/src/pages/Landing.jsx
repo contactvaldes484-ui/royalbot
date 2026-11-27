@@ -374,7 +374,7 @@ export default function Landing() {
 
   const ps = platformSettings || {}
   const annualDiscount = ps.annualDiscountPercent !== undefined ? Number(ps.annualDiscountPercent) : 10
-  const showPlansSection = ps.subscriptionsEnabled !== false && sortedPlans.length > 0
+  const showPlansSection = false // Les plans sont masqués sur les pages publiques et affichés uniquement au déblocage d'un robot
   const heroBadge = ps.heroBadge || '⚡ Pôle d\'Excellence : Robots Deriv SmartTrader & Indices Synthétiques 24/7'
   const heroTitle = ps.heroTitle || 'Trading Automatisé Deriv : Robots Haute Performance 24/7'
   const heroHighlight = ps.heroHighlight || 'Robots Haute Performance 24/7'
@@ -875,7 +875,7 @@ export default function Landing() {
               Rejoignez des milliers de traders qui utilisent RoyalBot pour générer des profits automatiquement.
             </p>
             <Button variant="gradient" size="xl" className="w-full sm:w-auto max-w-full" asChild>
-              <Link to="/robots">
+              <Link to={isAuthenticated ? '/dashboard' : '/login'}>
                 Commencer gratuitement <ArrowRight className="ml-2 h-4 w-4 shrink-0" />
               </Link>
             </Button>
