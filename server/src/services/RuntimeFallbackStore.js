@@ -1096,7 +1096,7 @@ class RuntimeFallbackStore {
               seenSlugs.add(item.slug);
             } else if (item && item.slug) {
               const idx = base.findIndex(b => b.slug === item.slug);
-              if (idx !== -1) base[idx] = { ...base[idx], ...item };
+              if (idx !== -1) base[idx] = { ...base[idx], ...item, isSystem: true };
             }
           }
         }
@@ -1124,11 +1124,10 @@ class RuntimeFallbackStore {
         const filter = includeInactive ? {} : { isActive: true };
         const bots = await DerivBot.find(filter).sort({ order: 1, createdAt: -1 });
         if (bots && bots.length > 0) {
-          // Merge any custom bots persisted locally in fallback store that are not yet in DB
-          const defaultSlugs = new Set(DEFAULT_BOTS.map(b => b.slug));
+          // Merge any bots persisted locally or newly added DEFAULT_BOTS that are not yet in DB
           const dbSlugs = new Set(bots.map(b => b.slug));
           const extraFallback = this.derivBots.filter(b =>
-            b && b.slug && !defaultSlugs.has(b.slug) && !dbSlugs.has(b.slug) &&
+            b && b.slug && !dbSlugs.has(b.slug) &&
             (includeInactive || b.isActive !== false)
           );
           if (extraFallback.length > 0) {

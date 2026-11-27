@@ -542,7 +542,7 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 6000 })
       // Assurer la présence et le marquage isSystem=true des 10 robots système intégrés (sans écraser les robots importés)
       const systemBotsList = fallbackStore.derivBots.filter(b => b.isSystem || b.order <= 10);
       for (const sysBot of systemBotsList) {
-        const { _id, ...botFields } = sysBot;
+        const { _id, isSystem, ...botFields } = sysBot;
         await DerivBot.findOneAndUpdate(
           { slug: sysBot.slug },
           {
@@ -550,7 +550,9 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 6000 })
             $set: { isSystem: true },
           },
           { upsert: true, new: true }
-        ).catch(() => {});
+        ).catch((err) => {
+          console.warn(`⚠️ DerivBot upsert [${sysBot.slug}]:`, err.message);
+        });
       }
 
       // Synchroniser les paramètres avancés (Virtual Hook & Martingale progressive) pour les robots en base
