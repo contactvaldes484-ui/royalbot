@@ -23,7 +23,7 @@ router.get('/plans', async (req, res) => {
   try {
     await planCache.refreshCache().catch(() => {});
   } catch (_) {}
-  const plans = planCache.getPublicPlans();
+  const plans = planCache.getPublicPlans(req.query.category);
   res.json({ plans });
 });
 

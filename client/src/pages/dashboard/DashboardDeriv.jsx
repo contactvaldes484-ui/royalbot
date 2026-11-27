@@ -57,6 +57,17 @@ export default function DashboardDeriv() {
   // Démarrage de robot modal
   const [selectedBotForStart, setSelectedBotForStart] = useState(null)
   const [showUnlockModal, setShowUnlockModal] = useState(false)
+  const [selectedUnlockPlan, setSelectedUnlockPlan] = useState(null)
+  const [unlockBillingCycle, setUnlockBillingCycle] = useState('monthly')
+  const [unlockPhone, setUnlockPhone] = useState('')
+  const [unlockOperator, setUnlockOperator] = useState('MTN')
+  const [unlockPaying, setUnlockPaying] = useState(false)
+  const [unlockError, setUnlockError] = useState('')
+  const [unlockMsg, setUnlockMsg] = useState('')
+  const [payOptions, setPayOptions] = useState(null)
+  const [ikeepayUrl, setIkeepayUrl] = useState('')
+  const [ikeepayModalOpen, setIkeepayModalOpen] = useState(false)
+  const ikeepaySessionRef = useRef({ orderId: '', subId: '' })
   const [botStake, setBotStake] = useState(1)
   const [botSL, setBotSL] = useState(20)
   const [botTP, setBotTP] = useState(50)
@@ -256,6 +267,81 @@ export default function DashboardDeriv() {
       throw new Error(msg)
     } finally {
       setExecutingTrade(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!showUnlockModal) return
+    subscriptionAPI.getPaymentOptions().then(({ data }) => setPayOptions(data)).catch(() => {})
+  }, [showUnlockModal])
+
+  useEffect(() => {
+    const onMsg = async (e) => {
+      if (e.data === 'ikeepay-success') {
+        const { orderId, subId } = ikeepaySessionRef.current
+        if (subId || orderId) {
+          try {
+            const { data } = await subscriptionAPI.verifyIkeepay({ subscriptionId: subId, orderId })
+            if (data?.confirmed) {
+              setIkeepayModalOpen(false)
+              setIkeepayUrl('')
+              setShowUnlockModal(false)
+              setSelectedUnlockPlan(null)
+              await useStore.getState().loadUser?.().catch(() => {})
+              await loadData()
+              return
+            }
+          } catch (_) {}
+        }
+        setIkeepayModalOpen(false)
+      } else if (e.data === 'ikeepay-close') {
+        setIkeepayModalOpen(false)
+      }
+    }
+    window.addEventListener('message', onMsg)
+    return () => window.removeEventListener('message', onMsg)
+  }, [])
+
+  async function handleUnlockMobilePay(e) {
+    e.preventDefault()
+    if (!selectedUnlockPlan) return
+    setUnlockError('')
+    setUnlockMsg('')
+    setUnlockPaying(true)
+    try {
+      const useIkeepay = payOptions?.ikeepay?.enabled !== false
+      const payload = {
+        plan: selectedUnlockPlan.slug,
+        billingCycle: unlockBillingCycle,
+        paymentMethod: useIkeepay ? 'ikeepay' : 'mobile_money',
+        phoneNumber: unlockPhone.trim(),
+        operator: unlockOperator,
+      }
+      const { data } = await subscriptionAPI.subscribe(payload)
+      if (data?.subscription?.paymentStatus === 'confirmed') {
+        setUnlockMsg('Paiement confirmé ! Robots débloqués immédiatement.')
+        await useStore.getState().loadUser?.().catch(() => {})
+        await loadData()
+        setTimeout(() => {
+          setShowUnlockModal(false)
+          setSelectedUnlockPlan(null)
+        }, 1200)
+        return
+      }
+      if (data?.checkoutUrl) {
+        ikeepaySessionRef.current = {
+          orderId: data.orderId || data.subscription?.ikeepayOrderId || '',
+          subId: data.subscription?._id || '',
+        }
+        setIkeepayUrl(data.checkoutUrl)
+        setIkeepayModalOpen(true)
+      } else {
+        setUnlockMsg(data?.message || 'Demande Mobile Money envoyée. Validez sur votre téléphone puis cliquez sur Vérifier.')
+      }
+    } catch (err) {
+      setUnlockError(err.response?.data?.error || err.message || 'Erreur lors du paiement Mobile Money.')
+    } finally {
+      setUnlockPaying(false)
     }
   }
 
@@ -1108,37 +1194,129 @@ export default function DashboardDeriv() {
               </button>
             </div>
 
-            {/* Option 1 : Plans d'abonnement activés */}
+            {/* Option 1 : Plans Deriv activés (créés par l'admin) + Paiement Mobile Money immédiat */}
             <div className="space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                Option 1 — Payer un abonnement (Plans activés)
+                Option 1 — Payer un abonnement Deriv via Mobile Money
               </h4>
               <div className="grid sm:grid-cols-2 gap-3">
                 {plans
-                  .filter(p => p.isActive !== false && p.isPublic !== false && !p.isFree && Number(p.priceMonthly) > 0)
-                  .map(plan => (
-                    <div key={plan._id || plan.slug} className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-between gap-3">
-                      <div>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-white text-sm">{plan.name}</span>
-                          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs">
-                            ${plan.priceMonthly}/mois
-                          </Badge>
-                        </div>
-                        {plan.description && (
-                          <p className="text-[11px] text-slate-400 mt-1">{plan.description}</p>
-                        )}
-                      </div>
-                      <Link
-                        to={`/dashboard/subscription?plan=${encodeURIComponent(plan.slug)}`}
-                        onClick={() => setShowUnlockModal(false)}
-                        className="w-full inline-flex items-center justify-center py-2 px-3 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition"
+                  .filter(p =>
+                    p.isActive !== false &&
+                    p.isPublic !== false &&
+                    !p.isFree &&
+                    Number(p.priceMonthly) > 0 &&
+                    (p.category === 'deriv' || p.broker === 'deriv' || p.slug?.startsWith('deriv')) &&
+                    (p.currency || 'XAF') !== 'USD' &&
+                    (p.currency || 'XAF') !== '$'
+                  )
+                  .map(plan => {
+                    const isSelected = selectedUnlockPlan?.slug === plan.slug
+                    const cur = plan.currency || 'XAF'
+                    return (
+                      <div
+                        key={plan._id || plan.slug}
+                        className={`p-4 rounded-xl bg-slate-950 border flex flex-col justify-between gap-3 transition ${
+                          isSelected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : 'border-slate-800'
+                        }`}
                       >
-                        Choisir &amp; Payer ce plan
-                      </Link>
-                    </div>
-                  ))}
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-white text-sm">{plan.name}</span>
+                            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs">
+                              {Number(plan.priceMonthly || 0).toLocaleString()} {cur}/mois
+                            </Badge>
+                          </div>
+                          {plan.description && (
+                            <p className="text-[11px] text-slate-400 mt-1">{plan.description}</p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedUnlockPlan(plan)
+                            setUnlockError('')
+                            setUnlockMsg('')
+                          }}
+                          className={`w-full inline-flex items-center justify-center py-2 px-3 rounded-lg text-xs font-bold transition cursor-pointer ${
+                            isSelected
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                          }`}
+                        >
+                          {isSelected ? '✓ Plan sélectionné' : 'Sélectionner & Payer (Mobile Money)'}
+                        </button>
+                      </div>
+                    )
+                  })}
               </div>
+
+              {selectedUnlockPlan && (
+                <form onSubmit={handleUnlockMobilePay} className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/40 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-xs font-bold text-emerald-300">
+                      Paiement Mobile Money — {selectedUnlockPlan.name} (
+                      {Number(
+                        unlockBillingCycle === 'yearly'
+                          ? (selectedUnlockPlan.priceYearly || selectedUnlockPlan.priceMonthly * 10)
+                          : selectedUnlockPlan.priceMonthly
+                      ).toLocaleString()}{' '}
+                      {selectedUnlockPlan.currency || 'XAF'})
+                    </span>
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setUnlockBillingCycle('monthly')}
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold ${unlockBillingCycle === 'monthly' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'}`}
+                      >
+                        Mensuel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUnlockBillingCycle('yearly')}
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold ${unlockBillingCycle === 'yearly' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'}`}
+                      >
+                        Annuel
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[11px] text-slate-300 font-semibold block mb-1">Opérateur Mobile Money</label>
+                      <select
+                        value={unlockOperator}
+                        onChange={(e) => setUnlockOperator(e.target.value)}
+                        className="w-full h-9 rounded-lg border border-slate-700 bg-slate-950 px-2.5 text-xs text-white"
+                      >
+                        <option value="MTN">MTN Mobile Money</option>
+                        <option value="ORANGE">Orange Money</option>
+                        <option value="MOOV">Moov Money</option>
+                        <option value="WAVE">Wave</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-slate-300 font-semibold block mb-1">Numéro de téléphone</label>
+                      <Input
+                        type="tel"
+                        placeholder="Ex: 2376XXXXXXXX"
+                        value={unlockPhone}
+                        onChange={(e) => setUnlockPhone(e.target.value)}
+                        required
+                        className="bg-slate-950 border-slate-700 text-white text-xs h-9"
+                      />
+                    </div>
+                  </div>
+                  {unlockError && <p className="text-xs text-rose-400 font-medium">{unlockError}</p>}
+                  {unlockMsg && <p className="text-xs text-emerald-400 font-medium">{unlockMsg}</p>}
+                  <Button
+                    type="submit"
+                    disabled={unlockPaying}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-9"
+                  >
+                    {unlockPaying ? 'Initialisation du paiement...' : 'Payer immédiatement via Mobile Money'}
+                  </Button>
+                </form>
+              )}
             </div>
 
             {/* Option 2 : Lien de parrainage Deriv */}
@@ -1172,6 +1350,28 @@ export default function DashboardDeriv() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* ── IFRAME TUNNEL MOBILE MONEY IKEEPAY ──────── */}
+      {ikeepayModalOpen && ikeepayUrl && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-emerald-500/40 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+              <span className="text-sm font-bold text-white">Paiement Mobile Money sécurisé</span>
+              <button
+                type="button"
+                onClick={() => setIkeepayModalOpen(false)}
+                className="text-slate-400 hover:text-white text-sm font-bold px-2 py-1"
+              >
+                ✕
+              </button>
+            </div>
+            <iframe
+              src={ikeepayUrl}
+              title="Paiement Mobile Money"
+              className="w-full h-[520px] bg-white"
+            />
           </div>
         </div>
       )}

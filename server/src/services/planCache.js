@@ -36,9 +36,20 @@ async function refreshCache() {
 }
 
 /**
- * Initialize: seed (if needed) + refresh.
+ * Initialize: purge legacy Crypto & USD plans, seed (if needed) + refresh.
  */
 async function init() {
+  // Supprimer tous les plans Crypto (Binance/Bybit) et tous les plans en devise USD ($)
+  await SubscriptionPlan.deleteMany({
+    $or: [
+      { category: 'crypto' },
+      { broker: 'binance_bybit' },
+      { slug: { $in: ['free', 'starter', 'pro', 'vip'] } },
+      { currency: { $in: ['USD', '$', 'usd'] } },
+      { currency: { $exists: false }, priceMonthly: { $gt: 0, $lt: 500 } },
+    ],
+  }).catch((err) => console.warn('[planCache] cleanup:', err.message));
+
   await seedDefaultPlans();
   await refreshCache();
 }
@@ -67,10 +78,16 @@ function getAllPlans() {
 }
 
 /**
- * Get only public plans (for Pricing page).
+ * Get only public plans (optionally filtered by category: 'deriv' | 'crypto').
  */
-function getPublicPlans() {
-  return cache.list.filter(p => p.isPublic !== false);
+function getPublicPlans(category) {
+  let list = cache.list.filter(p => p.isPublic !== false);
+  if (category === 'deriv') {
+    list = list.filter(p => p.category === 'deriv' || p.broker === 'deriv' || (p.slug && p.slug.startsWith('deriv')));
+  } else if (category === 'crypto') {
+    list = list.filter(p => p.category === 'crypto' || p.broker === 'binance_bybit');
+  }
+  return list;
 }
 
 /**

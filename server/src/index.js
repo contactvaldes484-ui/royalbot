@@ -541,13 +541,22 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 6000 })
 
       // Assurer la présence et le marquage isSystem=true des 10 robots système intégrés (sans écraser les robots importés)
       const systemBotsList = fallbackStore.derivBots.filter(b => b.isSystem || b.order <= 10);
+      const upgradedSlugs = new Set(['quantum-differ-entropy-vh', 'synthetic-momentum-alpha-1s']);
       for (const sysBot of systemBotsList) {
         const { _id, isSystem, ...botFields } = sysBot;
+        const setFields = { isSystem: true };
+        if (upgradedSlugs.has(sysBot.slug)) {
+          setFields.defaultSettings = botFields.defaultSettings;
+          setFields.parsedLogic = botFields.parsedLogic;
+          setFields.description = botFields.description;
+          setFields.badge = botFields.badge;
+          setFields.winRate = botFields.winRate;
+        }
         await DerivBot.findOneAndUpdate(
           { slug: sysBot.slug },
           {
             $setOnInsert: { ...botFields },
-            $set: { isSystem: true },
+            $set: setFields,
           },
           { upsert: true, new: true }
         ).catch((err) => {

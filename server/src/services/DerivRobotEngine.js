@@ -301,8 +301,23 @@ class DerivRobotEngine {
       return { shouldTrade: false };
     }
 
-    // ── 3. DIGITDIFF (Digit Differ Hunter & Quantum Differ Entropy VH - Markov Lag-1 + Distance Cercle Mod-10) ──
+    // ── 3. DIGITDIFF (Digit Differ Hunter & Quantum Differ Entropy VH - Markov Lag-1 + Split-Recovery) ──
     if (contractType === 'DIGITDIFF') {
+      const consecutiveLosses = Number(session?.stats?.consecutiveLosses || 0);
+      const unrecoveredLoss = Number(session?.stats?.unrecoveredLoss || 0);
+      const inRecovery = consecutiveLosses >= 1 || unrecoveredLoss > 0.02;
+
+      // Récupération Dual-Barrier (+40% payout à 70% de probabilité sur Under 7 / Over 2) si perte sur DIGITDIFF
+      if (inRecovery && bot?.parsedLogic?.splitRecovery) {
+        const useUnder = projectedDigit <= 4;
+        return {
+          shouldTrade: true,
+          contractType: useUnder ? 'DIGITUNDER' : 'DIGITOVER',
+          barrier: useUnder ? 7 : 2,
+          reason: `Quantum Differ Recovery (${useUnder ? 'DIGITUNDER 7' : 'DIGITOVER 2'}, proj=${projectedDigit})`,
+        };
+      }
+
       const sample = lastDigits.slice(-30);
       const recent4 = lastDigits.slice(-4);
       const counts = Array(10).fill(0);
@@ -373,27 +388,37 @@ class DerivRobotEngine {
       const slope3 = prices.length >= 4 ? prices[prices.length - 1] - prices[prices.length - 4] : priceDelta;
       const accel = prices.length >= 3 ? (prices[prices.length - 1] - prices[prices.length - 2]) - (prices[prices.length - 2] - prices[prices.length - 3]) : 0;
 
-      // Impulsion haussière alignée (EMA3 > EMA8 + pente 3-ticks positive + accélération)
-      if (ema3 && ema8 && ema3 > ema8 && slope3 > 0 && priceDelta > 0 && accel >= -0.02 && (rsi === null || (rsi >= 48 && rsi <= 78))) {
-        return { shouldTrade: true, contractType: 'CALL', barrier: undefined, reason: `Triple-momentum CALL (EMA3>EMA8, RSI=${rsi ? rsi.toFixed(1) : 'N/A'})` };
+      // Z-Score sur les 20 derniers ticks pour détecter les excès statistiques (Bollinger Mean-Reversion)
+      const win20 = prices.slice(-20);
+      const mean20 = win20.reduce((a, b) => a + b, 0) / Math.max(1, win20.length);
+      const variance20 = win20.reduce((s, v) => s + Math.pow(v - mean20, 2), 0) / Math.max(1, win20.length);
+      const std20 = Math.sqrt(variance20) || 1e-6;
+      const zScore = (prices[prices.length - 1] - mean20) / std20;
+
+      // Setup A (Rebond Z-score extrême >= 1.60 + RSI + amorce de retournement sur le dernier tick)
+      if (zScore >= 1.60 && priceDelta < 0 && (rsi === null || rsi >= 65)) {
+        return { shouldTrade: true, contractType: 'PUT', barrier: undefined, reason: `Z-Score Overbought Snapback (z=${zScore.toFixed(2)}, RSI=${rsi ? rsi.toFixed(1) : 'N/A'})` };
       }
-      // Impulsion baissière alignée (EMA3 < EMA8 + pente 3-ticks négative + accélération)
-      if (ema3 && ema8 && ema3 < ema8 && slope3 < 0 && priceDelta < 0 && accel <= 0.02 && (rsi === null || (rsi >= 22 && rsi <= 52))) {
-        return { shouldTrade: true, contractType: 'PUT', barrier: undefined, reason: `Triple-momentum PUT (EMA3<EMA8, RSI=${rsi ? rsi.toFixed(1) : 'N/A'})` };
+      if (zScore <= -1.60 && priceDelta > 0 && (rsi === null || rsi <= 35)) {
+        return { shouldTrade: true, contractType: 'CALL', barrier: undefined, reason: `Z-Score Oversold Bounce (z=${zScore.toFixed(2)}, RSI=${rsi ? rsi.toFixed(1) : 'N/A'})` };
       }
 
-      // Rebond de sur-achat / sur-vente extrême (Mean Reversion RSI)
-      if (rsi !== null && rsi >= 85 && priceDelta < 0 && slope3 < 0) {
+      // Setup B (Impulsion Triple-EMA alignée sans sur-extension)
+      if (ema3 && ema8 && ema13 && ema3 > ema8 && ema8 > ema13 && slope3 > 0 && priceDelta > 0 && accel > 0 && zScore < 1.2 && (rsi === null || (rsi >= 50 && rsi <= 72))) {
+        return { shouldTrade: true, contractType: 'CALL', barrier: undefined, reason: `Triple-EMA Impulse CALL (z=${zScore.toFixed(2)}, RSI=${rsi ? rsi.toFixed(1) : 'N/A'})` };
+      }
+      if (ema3 && ema8 && ema13 && ema3 < ema8 && ema8 < ema13 && slope3 < 0 && priceDelta < 0 && accel < 0 && zScore > -1.2 && (rsi === null || (rsi >= 28 && rsi <= 50))) {
+        return { shouldTrade: true, contractType: 'PUT', barrier: undefined, reason: `Triple-EMA Impulse PUT (z=${zScore.toFixed(2)}, RSI=${rsi ? rsi.toFixed(1) : 'N/A'})` };
+      }
+
+      // Setup C (Rebond RSI extrême)
+      if (rsi !== null && rsi >= 82 && priceDelta < 0) {
         return { shouldTrade: true, contractType: 'PUT', barrier: undefined, reason: `Overbought reversal RSI=${rsi.toFixed(1)}` };
       }
-      if (rsi !== null && rsi <= 15 && priceDelta > 0 && slope3 > 0) {
+      if (rsi !== null && rsi <= 18 && priceDelta > 0) {
         return { shouldTrade: true, contractType: 'CALL', barrier: undefined, reason: `Oversold reversal RSI=${rsi.toFixed(1)}` };
       }
 
-      if (skippedCount >= 2 && ema3 && ema13 && Math.abs(slope3) > 0.01) {
-        const dir = (ema3 >= ema13 && slope3 > 0) ? 'CALL' : 'PUT';
-        return { shouldTrade: true, contractType: dir, barrier: undefined, reason: `Adaptive EMA trend follow (${dir})` };
-      }
       return { shouldTrade: false };
     }
 
@@ -1054,7 +1079,7 @@ class DerivRobotEngine {
 
             const isImportedDigitBot =
               (bot?.strategyType === 'file_custom' || bot?.fileType === 'xml' || bot?.fileType === 'json' || bot?.parsedLogic?.splitRecovery === true) &&
-              (updatedSession.contractType === 'DIGITUNDER' || updatedSession.contractType === 'DIGITOVER');
+              (updatedSession.contractType === 'DIGITUNDER' || updatedSession.contractType === 'DIGITOVER' || updatedSession.contractType === 'DIGITDIFF');
 
             let unrecoveredLoss = Number(updatedSession.stats.unrecoveredLoss || 0);
 
@@ -1104,8 +1129,9 @@ class DerivRobotEngine {
 
                 let nextRecoveryStake;
                 if (bot?.isSystem && bot?.parsedLogic?.splitRecovery) {
-                  // Pour les robots Système Dual-Barrier Pro : récupération intégrale en 1 seul gain sur Barrière 6/3 (60% de réussite par trade -> 93.6% en 3 essais)
-                  nextRecoveryStake = +((unrecoveredLoss * 1.04) / 0.535).toFixed(2);
+                  // Pour Quantum Differ (récupération sur Under 7 / Over 2 à +40% payout) vs Dual-Barrier Pro (Under 6 / Over 3 à +53.5% payout)
+                  const recPayout = updatedSession.contractType === 'DIGITDIFF' ? 0.40 : 0.535;
+                  nextRecoveryStake = +((unrecoveredLoss * 1.05) / recPayout).toFixed(2);
                 } else if (prevUnrecovered === 0) {
                   nextRecoveryStake = +(unrecoveredLoss * 1.01).toFixed(2);
                 } else if (updatedSession.stats.consecutiveLosses === 1) {

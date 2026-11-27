@@ -44,6 +44,8 @@ const emptyPlan = () => ({
   priceMonthly: 0,
   priceYearly: 0,
   currency: 'XAF',
+  category: 'deriv',
+  broker: 'deriv',
   isFree: false,
   temporaryFreeUntil: '',
   limits: { maxRobots: 0, maxBinanceAccounts: 0, maxTradesPerDay: 0, maxBacktestsPerMonth: 0 },
@@ -737,7 +739,7 @@ export default function AdminPlans() {
                     className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm font-bold"
                   >
                     <option value="XAF">XAF (Franc CFA)</option>
-                    <option value="USD">USD ($)</option>
+                    <option value="XOF">XOF (Franc CFA)</option>
                   </select>
                 </div>
                 <div>
