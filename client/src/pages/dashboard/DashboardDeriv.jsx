@@ -59,6 +59,7 @@ export default function DashboardDeriv() {
   const [showUnlockModal, setShowUnlockModal] = useState(false)
   const [selectedUnlockPlan, setSelectedUnlockPlan] = useState(null)
   const [unlockBillingCycle, setUnlockBillingCycle] = useState('monthly')
+  const [unlockCountry, setUnlockCountry] = useState('CM')
   const [unlockPhone, setUnlockPhone] = useState('')
   const [unlockOperator, setUnlockOperator] = useState('MTN')
   const [unlockPaying, setUnlockPaying] = useState(false)
@@ -311,11 +312,15 @@ export default function DashboardDeriv() {
     try {
       const useIkeepay = payOptions?.ikeepay?.enabled !== false
       const payload = {
-        plan: selectedUnlockPlan.slug,
+        planSlug: selectedUnlockPlan.slug,
         billingCycle: unlockBillingCycle,
         paymentMethod: useIkeepay ? 'ikeepay' : 'mobile_money',
+        country: unlockCountry,
+        mobileMoneyCountry: unlockCountry,
         phoneNumber: unlockPhone.trim(),
+        mobileMoneyNumber: unlockPhone.trim(),
         operator: unlockOperator,
+        mobileMoneyProvider: unlockOperator,
       }
       const { data } = await subscriptionAPI.subscribe(payload)
       if (data?.subscription?.paymentStatus === 'confirmed') {
@@ -1280,7 +1285,27 @@ export default function DashboardDeriv() {
                       </button>
                     </div>
                   </div>
-                  <div className="grid sm:grid-cols-2 gap-2.5">
+                  <div className="grid sm:grid-cols-3 gap-2.5">
+                    <div>
+                      <label className="text-[11px] text-slate-300 font-semibold block mb-1">Pays</label>
+                      <select
+                        value={unlockCountry}
+                        onChange={(e) => setUnlockCountry(e.target.value)}
+                        className="w-full h-9 rounded-lg border border-slate-700 bg-slate-950 px-2.5 text-xs text-white"
+                      >
+                        <option value="CM">🇨🇲 Cameroun (CM)</option>
+                        <option value="CI">🇨🇮 Côte d&apos;Ivoire (CI)</option>
+                        <option value="SN">🇸🇳 Sénégal (SN)</option>
+                        <option value="BJ">🇧🇯 Bénin (BJ)</option>
+                        <option value="TG">🇹🇬 Togo (TG)</option>
+                        <option value="BF">🇧🇫 Burkina Faso (BF)</option>
+                        <option value="ML">🇲🇱 Mali (ML)</option>
+                        <option value="GN">🇬🇳 Guinée (GN)</option>
+                        <option value="GA">🇬🇦 Gabon (GA)</option>
+                        <option value="CG">🇨🇬 Congo-Brazzaville (CG)</option>
+                        <option value="CD">🇨🇩 RD Congo (CD)</option>
+                      </select>
+                    </div>
                     <div>
                       <label className="text-[11px] text-slate-300 font-semibold block mb-1">Opérateur Mobile Money</label>
                       <select
@@ -1292,13 +1317,14 @@ export default function DashboardDeriv() {
                         <option value="ORANGE">Orange Money</option>
                         <option value="MOOV">Moov Money</option>
                         <option value="WAVE">Wave</option>
+                        <option value="AIRTEL">Airtel Money</option>
                       </select>
                     </div>
                     <div>
                       <label className="text-[11px] text-slate-300 font-semibold block mb-1">Numéro de téléphone</label>
                       <Input
                         type="tel"
-                        placeholder="Ex: 2376XXXXXXXX"
+                        placeholder="Ex: 6XXXXXXXX"
                         value={unlockPhone}
                         onChange={(e) => setUnlockPhone(e.target.value)}
                         required
