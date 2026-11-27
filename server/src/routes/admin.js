@@ -628,6 +628,17 @@ router.put('/settings', async (req, res) => {
     await settings.save().catch(() => {});
     await fallbackStore.updateSettings(updates).catch(() => {});
 
+    if (
+      updates.freeTrialEnabled !== undefined ||
+      updates.subscriptionsEnabled !== undefined ||
+      updates.allRobotsFree !== undefined ||
+      updates.derivTrialDays !== undefined ||
+      updates.freeTrialDays !== undefined
+    ) {
+      const derivEngine = require('../services/DerivRobotEngine');
+      derivEngine.enforceAccessPolicies().catch(() => {});
+    }
+
     res.json({ settings });
   } catch (err) {
     const fallbackStore = require('../services/RuntimeFallbackStore');

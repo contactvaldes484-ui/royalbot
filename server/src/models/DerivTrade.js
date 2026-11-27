@@ -21,7 +21,9 @@ const DerivTradeSchema = new mongoose.Schema({
   entryTick:    { type: Number, default: null },
   exitTick:     { type: Number, default: null },
 
-  status:       { type: String, enum: ['open', 'won', 'lost'], default: 'open', index: true },
+  status:       { type: String, enum: ['open', 'won', 'lost', 'failed'], default: 'open', index: true },
+  refunded:     { type: Boolean, default: false },
+  errorMessage: { type: String, default: '' },
   openedAt:     { type: Date, default: Date.now },
   closedAt:     { type: Date, default: null },
 }, { timestamps: true });

@@ -329,11 +329,18 @@ const useStore = create((set, get) => ({
           ? prev.map(t => t.contractId === trade.contractId ? trade : t)
           : [trade, ...prev].slice(0, 50)
         set({ derivLiveTrades })
-        const isWon = trade.status === 'won' || Number(trade.profit) > 0
+        const isFailed = trade.status === 'failed'
+        const isWon = !isFailed && (trade.status === 'won' || Number(trade.profit) > 0)
         get().addNotification?.({
           type: isWon ? 'success' : 'warning',
-          title: isWon ? '🟢 Contrat Deriv Gagné (+)' : '🔴 Contrat Deriv Perdu (−)',
-          message: `${trade.symbol} · ${isWon ? '+' : ''}$${Number(trade.profit || 0).toFixed(2)} USD`,
+          title: isFailed
+            ? '⚠️ Position échouée (Mise remboursée)'
+            : isWon
+              ? '🟢 Contrat Deriv Gagné (+)'
+              : '🔴 Contrat Deriv Perdu (−)',
+          message: isFailed
+            ? `${trade.symbol} · $${Number(trade.stake || 0).toFixed(2)} remboursé (lancée après arrêt)`
+            : `${trade.symbol} · ${isWon ? '+' : ''}$${Number(trade.profit || 0).toFixed(2)} USD`,
         })
         break
       }

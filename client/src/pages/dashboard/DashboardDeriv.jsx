@@ -784,17 +784,23 @@ export default function DashboardDeriv() {
                               <Badge className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] flex items-center gap-1 w-fit">
                                 <CheckCircle2 className="w-3 h-3" /> GAGNÉ
                               </Badge>
+                            ) : t.status === 'failed' ? (
+                              <Badge className="bg-slate-500/20 text-slate-300 border border-slate-500/40 text-[10px] w-fit" title={t.errorMessage || 'Position échouée et remboursée'}>
+                                ÉCHOUÉ (Remboursé)
+                              </Badge>
                             ) : (
                               <Badge className="bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[10px] w-fit">
                                 PERDU
                               </Badge>
                             )}
                           </td>
-                          <td className={`py-3 px-4 font-bold text-xs ${isOpen ? 'text-amber-400' : isWon ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <td className={`py-3 px-4 font-bold text-xs ${isOpen ? 'text-amber-400' : isWon ? 'text-emerald-400' : t.status === 'failed' ? 'text-slate-300' : 'text-rose-400'}`}>
                             {isOpen ? (
                               <span className="text-slate-400">+{Number(t.payout ? t.payout - t.stake : t.stake * 0.38).toFixed(2)}$ pot.</span>
                             ) : isWon ? (
                               `+$${Number(t.profit || 0).toFixed(2)}`
+                            ) : t.status === 'failed' ? (
+                              '$0.00 (Remboursé)'
                             ) : (
                               `-$${Math.abs(Number(t.profit || t.stake || 0)).toFixed(2)}`
                             )}

@@ -7,7 +7,7 @@ import BackButton from '../ui/BackButton'
 import {
   LayoutDashboard, Bot, BarChart3, History, Wallet, Settings,
   CreditCard, Users, ChevronLeft, ChevronRight, LogOut, Crown,
-  Sun, Moon, Monitor, BookOpen, MessageCircle, Copy, DollarSign, Brain, Activity, Bell, Bitcoin, Zap
+  Sun, Moon, Monitor, BookOpen, MessageCircle, Copy, DollarSign, Brain, Activity, Bell, Bitcoin, Zap, Send
 } from 'lucide-react'
 
 export default function DashboardLayout() {
@@ -169,6 +169,18 @@ export default function DashboardLayout() {
               {!collapsed && <span className="font-semibold text-xs text-emerald-500">Groupe WhatsApp</span>}
             </a>
           )}
+          {platformSettings?.telegramLink && (
+            <a
+              href={platformSettings.telegramLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`flex w-full items-center gap-3 px-3 py-2 rounded-lg text-sm text-sky-400 hover:bg-sky-500/10 transition-colors ${collapsed ? 'justify-center px-2' : ''}`}
+              title="Canal / Groupe Telegram"
+            >
+              <Send className="h-4 w-4 text-sky-400 shrink-0" />
+              {!collapsed && <span className="font-semibold text-xs text-sky-400">Rejoindre Telegram</span>}
+            </a>
+          )}
           <button onClick={toggleTheme} className={`flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:bg-accent ${collapsed ? 'justify-center px-2' : ''}`}>
             {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             {!collapsed && <span>Thème</span>}
@@ -199,6 +211,18 @@ export default function DashboardLayout() {
             <span className="font-bold gradient-text">{pName}</span>
           </Link>
           <div className="flex items-center gap-1.5">
+            {platformSettings?.telegramLink && (
+              <a
+                href={platformSettings.telegramLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2 py-1 rounded-md border border-sky-500/40 bg-sky-500/10 text-sky-400 text-xs font-bold flex items-center gap-1 hover:bg-sky-500/20 transition"
+                title="Rejoindre notre Telegram"
+              >
+                <Send className="h-3.5 w-3.5" />
+                <span>Telegram</span>
+              </a>
+            )}
             <button
               onClick={toggleLanguage}
               className="px-2 py-1 rounded-md border border-border text-xs font-bold hover:bg-accent"
@@ -235,6 +259,17 @@ export default function DashboardLayout() {
         <div className="p-4 md:p-6 pb-20 md:pb-6">
           <div className="flex items-center justify-between gap-2 mb-3">
             <BackButton fallback="/dashboard" />
+            {platformSettings?.telegramLink && (
+              <a
+                href={platformSettings.telegramLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden md:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-sky-500/15 border border-sky-500/40 text-sky-400 hover:bg-sky-500/25 text-xs font-bold transition shadow-sm"
+              >
+                <Send className="h-3.5 w-3.5" />
+                <span>Rejoindre Telegram</span>
+              </a>
+            )}
           </div>
           <PWAInstallBanner />
           <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-500 border-t-transparent" /></div>}>

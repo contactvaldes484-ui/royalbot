@@ -75,7 +75,9 @@ export default function AdminPlans() {
   const [annualDiscount, setAnnualDiscount] = useState(10)
   const [savingDiscount, setSavingDiscount] = useState(false)
   const [subscriptionsEnabled, setSubscriptionsEnabled] = useState(true)
+  const [freeTrialEnabled, setFreeTrialEnabled] = useState(true)
   const [togglingAll, setTogglingAll] = useState(false)
+  const [togglingTrial, setTogglingTrial] = useState(false)
 
   const showMessage = (type, text) => {
     setMessage({ type, text })
@@ -95,6 +97,9 @@ export default function AdminPlans() {
       }
       if (setRes?.data?.settings?.subscriptionsEnabled !== undefined) {
         setSubscriptionsEnabled(setRes.data.settings.subscriptionsEnabled !== false)
+      }
+      if (setRes?.data?.settings?.freeTrialEnabled !== undefined) {
+        setFreeTrialEnabled(setRes.data.settings.freeTrialEnabled !== false)
       }
     } catch (err) {
       showMessage('error', 'Erreur de chargement des plans.')
@@ -258,6 +263,26 @@ export default function AdminPlans() {
     }
   }
 
+  const toggleFreeTrial = async () => {
+    const next = !freeTrialEnabled
+    setTogglingTrial(true)
+    try {
+      await adminAPI.updateSettings({ freeTrialEnabled: next })
+      setFreeTrialEnabled(next)
+      await useStore.getState().fetchPlatformSettings?.().catch(() => {})
+      showMessage(
+        'success',
+        next
+          ? 'Free Trial activé : les nouveaux utilisateurs bénéficient de la période d\'essai.'
+          : 'Free Trial désactivé : si les plans sont activés, les robots Deriv SmartTrader sont immédiatement bloqués (abonnement ou lien de parrainage requis).'
+      )
+    } catch (err) {
+      showMessage('error', err.response?.data?.error || 'Impossible de modifier le statut du Free Trial.')
+    } finally {
+      setTogglingTrial(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -266,6 +291,18 @@ export default function AdminPlans() {
           <p className="text-sm text-muted-foreground">Créez, modifiez et supprimez les plans d'abonnement.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button
+            variant={freeTrialEnabled ? 'outline' : 'default'}
+            className={freeTrialEnabled ? 'border-amber-500/40 text-amber-500 hover:bg-amber-500/10' : 'bg-amber-600 hover:bg-amber-500 text-white'}
+            disabled={togglingTrial}
+            onClick={toggleFreeTrial}
+          >
+            {freeTrialEnabled ? (
+              <><PowerOff className="h-4 w-4 mr-2" /> Désactiver Free Trial</>
+            ) : (
+              <><Power className="h-4 w-4 mr-2" /> Activer Free Trial</>
+            )}
+          </Button>
           <Button
             variant={subscriptionsEnabled ? 'destructive' : 'default'}
             className={!subscriptionsEnabled ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : ''}

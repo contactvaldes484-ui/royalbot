@@ -8,6 +8,7 @@ class DerivRobotEngine {
     this.busySessions = new Set(); // sessionId in flight
     this.skippedCounts = new Map(); // sessionId -> consecutive skipped ticks
     this.virtualStates = new Map(); // sessionId -> { inVirtualMode, virtualLosses, virtualWins, virtualStreak }
+    this.stopRequestedAt = new Map(); // sessionId -> timestamp (ms) when stop was requested
   }
 
   /**
@@ -466,7 +467,9 @@ class DerivRobotEngine {
 
     if (hasActivePaidPlanCatalog && !isAdmin && !isTrialActive && !hasPaidPlan && !isAffiliated) {
       throw new Error(
-        'Période d\'essai gratuite expirée. Veuillez souscrire à un plan d\'abonnement actif pour continuer à utiliser les robots Deriv SmartTrader.'
+        freeTrialEnabled
+          ? 'Période d\'essai gratuite expirée. Veuillez payer un abonnement ou vous inscrire/connecter via le lien de parrainage Deriv pour débloquer les robots.'
+          : 'Essai gratuit désactivé. Veuillez payer un abonnement ou vous inscrire/connecter via le lien de parrainage Deriv de l\'administrateur pour débloquer les robots.'
       );
     }
 
@@ -619,6 +622,7 @@ class DerivRobotEngine {
   async _spawn(session) {
     const sid = session._id.toString();
     this._clear(sid);
+    this.stopRequestedAt.delete(sid);
     const hasVh = Boolean(session.settings?.virtualHook?.enabled);
     this.virtualStates.set(sid, {
       inVirtualMode: hasVh,
@@ -633,6 +637,7 @@ class DerivRobotEngine {
 
   async _tick(sessionId) {
     if (this.busySessions.has(sessionId)) return;
+    if (this.stopRequestedAt.has(sessionId) || !this.active.has(sessionId)) return;
 
     let ds = null;
     try {
@@ -679,26 +684,40 @@ class DerivRobotEngine {
       const isOwner = userEmail === 'valdeslando15@gmail.com' || (typeof fallbackStore.isPlatformOwner === 'function' && fallbackStore.isPlatformOwner(user));
 
       if (!isOwner) {
-        const isTrialValid = acc.isTrialValid ? acc.isTrialValid() : true;
-        if (!isTrialValid && !acc.affiliateVerified) {
-          const hasPaid =
+        const settingsObj = await fallbackStore.getSettings().catch(() => ({}));
+        const planCache = require('./planCache');
+        const activePlans = planCache.getPublicPlans ? planCache.getPublicPlans() : [];
+        const hasActivePaidPlanCatalog =
+          settingsObj?.subscriptionsEnabled !== false &&
+          !settingsObj?.allRobotsFree &&
+          activePlans.some(p => p.isActive !== false && !p.isFree && p.allowPaidSubscription !== false && Number(p.priceMonthly) > 0);
+        const freeTrialEnabled = settingsObj?.freeTrialEnabled !== false && Number(settingsObj?.derivTrialDays ?? settingsObj?.freeTrialDays ?? 7) > 0;
+        const isTrialValid = freeTrialEnabled && (acc.isTrialValid ? acc.isTrialValid() : true);
+        const isSubExpired = user?.subscription?.endDate ? new Date(user.subscription.endDate) <= new Date() : false;
+        const hasPaid =
+          user?.role === 'super_admin' ||
+          user?.role === 'admin' ||
+          (!isSubExpired && (
             user?.subscription?.plan?.startsWith('deriv') ||
+            user?.subscription?.plan === 'vip' ||
             user?.subscription?.plan === 'institutional' ||
-            user?.role === 'super_admin' ||
-            user?.role === 'admin';
-          if (!hasPaid) {
-            session.status = 'stopped';
-            session.stoppedAt = new Date();
-            if (session.save) await session.save();
-            this._clear(sessionId);
-            if (global.broadcastToUser) {
-              global.broadcastToUser(session.user.toString(), {
-                type: 'deriv_trial_expired',
-                message: 'Période d\'essai Deriv de 7 jours terminée.',
-              });
-            }
-            return;
+            (user?.subscription?.isActive && user?.subscription?.plan !== 'free')
+          ));
+        if (hasActivePaidPlanCatalog && !isTrialValid && !acc.affiliateVerified && !hasPaid) {
+          session.status = 'stopped';
+          session.stoppedAt = new Date();
+          if (session.save) await session.save();
+          this._clear(sessionId);
+          if (global.broadcastToUser) {
+            global.broadcastToUser(session.user.toString(), {
+              type: 'deriv_trial_expired',
+              sessionId,
+              message: freeTrialEnabled
+                ? 'Période d\'essai Deriv terminée. Veuillez payer un abonnement ou utiliser le lien de parrainage.'
+                : 'Essai gratuit désactivé. Veuillez payer un abonnement ou vous inscrire/connecter avec le lien de parrainage Deriv.',
+            });
           }
+          return;
         }
       }
 
@@ -832,6 +851,11 @@ class DerivRobotEngine {
         return;
       }
 
+      if (this.stopRequestedAt.has(sessionId) || !this.active.has(sessionId)) {
+        ds.close();
+        return;
+      }
+
       this.busySessions.add(sessionId);
 
       // Demander proposition
@@ -861,13 +885,14 @@ class DerivRobotEngine {
         return;
       }
 
-      if (!proposal?.id) {
+      if (!proposal?.id || this.stopRequestedAt.has(sessionId) || !this.active.has(sessionId)) {
         this.busySessions.delete(sessionId);
         ds.close();
         return;
       }
 
       // Acheter le contrat
+      const buyStartedAt = Date.now();
       let buyRes;
       try {
         buyRes = await ds.buyContract(proposal.id, proposal.ask_price);
@@ -887,6 +912,51 @@ class DerivRobotEngine {
       }
 
       if (!buyRes?.contract_id) {
+        this.busySessions.delete(sessionId);
+        ds.close();
+        return;
+      }
+
+      // Si une position a été lancée après le clic sur Arrêter : marquer comme failed & rembourser la mise
+      const stopTs = this.stopRequestedAt.get(sessionId);
+      if (stopTs && buyStartedAt >= stopTs) {
+        const stakeAmount = Number(proposal.ask_price || currentStake);
+        const baseBalance = buyRes.balance_after !== undefined ? Number(buyRes.balance_after) : Number(acc.balance || 0);
+        acc.balance = +(baseBalance + stakeAmount).toFixed(2);
+        acc.lastCheck = new Date();
+        if (acc.save) await acc.save().catch(() => {});
+
+        const failedTrade = await fallbackStore.createDerivTrade({
+          user: session.user,
+          session: session._id,
+          derivAccount: acc._id,
+          isManual: false,
+          contractId: String(buyRes.contract_id),
+          transactionId: String(buyRes.transaction_id || ''),
+          symbol: session.symbol,
+          contractType: targetContractType,
+          barrier: targetContractType.startsWith('DIGIT') ? String(targetBarrier || '') : '',
+          stake: stakeAmount,
+          payout: 0,
+          profit: 0,
+          status: 'failed',
+          refunded: true,
+          errorMessage: 'Position échouée : lancée après arrêt du robot (mise remboursée)',
+          openedAt: new Date(),
+          closedAt: new Date(),
+        });
+
+        if (global.broadcastToUser) {
+          global.broadcastToUser(session.user.toString(), {
+            type: 'deriv_trade_result',
+            sessionId: session._id,
+            trade: failedTrade.toObject ? failedTrade.toObject() : failedTrade,
+            stats: session.stats,
+            balance: acc.balance,
+            failedAfterStop: true,
+          });
+        }
+
         this.busySessions.delete(sessionId);
         ds.close();
         return;
@@ -1118,20 +1188,26 @@ class DerivRobotEngine {
   }
 
   async stopSession(sessionId, userId) {
-    this._clear(sessionId);
-    const s = await fallbackStore.updateDerivSession(sessionId, userId, {
+    const sid = sessionId.toString();
+    const stoppedAt = new Date();
+    // Marquer immédiatement l'arrêt pour empêcher tout nouveau lancement tout en laissant la position en cours se terminer
+    this.stopRequestedAt.set(sid, stoppedAt.getTime());
+    this._clear(sid, { preserveBusy: true });
+    const s = await fallbackStore.updateDerivSession(sid, userId, {
       status: 'stopped',
-      stoppedAt: new Date(),
+      stoppedAt,
     });
     if (s && global.broadcastToUser) {
-      global.broadcastToUser(userId.toString(), { type: 'deriv_robot_stopped', sessionId });
+      global.broadcastToUser(userId.toString(), { type: 'deriv_robot_stopped', sessionId: sid });
     }
     return s;
   }
 
   async pauseSession(sessionId, userId) {
-    this._clear(sessionId);
-    return fallbackStore.updateDerivSession(sessionId, userId, { status: 'paused' });
+    const sid = sessionId.toString();
+    this.stopRequestedAt.set(sid, Date.now());
+    this._clear(sid, { preserveBusy: true });
+    return fallbackStore.updateDerivSession(sid, userId, { status: 'paused' });
   }
 
   async resumeSession(sessionId, userId) {
@@ -1140,8 +1216,58 @@ class DerivRobotEngine {
     return s;
   }
 
-  _clear(sessionId) {
-    this.busySessions.delete(sessionId);
+  async enforceAccessPolicies() {
+    const settingsObj = await fallbackStore.getSettings().catch(() => ({}));
+    const planCache = require('./planCache');
+    const activePlans = planCache.getPublicPlans ? planCache.getPublicPlans() : [];
+    const hasActivePaidPlanCatalog =
+      settingsObj?.subscriptionsEnabled !== false &&
+      !settingsObj?.allRobotsFree &&
+      activePlans.some(p => p.isActive !== false && !p.isFree && p.allowPaidSubscription !== false && Number(p.priceMonthly) > 0);
+    if (!hasActivePaidPlanCatalog) return;
+
+    const freeTrialEnabled = settingsObj?.freeTrialEnabled !== false && Number(settingsObj?.derivTrialDays ?? settingsObj?.freeTrialDays ?? 7) > 0;
+    const sessionIds = Array.from(this.active.keys());
+    for (const sid of sessionIds) {
+      try {
+        const session = await fallbackStore.findDerivSessionById(sid);
+        if (!session) {
+          this._clear(sid);
+          continue;
+        }
+        const acc = await fallbackStore.getDerivAccountById(session.derivAccount);
+        const user = await fallbackStore.findUserById(session.user);
+        const userEmail = (user?.email || '').toLowerCase().trim();
+        const isOwner = userEmail === 'valdeslando15@gmail.com' || (typeof fallbackStore.isPlatformOwner === 'function' && fallbackStore.isPlatformOwner(user));
+        const isAdmin = isOwner || user?.role === 'admin' || user?.role === 'super_admin';
+        if (isAdmin) continue;
+
+        const isTrialValid = freeTrialEnabled && (acc?.isTrialValid ? acc.isTrialValid() : true);
+        const isSubExpired = user?.subscription?.endDate ? new Date(user.subscription.endDate) <= new Date() : false;
+        const hasPaid = !isSubExpired && (
+          user?.subscription?.plan?.startsWith('deriv') ||
+          user?.subscription?.plan === 'vip' ||
+          user?.subscription?.plan === 'institutional' ||
+          (user?.subscription?.isActive && user?.subscription?.plan !== 'free')
+        );
+        if (!isTrialValid && !acc?.affiliateVerified && !hasPaid) {
+          await this.stopSession(sid, session.user);
+          if (global.broadcastToUser) {
+            global.broadcastToUser(session.user.toString(), {
+              type: 'deriv_trial_expired',
+              sessionId: sid,
+              message: freeTrialEnabled
+                ? 'Période d\'essai Deriv terminée. Veuillez payer un abonnement ou utiliser le lien de parrainage.'
+                : 'Essai gratuit désactivé. Veuillez payer un abonnement ou vous inscrire/connecter avec le lien de parrainage Deriv.',
+            });
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
+  _clear(sessionId, { preserveBusy = false } = {}) {
+    if (!preserveBusy) this.busySessions.delete(sessionId);
     this.skippedCounts.delete(sessionId);
     this.virtualStates.delete(sessionId);
     const e = this.active.get(sessionId);

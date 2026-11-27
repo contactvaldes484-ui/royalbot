@@ -3079,10 +3079,77 @@ export function AdminSettings() {
                   Ce lien alimente directement le bouton flottant d'assistance WhatsApp affiché pour tous les utilisateurs.
                 </p>
               </div>
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">Telegram</label>
-                <Input value={form.telegramLink} onChange={e => update('telegramLink', e.target.value)}
-                  placeholder="https://t.me/votre_canal" />
+              <div className="p-3 rounded-xl border border-sky-500/20 bg-sky-500/5 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-sm font-semibold text-sky-400 flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${form.telegramLink ? 'bg-sky-400 animate-pulse' : 'bg-slate-500'}`} />
+                    Lien Telegram (Dashboards Utilisateurs)
+                  </label>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${form.telegramLink ? 'bg-sky-500/20 text-sky-300' : 'bg-slate-700 text-slate-400'}`}>
+                    {form.telegramLink ? 'Actif' : 'Aucun lien'}
+                  </span>
+                </div>
+                <Input
+                  value={form.telegramLink}
+                  onChange={e => update('telegramLink', e.target.value)}
+                  placeholder="https://t.me/votre_canal"
+                  className="bg-background"
+                />
+                {form.telegramLink && (
+                  <div className="flex items-center justify-between gap-2 text-xs bg-background/60 px-2.5 py-1.5 rounded-lg border border-sky-500/20">
+                    <span className="truncate text-sky-300" title={form.telegramLink}>{form.telegramLink}</span>
+                    <a
+                      href={form.telegramLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 font-bold text-sky-400 hover:underline flex items-center gap-1"
+                    >
+                      <ExternalLink className="h-3 w-3" /> Voir
+                    </a>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 pt-0.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-sky-500/40 text-sky-400 hover:bg-sky-500/10"
+                    onClick={async () => {
+                      try {
+                        await adminAPI.updateSettings({ telegramLink: (form.telegramLink || '').trim() })
+                        await useStore.getState().fetchPlatformSettings?.().catch(() => {})
+                        setMessage({ type: 'success', text: 'Lien Telegram mis à jour sur tous les dashboards.' })
+                      } catch (err) {
+                        setMessage({ type: 'error', text: err.response?.data?.error || 'Erreur sauvegarde Telegram.' })
+                      }
+                    }}
+                  >
+                    Enregistrer le lien
+                  </Button>
+                  {form.telegramLink && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      className="h-7 text-xs"
+                      onClick={async () => {
+                        try {
+                          update('telegramLink', '')
+                          await adminAPI.updateSettings({ telegramLink: '' })
+                          await useStore.getState().fetchPlatformSettings?.().catch(() => {})
+                          setMessage({ type: 'success', text: 'Lien Telegram supprimé des dashboards utilisateurs.' })
+                        } catch (err) {
+                          setMessage({ type: 'error', text: err.response?.data?.error || 'Erreur suppression Telegram.' })
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" /> Supprimer
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Affiché comme bouton Telegram dans tous les dashboards utilisateurs et le footer du site.
+                </p>
               </div>
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Twitter / X</label>
