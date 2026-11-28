@@ -100,12 +100,32 @@ function PublicLayout({ children }) {
 }
 
 export default function App() {
-  const { theme, language, fetchUser, isAuthenticated, connectWS, disconnectWS, fetchPlatformSettings } = useStore()
+  const { theme, language, fetchUser, isAuthenticated, connectWS, disconnectWS, fetchPlatformSettings, platformSettings } = useStore()
 
   // Apply theme on mount
   useEffect(() => {
     document.documentElement.classList.add('dark')
   }, [theme])
+
+  // Apply dynamic favicon from Admin logoUrl / faviconUrl
+  useEffect(() => {
+    const iconSrc = (platformSettings?.faviconUrl || platformSettings?.logoUrl || '').trim()
+    if (!iconSrc) return
+    const selectors = ['link[rel="icon"]', 'link[rel="shortcut icon"]', 'link[rel="apple-touch-icon"]']
+    let updatedAny = false
+    selectors.forEach((sel) => {
+      document.querySelectorAll(sel).forEach((el) => {
+        el.setAttribute('href', iconSrc)
+        updatedAny = true
+      })
+    })
+    if (!updatedAny) {
+      const link = document.createElement('link')
+      link.rel = 'icon'
+      link.href = iconSrc
+      document.head.appendChild(link)
+    }
+  }, [platformSettings?.faviconUrl, platformSettings?.logoUrl])
 
   // Apply language translation across entire platform
   useEffect(() => {
