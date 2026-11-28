@@ -67,7 +67,7 @@ export default function DashboardLayout() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
-      <aside className={`${collapsed ? 'w-16' : 'w-64'} flex flex-col border-r bg-card transition-all duration-300 hidden md:flex`}>
+      <aside className={`${collapsed ? 'w-16' : 'w-64'} flex flex-col border-r border-indigo-400/20 bg-[#090D24]/95 backdrop-blur-xl transition-all duration-300 hidden md:flex`}>
         {/* Logo */}
         <div className="flex h-16 items-center justify-between px-4 border-b">
           {!collapsed && (
@@ -134,12 +134,12 @@ export default function DashboardLayout() {
               <Link
                 key={item.href}
                 to={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
                   isActive(item.href)
-                    ? 'bg-primary/10 text-primary font-medium'
+                    ? 'bg-gradient-to-r from-[#7C3AED] to-[#4F46E5] text-white font-semibold shadow-lg shadow-violet-600/30'
                     : item.highlight
-                    ? 'text-blue-500 hover:bg-blue-500/10'
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    ? 'text-violet-300 hover:bg-indigo-500/15 hover:text-white'
+                    : 'text-slate-300/80 hover:bg-indigo-500/10 hover:text-white'
                 } ${collapsed ? 'justify-center px-2' : ''}`}
                 title={collapsed ? item.label : undefined}
               >
@@ -181,10 +181,6 @@ export default function DashboardLayout() {
               {!collapsed && <span className="font-semibold text-xs text-sky-400">Rejoindre Telegram</span>}
             </a>
           )}
-          <button onClick={toggleTheme} className={`flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:bg-accent ${collapsed ? 'justify-center px-2' : ''}`}>
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            {!collapsed && <span>Thème</span>}
-          </button>
           <button onClick={toggleLanguage} className={`flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold hover:bg-accent ${collapsed ? 'justify-center px-2' : ''}`}>
             <span>{language === 'en' ? '🇬🇧' : '🇫🇷'}</span>
             {!collapsed && <span>{language === 'en' ? 'English (EN)' : 'Français (FR)'}</span>}
@@ -241,7 +237,7 @@ export default function DashboardLayout() {
         </div>
 
         {/* Mobile bottom nav */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-card flex justify-around py-2">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-indigo-400/20 bg-[#090D24]/95 backdrop-blur-xl flex justify-around py-2">
           {[menuItems[0], menuItems[1], menuItems[2], menuItems[3], menuItems[4]].map(item => item && (
             <Link
               key={item.href}

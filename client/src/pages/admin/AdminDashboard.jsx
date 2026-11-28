@@ -88,8 +88,8 @@ export function AdminLayout() {
             onClick={() => setMobileOpen(false)}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 group ${
               isActive(item.href)
-                ? 'bg-gradient-to-r from-violet-500/20 to-indigo-500/10 text-white font-semibold shadow-sm border border-violet-500/20'
-                : 'text-violet-200/70 hover:bg-white/5 hover:text-white'
+                ? 'bg-gradient-to-r from-[#7C3AED] to-[#4F46E5] text-white font-semibold shadow-lg shadow-violet-600/30'
+                : 'text-slate-300/80 hover:bg-indigo-500/15 hover:text-white'
             }`}
           >
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
@@ -107,13 +107,7 @@ export function AdminLayout() {
           </Link>
         ))}
       </nav>
-      <div className="px-3 pb-4 space-y-1 border-t border-white/10 pt-3 shrink-0">
-        <button onClick={toggleTheme} className="flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-violet-200/70 hover:bg-white/5 hover:text-white transition-all">
-          <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </div>
-          Thème
-        </button>
+      <div className="px-3 pb-4 space-y-1 border-t border-indigo-400/20 pt-3 shrink-0">
         <button onClick={logout} className="flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-red-400/80 hover:bg-red-500/10 hover:text-red-400 transition-all">
           <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
             <LogOut className="h-4 w-4" />
@@ -127,7 +121,7 @@ export function AdminLayout() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop Sidebar */}
-      <aside className="w-72 flex-col bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950 hidden md:flex h-full">
+      <aside className="w-72 flex-col bg-[#090D24]/95 backdrop-blur-xl border-r border-indigo-400/20 hidden md:flex h-full">
         {renderSidebarContent()}
       </aside>
 
@@ -135,7 +129,7 @@ export function AdminLayout() {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <aside className="absolute left-0 top-0 bottom-0 w-72 flex flex-col bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950 shadow-2xl h-full">
+          <aside className="absolute left-0 top-0 bottom-0 w-72 flex flex-col bg-[#090D24]/95 border-r border-indigo-400/20 shadow-2xl h-full">
             {renderSidebarContent()}
           </aside>
         </div>
@@ -144,7 +138,7 @@ export function AdminLayout() {
       {/* Main area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top header bar */}
-        <header className="h-16 border-b bg-card/80 backdrop-blur-md flex items-center justify-between px-4 md:px-6 shrink-0">
+        <header className="h-16 border-b border-indigo-400/20 bg-[#090D24]/80 backdrop-blur-xl flex items-center justify-between px-4 md:px-6 shrink-0">
           <div className="flex items-center gap-3">
             <button onClick={() => setMobileOpen(true)} className="md:hidden p-2 rounded-lg hover:bg-accent">
               <Menu className="h-5 w-5" />

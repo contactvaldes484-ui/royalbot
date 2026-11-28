@@ -35,7 +35,7 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-lg">
+    <nav className="sticky top-0 z-50 w-full border-b border-indigo-400/20 bg-[#07091B]/85 backdrop-blur-xl">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* Logo + Retour */}
         <div className="flex items-center gap-2.5">
@@ -69,13 +69,10 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           <button
             onClick={toggleLanguage}
-            className="px-2.5 py-1 rounded-md border border-border text-xs font-bold hover:bg-accent transition-colors"
+            className="px-2.5 py-1 rounded-md border border-indigo-400/25 bg-[#0E1330] text-xs font-bold hover:bg-indigo-500/20 transition-colors"
             title="Switch Language (FR / EN)"
           >
             {language === 'en' ? '🇬🇧 EN' : '🇫🇷 FR'}
-          </button>
-          <button onClick={toggleTheme} className="p-2 rounded-md hover:bg-accent transition-colors">
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
 
           {isAuthenticated ? (

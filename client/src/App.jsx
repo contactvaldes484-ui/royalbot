@@ -104,7 +104,7 @@ export default function App() {
 
   // Apply theme on mount
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
+    document.documentElement.classList.add('dark')
   }, [theme])
 
   // Apply language translation across entire platform

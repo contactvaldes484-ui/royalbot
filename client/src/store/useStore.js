@@ -9,13 +9,12 @@ const useStore = create((set, get) => ({
   isLoading: false,
   error: null,
 
-  // Theme
-  theme: localStorage.getItem('theme') || 'dark',
+  // Theme (Design unique RoyalBot Cosmic Indigo/Violet)
+  theme: 'dark',
   toggleTheme: () => {
-    const newTheme = get().theme === 'dark' ? 'light' : 'dark'
-    localStorage.setItem('theme', newTheme)
-    document.documentElement.classList.toggle('dark', newTheme === 'dark')
-    set({ theme: newTheme })
+    localStorage.setItem('theme', 'dark')
+    document.documentElement.classList.add('dark')
+    set({ theme: 'dark' })
   },
 
   // Auth actions

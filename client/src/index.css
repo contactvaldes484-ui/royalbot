@@ -3,50 +3,29 @@
 @tailwind utilities;
 
 @layer base {
-  /* ── Thème RoyalBot — Mode Lumière doux anti-fatigue & Mode Sombre Obsidian ── */
-  :root {
-    --background: 220 25% 95%;         /* #EFF2F7 gris-bleu très doux, zéro éblouissement */
-    --foreground: 222 35% 13%;         /* #151C2B texte ardoise profond */
-    --card: 0 0% 100%;                 /* #FFFFFF cartes nettes sur fond doux */
-    --card-foreground: 222 35% 13%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 35% 13%;
-    --primary: 43 96% 45%;             /* Or Royal #E0A800 contrasté */
-    --primary-foreground: 222 47% 10%;
-    --secondary: 220 20% 91%;          /* #E3E7EF */
-    --secondary-foreground: 222 35% 16%;
-    --muted: 220 18% 91%;
-    --muted-foreground: 220 14% 42%;   /* #5C667A */
-    --accent: 220 22% 89%;
-    --accent-foreground: 222 35% 13%;
-    --destructive: 351 84% 54%;        /* #E6324B */
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 18% 85%;             /* #D3D9E4 */
-    --input: 220 18% 84%;
-    --ring: 43 96% 45%;
-    --radius: 0.75rem;
-  }
-
+  /* ── Design Unique RoyalBot Cosmic Indigo / Violet ── */
+  :root,
   .dark {
-    --background: 222 25% 7%;          /* #0D1017 */
-    --foreground: 216 15% 93%;         /* #EAECEF */
-    --card: 222 20% 11%;               /* #161A23 */
-    --card-foreground: 216 15% 93%;
-    --popover: 222 20% 11%;
-    --popover-foreground: 216 15% 93%;
-    --primary: 45 96% 58%;             /* #FCD535 */
-    --primary-foreground: 213 26% 6%;
-    --secondary: 220 18% 15%;          /* #1F2530 */
-    --secondary-foreground: 216 15% 93%;
-    --muted: 220 18% 15%;
-    --muted-foreground: 215 12% 62%;   /* #909AA8 */
-    --accent: 220 18% 18%;
-    --accent-foreground: 45 96% 58%;
-    --destructive: 351 80% 55%;        /* #F6465D */
+    --background: 234 58% 7%;          /* #07091B Deep Cosmic Navy */
+    --foreground: 220 33% 97%;         /* #F4F7FC Crisp White */
+    --card: 231 52% 11%;               /* #0D122B Elevated Cosmic Indigo */
+    --card-foreground: 220 33% 97%;
+    --popover: 231 52% 11%;
+    --popover-foreground: 220 33% 97%;
+    --primary: 263 83% 58%;            /* #7C3AED Royal Electric Violet */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 231 44% 16%;          /* #171E3D */
+    --secondary-foreground: 220 33% 97%;
+    --muted: 231 40% 15%;              /* #161C38 */
+    --muted-foreground: 222 22% 66%;   /* #94A3B8 */
+    --accent: 256 60% 22%;             /* #2D1F5A */
+    --accent-foreground: 262 90% 78%;
+    --destructive: 349 85% 58%;        /* #F43F5E */
     --destructive-foreground: 0 0% 100%;
-    --border: 220 16% 20%;             /* #2B323D */
-    --input: 220 16% 20%;
-    --ring: 45 96% 58%;
+    --border: 232 43% 21%;             /* #1E264D */
+    --input: 232 43% 21%;
+    --ring: 263 83% 58%;
+    --radius: 0.875rem;
   }
 }
 
@@ -58,9 +37,16 @@
   body {
     overflow-x: hidden;
     max-width: 100%;
+    color-scheme: dark;
   }
   body {
-    @apply bg-background text-foreground;
+    background-color: #07091B;
+    background-image:
+      radial-gradient(ellipse 70% 50% at 85% 5%, rgba(124, 58, 237, 0.18), transparent 60%),
+      radial-gradient(ellipse 60% 50% at 10% 90%, rgba(59, 130, 246, 0.14), transparent 60%),
+      radial-gradient(ellipse 40% 35% at 50% 50%, rgba(99, 102, 241, 0.08), transparent 70%);
+    background-attachment: fixed;
+    @apply text-foreground antialiased;
     font-family: 'Inter', sans-serif;
   }
 }
@@ -70,116 +56,24 @@
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #07091B;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
+  background: rgba(124, 58, 237, 0.35);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: rgba(124, 58, 237, 0.6);
 }
 
-/* Gradient text — Binance gold (noir net en mode lumière) */
+/* Gradient text — Cosmic RoyalBot Violet -> Cyan */
 .gradient-text {
-  @apply bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500;
-}
-
-html:not(.dark) .gradient-text {
-  background-image: none;
-  -webkit-background-clip: initial;
-  background-clip: initial;
-  -webkit-text-fill-color: #0B0E11;
-  color: #0B0E11;
-}
-
-html:not(.dark) .force-dark-surface .gradient-text,
-html:not(.dark) [class*="bg-slate-9"] .gradient-text,
-html:not(.dark) [class*="bg-[#0"] .gradient-text,
-html:not(.dark) [class*="bg-[#1"] .gradient-text {
-  background-image: linear-gradient(to right, #facc15, #fbbf24, #eab308);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-}
-
-/* Textes jaunes/ambre transformés en noir en mode lumière uniquement sur fond clair */
-html:not(.dark) .text-yellow-300,
-html:not(.dark) .text-yellow-400,
-html:not(.dark) .text-yellow-500,
-html:not(.dark) .text-amber-300,
-html:not(.dark) .text-amber-400,
-html:not(.dark) .text-amber-500 {
-  color: #0B0E11 !important;
-}
-
-/* Préserver le jaune/ambre lisible à l'intérieur des cartes/conteneurs sombres en mode lumière */
-html:not(.dark) .force-dark-surface .text-yellow-300,
-html:not(.dark) .force-dark-surface .text-yellow-400,
-html:not(.dark) .force-dark-surface .text-yellow-500,
-html:not(.dark) .force-dark-surface .text-amber-300,
-html:not(.dark) .force-dark-surface .text-amber-400,
-html:not(.dark) .force-dark-surface .text-amber-500,
-html:not(.dark) [class*="bg-slate-9"] .text-yellow-300,
-html:not(.dark) [class*="bg-slate-9"] .text-yellow-400,
-html:not(.dark) [class*="bg-slate-9"] .text-yellow-500,
-html:not(.dark) [class*="bg-slate-9"] .text-amber-300,
-html:not(.dark) [class*="bg-slate-9"] .text-amber-400,
-html:not(.dark) [class*="bg-slate-9"] .text-amber-500,
-html:not(.dark) [class*="bg-emerald-950"] .text-amber-400,
-html:not(.dark) [class*="bg-amber-950"] .text-amber-300,
-html:not(.dark) [class*="bg-amber-950"] .text-amber-400,
-html:not(.dark) [class*="bg-[#0"] .text-yellow-400,
-html:not(.dark) [class*="bg-[#0"] .text-amber-400,
-html:not(.dark) [class*="bg-[#1"] .text-yellow-400,
-html:not(.dark) [class*="bg-[#1"] .text-amber-400 {
-  color: #fbbf24 !important;
-}
-
-/* Empêcher les fonds noirs/sombres semi-transparents d'être délavés/floutés en mode lumière */
-html:not(.dark) [class*="bg-slate-900/"] {
-  background-color: #0f172a !important;
-}
-html:not(.dark) [class*="bg-slate-950/"] {
-  background-color: #070b14 !important;
-}
-html:not(.dark) [class*="bg-emerald-950/"] {
-  background-color: #04241a !important;
-}
-html:not(.dark) [class*="bg-amber-950/"] {
-  background-color: #291804 !important;
-}
-html:not(.dark) [class*="bg-rose-950/"] {
-  background-color: #2b0912 !important;
-}
-
-/* Assurer que tous les textes clairs deviennent nettement lisibles sur fond clair en mode lumière */
-html:not(.dark) .text-emerald-300:not([class*="bg-slate-9"] *):not([class*="bg-[#0"] *):not(.force-dark-surface *),
-html:not(.dark) .text-emerald-400:not([class*="bg-slate-9"] *):not([class*="bg-[#0"] *):not(.force-dark-surface *) {
-  color: #047857 !important;
-}
-html:not(.dark) .text-sky-300:not([class*="bg-slate-9"] *):not([class*="bg-[#0"] *):not(.force-dark-surface *),
-html:not(.dark) .text-sky-400:not([class*="bg-slate-9"] *):not([class*="bg-[#0"] *):not(.force-dark-surface *) {
-  color: #0369a1 !important;
-}
-html:not(.dark) .text-slate-300:not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *):not([class*="bg-[#0"] *):not([class*="bg-[#1"] *):not([class*="bg-emerald-950"] *):not([class*="bg-rose-950"] *):not([class*="bg-amber-950"] *):not(.force-dark-surface *):not(button *),
-html:not(.dark) .text-slate-200:not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *):not([class*="bg-[#0"] *):not([class*="bg-[#1"] *):not([class*="bg-emerald-950"] *):not([class*="bg-rose-950"] *):not([class*="bg-amber-950"] *):not(.force-dark-surface *):not(button *),
-html:not(.dark) .text-slate-100:not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *):not([class*="bg-[#0"] *):not([class*="bg-[#1"] *):not([class*="bg-emerald-950"] *):not([class*="bg-rose-950"] *):not([class*="bg-amber-950"] *):not(.force-dark-surface *):not(button *) {
-  color: #1e293b !important;
-}
-
-html:not(.dark) .text-slate-400:not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *):not([class*="bg-[#0"] *):not([class*="bg-[#1"] *):not([class*="bg-emerald-950"] *):not([class*="bg-rose-950"] *):not([class*="bg-amber-950"] *):not(.force-dark-surface *):not(button *) {
-  color: #475569 !important;
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-violet-400 via-purple-400 to-cyan-400;
 }
 
 /* Glass effect */
 .glass {
-  @apply bg-white/10 backdrop-blur-lg border border-white/20;
-}
-
-.dark .glass {
-  @apply bg-white/5 backdrop-blur-lg border border-white/10;
+  @apply bg-[#0E1330]/75 backdrop-blur-xl border border-indigo-400/20 shadow-[0_8px_32px_rgba(4,6,22,0.55)];
 }
 
 /* Pulse animation for live indicators */
