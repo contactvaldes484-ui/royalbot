@@ -110,7 +110,9 @@ router.post('/subscribe', authenticate, subscribeLimiter, async (req, res) => {
     } = req.body;
 
     if (!planSlug) return res.status(400).json({ error: 'planSlug requis.' });
-    const plan = planCache.getPlan(planSlug);
+    await planCache.refreshCache().catch(() => {});
+    const SubscriptionPlan = require('../models/SubscriptionPlan');
+    const plan = await SubscriptionPlan.findOne({ slug: planSlug, isActive: true }).lean().catch(() => null) || planCache.getPlan(planSlug);
     if (!plan) return res.status(400).json({ error: 'Plan invalide.' });
 
     if (!['monthly', 'yearly', 'lifetime'].includes(billingCycle)) {
@@ -624,6 +626,9 @@ router.post('/ikeepay/webhook', async (req, res) => {
     }
 
     sub.ikeepayRef = ikeepay_ref || '';
+    if (Number(amount) > 0 && (!currency || !sub.currency || String(currency).toUpperCase() === String(sub.currency).toUpperCase())) {
+      sub.amount = Number(amount);
+    }
     await sub.save();
 
     const confirmed = await subService.confirmPendingSubscription(sub._id, {

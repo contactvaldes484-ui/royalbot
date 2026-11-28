@@ -577,7 +577,9 @@ class DerivRobotEngine {
 
     const virtualHook = overrides.virtualHook || defaultSettings.virtualHook || { enabled: false, trigger: 3, startWhen: 'loss', stake: 0.5 };
     const martiStart = Number(overrides.martiStart || defaultSettings.martiStart || 1);
-    const martiFactor = Number(overrides.martiFactor || defaultSettings.martiFactor || userMartingaleMultiplier);
+    const martiFactor = hasExplicitMartingale
+      ? userMartingaleMultiplier
+      : Number(overrides.martiFactor || defaultSettings.martiFactor || userMartingaleMultiplier);
 
     let resolvedLossFactor = 1;
     if (overrides.lossFactor !== undefined && overrides.lossFactor !== null && !isNaN(Number(overrides.lossFactor))) {
@@ -1077,9 +1079,12 @@ class DerivRobotEngine {
             const hasVh = Boolean(vhConfig?.enabled);
             const vState = this.virtualStates.get(sessionId);
 
-            const isImportedDigitBot =
+            const isSplitBot =
               (bot?.strategyType === 'file_custom' || bot?.fileType === 'xml' || bot?.fileType === 'json' || bot?.parsedLogic?.splitRecovery === true) &&
               (updatedSession.contractType === 'DIGITUNDER' || updatedSession.contractType === 'DIGITOVER' || updatedSession.contractType === 'DIGITDIFF');
+            const defaultMult = Number(bot?.defaultSettings?.martingaleMultiplier || 1.47);
+            const userCustomizedMartingale = hasActiveMartingale && Math.abs(Number(updatedSession.settings.martingaleMultiplier || 1) - defaultMult) > 0.01;
+            const isImportedDigitBot = isSplitBot && !userCustomizedMartingale;
 
             let unrecoveredLoss = Number(updatedSession.stats.unrecoveredLoss || 0);
 
@@ -1149,7 +1154,10 @@ class DerivRobotEngine {
                 }
               } else {
                 const martiStart = Number(updatedSession.settings.martiStart || 1);
-                const martiFactor = Number(updatedSession.settings.martiFactor || updatedSession.settings.martingaleMultiplier || 1);
+                const explicitMult = Number(updatedSession.settings.martingaleMultiplier || 1);
+                const martiFactor = explicitMult > 1
+                  ? explicitMult
+                  : Number(updatedSession.settings.martiFactor || 1);
                 const maxSteps = Number(updatedSession.settings.maxMartingaleSteps || 4);
 
                 // Vérification du déclenchement Martingale selon martiStart

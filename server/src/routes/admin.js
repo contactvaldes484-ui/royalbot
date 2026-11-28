@@ -242,6 +242,75 @@ router.post('/users/:id/deactivate-subscription', async (req, res) => {
   }
 });
 
+// Reactivate / grant a user subscription from Admin Users tab
+router.post('/users/:id/activate-subscription', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const SubscriptionPlan = require('../models/SubscriptionPlan');
+    let planSlug = req.body?.planSlug;
+    if (!planSlug) {
+      const firstActivePlan = await SubscriptionPlan.findOne({ isActive: true, isFree: { $ne: true } }).sort({ tier: 1, order: 1 }).lean().catch(() => null);
+      planSlug = firstActivePlan?.slug || 'deriv-starter';
+    }
+    const days = Number(req.body?.days || 30);
+    const now = new Date();
+    const endDate = new Date(now.getTime() + days * 86400 * 1000);
+
+    await Subscription.updateMany(
+      { user: userId, isActive: true },
+      { $set: { isActive: false, cancelledAt: now, cancelReason: 'Remplacé par réactivation admin' } }
+    ).catch(() => {});
+
+    const sub = await Subscription.create({
+      user: userId,
+      plan: planSlug,
+      billingCycle: 'monthly',
+      amount: 0,
+      paymentMethod: 'admin_grant',
+      paymentStatus: 'confirmed',
+      isActive: true,
+      startDate: now,
+      endDate,
+      grantedBy: req.user._id,
+      adminNote: `Réactivé par l'administrateur (${days} jours)`,
+    });
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          'subscription.plan': planSlug,
+          'subscription.billingCycle': 'monthly',
+          'subscription.startDate': now,
+          'subscription.endDate': endDate,
+          'subscription.isActive': true,
+          'subscription.autoRenew': false,
+        },
+      },
+      { new: true }
+    ).select('-password');
+
+    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+
+    if (global.broadcastToUser) {
+      global.broadcastToUser(String(userId), {
+        type: 'deriv_plan_activated',
+        plan: planSlug,
+        message: `Votre abonnement (${planSlug}) a été activé par l'administrateur. Vos robots sont débloqués.`,
+      });
+    }
+
+    res.json({
+      success: true,
+      user,
+      subscription: sub,
+      message: `Plan "${planSlug}" activé pour ${days} jours.`,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Manage bots
 router.put('/bots/:id', async (req, res) => {
   try {
@@ -932,6 +1001,7 @@ async function computeAdminWalletData() {
     totalSubscriptionsCount,
     totalWithdrawn,
     feePercent,
+    currency: settings?.ikeepayCurrency || 'XAF',
     withdrawals,
   };
 }

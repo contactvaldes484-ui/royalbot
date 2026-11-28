@@ -706,6 +706,18 @@ export function AdminUsers() {
     }
   }
 
+  const activateUserSubscription = async (u) => {
+    if (!window.confirm(`Activer un plan d'abonnement pour ${u.firstName} ${u.lastName} (${u.email}) ? Ses robots seront débloqués immédiatement.`)) return
+    try {
+      const { data } = await adminAPI.activateUserSubscription(u._id, { days: 30 })
+      setUserActionMsg({ type: 'success', text: data?.message || 'Plan activé et robots débloqués.' })
+      setTimeout(() => setUserActionMsg(null), 5000)
+      fetchUsers(pagination.page)
+    } catch (err) {
+      setUserActionMsg({ type: 'error', text: err.response?.data?.error || 'Impossible d\'activer le plan.' })
+    }
+  }
+
   return (
     <div className="space-y-6">
       {selectedUser && (
@@ -772,7 +784,7 @@ export function AdminUsers() {
                               ? u.subscription.plan
                               : 'free / bloqué'}
                           </Badge>
-                          {(u.subscription?.isActive || (u.subscription?.plan && u.subscription?.plan !== 'free')) && (
+                          {(u.subscription?.isActive && u.subscription?.plan && u.subscription?.plan !== 'free') ? (
                             <Button
                               variant="destructive"
                               size="sm"
@@ -781,6 +793,15 @@ export function AdminUsers() {
                               title="Désactiver l'abonnement et bloquer ses robots"
                             >
                               Désactiver abo
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              className="h-6 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white"
+                              onClick={() => activateUserSubscription(u)}
+                              title="Activer de nouveau le plan pour débloquer ses robots"
+                            >
+                              Activer plan
                             </Button>
                           )}
                         </div>
@@ -1863,16 +1884,16 @@ export function AdminRevenue() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/30">
               <p className="text-[11px] text-muted-foreground uppercase font-semibold">Solde Disponible</p>
-              <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">{formatCurrency(wallet?.availableBalance || 0)}</p>
+              <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">{Number(wallet?.availableBalance || 0).toLocaleString()} {wallet?.currency || 'XAF'}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{wallet?.totalSubscriptionsCount || 0} abonnement(s) encaissé(s)</p>
             </div>
             <div className="p-4 rounded-xl bg-muted/50 border border-border">
               <p className="text-[11px] text-muted-foreground uppercase font-semibold">Total Encaissé (Abonnements)</p>
-              <p className="text-2xl font-bold text-foreground mt-1">{formatCurrency(wallet?.totalSubscriptionRevenue || 0)}</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{Number(wallet?.totalSubscriptionRevenue || 0).toLocaleString()} {wallet?.currency || 'XAF'}</p>
             </div>
             <div className="p-4 rounded-xl bg-muted/50 border border-border">
               <p className="text-[11px] text-muted-foreground uppercase font-semibold">Total Retiré</p>
-              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{formatCurrency(wallet?.totalWithdrawn || 0)}</p>
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{Number(wallet?.totalWithdrawn || 0).toLocaleString()} {wallet?.currency || 'XAF'}</p>
             </div>
           </div>
 
