@@ -3,50 +3,50 @@
 @tailwind utilities;
 
 @layer base {
-  /* ── Thème Binance (jaune #FCD535 / fonds sombres #0B0E11·#181A20) ── */
+  /* ── Thème RoyalBot — Mode Lumière doux anti-fatigue & Mode Sombre Obsidian ── */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 213 21% 9%;
-    --card: 0 0% 100%;
-    --card-foreground: 213 21% 9%;
+    --background: 220 25% 95%;         /* #EFF2F7 gris-bleu très doux, zéro éblouissement */
+    --foreground: 222 35% 13%;         /* #151C2B texte ardoise profond */
+    --card: 0 0% 100%;                 /* #FFFFFF cartes nettes sur fond doux */
+    --card-foreground: 222 35% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 213 21% 9%;
-    --primary: 45 96% 50%;            /* Binance yellow */
-    --primary-foreground: 213 26% 6%; /* near-black text on yellow */
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 45 96% 90%;
-    --accent-foreground: 213 26% 11%;
-    --destructive: 351 91% 62%;       /* Binance red #F6465D */
+    --popover-foreground: 222 35% 13%;
+    --primary: 43 96% 45%;             /* Or Royal #E0A800 contrasté */
+    --primary-foreground: 222 47% 10%;
+    --secondary: 220 20% 91%;          /* #E3E7EF */
+    --secondary-foreground: 222 35% 16%;
+    --muted: 220 18% 91%;
+    --muted-foreground: 220 14% 42%;   /* #5C667A */
+    --accent: 220 22% 89%;
+    --accent-foreground: 222 35% 13%;
+    --destructive: 351 84% 54%;        /* #E6324B */
     --destructive-foreground: 0 0% 100%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 45 96% 50%;
+    --border: 220 18% 85%;             /* #D3D9E4 */
+    --input: 220 18% 84%;
+    --ring: 43 96% 45%;
     --radius: 0.75rem;
   }
 
   .dark {
-    --background: 213 21% 5%;          /* #0B0E11 */
-    --foreground: 216 13% 93%;         /* #EAECEF */
-    --card: 225 14% 11%;               /* #181A20 */
-    --card-foreground: 216 13% 93%;
-    --popover: 225 14% 11%;
-    --popover-foreground: 216 13% 93%;
-    --primary: 45 96% 60%;             /* Binance yellow #FCD535 */
+    --background: 222 25% 7%;          /* #0D1017 */
+    --foreground: 216 15% 93%;         /* #EAECEF */
+    --card: 222 20% 11%;               /* #161A23 */
+    --card-foreground: 216 15% 93%;
+    --popover: 222 20% 11%;
+    --popover-foreground: 216 15% 93%;
+    --primary: 45 96% 58%;             /* #FCD535 */
     --primary-foreground: 213 26% 6%;
-    --secondary: 218 15% 14%;          /* #1E2329 */
-    --secondary-foreground: 216 13% 93%;
-    --muted: 218 15% 14%;
-    --muted-foreground: 215 11% 60%;   /* #848E9C */
-    --accent: 218 15% 16%;
-    --accent-foreground: 45 96% 60%;
+    --secondary: 220 18% 15%;          /* #1F2530 */
+    --secondary-foreground: 216 15% 93%;
+    --muted: 220 18% 15%;
+    --muted-foreground: 215 12% 62%;   /* #909AA8 */
+    --accent: 220 18% 18%;
+    --accent-foreground: 45 96% 58%;
     --destructive: 351 80% 55%;        /* #F6465D */
     --destructive-foreground: 0 0% 100%;
-    --border: 218 14% 20%;             /* #2B3139 */
-    --input: 218 14% 20%;
-    --ring: 45 96% 60%;
+    --border: 220 16% 20%;             /* #2B323D */
+    --input: 220 16% 20%;
+    --ring: 45 96% 58%;
   }
 }
 
@@ -155,6 +155,14 @@ html:not(.dark) [class*="bg-rose-950/"] {
 }
 
 /* Assurer que tous les textes clairs deviennent nettement lisibles sur fond clair en mode lumière */
+html:not(.dark) .text-emerald-300:not([class*="bg-slate-9"] *):not([class*="bg-[#0"] *):not(.force-dark-surface *),
+html:not(.dark) .text-emerald-400:not([class*="bg-slate-9"] *):not([class*="bg-[#0"] *):not(.force-dark-surface *) {
+  color: #047857 !important;
+}
+html:not(.dark) .text-sky-300:not([class*="bg-slate-9"] *):not([class*="bg-[#0"] *):not(.force-dark-surface *),
+html:not(.dark) .text-sky-400:not([class*="bg-slate-9"] *):not([class*="bg-[#0"] *):not(.force-dark-surface *) {
+  color: #0369a1 !important;
+}
 html:not(.dark) .text-slate-300:not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *):not([class*="bg-[#0"] *):not([class*="bg-[#1"] *):not([class*="bg-emerald-950"] *):not([class*="bg-rose-950"] *):not([class*="bg-amber-950"] *):not(.force-dark-surface *):not(button *),
 html:not(.dark) .text-slate-200:not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *):not([class*="bg-[#0"] *):not([class*="bg-[#1"] *):not([class*="bg-emerald-950"] *):not([class*="bg-rose-950"] *):not([class*="bg-amber-950"] *):not(.force-dark-surface *):not(button *),
 html:not(.dark) .text-slate-100:not([class*="bg-slate-9"] *):not([class*="bg-slate-8"] *):not([class*="bg-[#0"] *):not([class*="bg-[#1"] *):not([class*="bg-emerald-950"] *):not([class*="bg-rose-950"] *):not([class*="bg-amber-950"] *):not(.force-dark-surface *):not(button *) {

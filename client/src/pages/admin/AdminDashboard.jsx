@@ -1795,11 +1795,11 @@ export function AdminRevenue() {
       </div>
 
       {/* Portefeuille Administrateur (Abonnements) + Retrait Direct iKeePay */}
-      <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-950/25 via-slate-900/90 to-slate-950">
+      <Card className="border-emerald-500/30 bg-card shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-lg flex items-center gap-2 text-emerald-400">
+              <CardTitle className="text-lg flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                 <Wallet className="h-5 w-5" />
                 Portefeuille Abonnements &amp; Retrait Direct iKeePay
               </CardTitle>
@@ -1807,8 +1807,8 @@ export function AdminRevenue() {
                 Reçoit automatiquement les paiements d'abonnements mensuels. Retrait direct via iKeePay H2H avec réduction de {activeFeePct}% (modifiable).
               </p>
             </div>
-            <div className="flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-2">
-              <span className="text-xs text-slate-400">Réduction retrait (%) :</span>
+            <div className="flex items-center gap-2 bg-muted/60 border border-border rounded-xl px-3 py-2">
+              <span className="text-xs text-muted-foreground">Réduction retrait (%) :</span>
               <Input
                 type="number"
                 min="0"
@@ -1816,9 +1816,9 @@ export function AdminRevenue() {
                 step="0.5"
                 value={feeInput}
                 onChange={e => setFeeInput(e.target.value)}
-                className="w-20 h-8 text-xs font-mono text-center bg-slate-900 border-slate-700"
+                className="w-20 h-8 text-xs font-mono text-center bg-background border-input"
               />
-              <Button size="sm" onClick={handleSaveFee} disabled={savingFee} className="h-8 text-xs bg-violet-600 hover:bg-violet-500">
+              <Button size="sm" onClick={handleSaveFee} disabled={savingFee} className="h-8 text-xs bg-violet-600 hover:bg-violet-500 text-white">
                 {savingFee ? '...' : 'Appliquer'}
               </Button>
             </div>
@@ -1826,30 +1826,30 @@ export function AdminRevenue() {
         </CardHeader>
         <CardContent className="space-y-5">
           {walletMsg && (
-            <div className={`p-3 rounded-xl text-xs font-semibold border ${walletMsg.startsWith('✓') ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-400'}`}>
+            <div className={`p-3 rounded-xl text-xs font-semibold border ${walletMsg.startsWith('✓') ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400'}`}>
               {walletMsg}
             </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-emerald-500/30">
-              <p className="text-[11px] text-slate-400 uppercase">Solde Disponible</p>
-              <p className="text-2xl font-extrabold text-emerald-400 mt-1">{formatCurrency(wallet?.availableBalance || 0)}</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">{wallet?.totalSubscriptionsCount || 0} abonnement(s) encaissé(s)</p>
+            <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/30">
+              <p className="text-[11px] text-muted-foreground uppercase font-semibold">Solde Disponible</p>
+              <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">{formatCurrency(wallet?.availableBalance || 0)}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{wallet?.totalSubscriptionsCount || 0} abonnement(s) encaissé(s)</p>
             </div>
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
-              <p className="text-[11px] text-slate-400 uppercase">Total Encaissé (Abonnements)</p>
-              <p className="text-2xl font-bold text-white mt-1">{formatCurrency(wallet?.totalSubscriptionRevenue || 0)}</p>
+            <div className="p-4 rounded-xl bg-muted/50 border border-border">
+              <p className="text-[11px] text-muted-foreground uppercase font-semibold">Total Encaissé (Abonnements)</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{formatCurrency(wallet?.totalSubscriptionRevenue || 0)}</p>
             </div>
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
-              <p className="text-[11px] text-slate-400 uppercase">Total Retiré</p>
-              <p className="text-2xl font-bold text-amber-400 mt-1">{formatCurrency(wallet?.totalWithdrawn || 0)}</p>
+            <div className="p-4 rounded-xl bg-muted/50 border border-border">
+              <p className="text-[11px] text-muted-foreground uppercase font-semibold">Total Retiré</p>
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{formatCurrency(wallet?.totalWithdrawn || 0)}</p>
             </div>
           </div>
 
-          <form onSubmit={handleAdminWithdraw} className="grid grid-cols-1 md:grid-cols-6 gap-3 p-4 rounded-xl bg-slate-950/60 border border-slate-800 items-end">
+          <form onSubmit={handleAdminWithdraw} className="grid grid-cols-1 md:grid-cols-6 gap-3 p-4 rounded-xl bg-muted/40 border border-border items-end">
             <div>
-              <label className="text-[11px] text-slate-400 font-semibold block mb-1">Montant Brut</label>
+              <label className="text-[11px] text-muted-foreground font-semibold block mb-1">Montant Brut</label>
               <Input
                 type="number"
                 step="0.01"
@@ -1858,25 +1858,25 @@ export function AdminRevenue() {
                 placeholder="ex: 100"
                 value={withdrawForm.amount}
                 onChange={e => setWithdrawForm({ ...withdrawForm, amount: e.target.value })}
-                className="h-9 text-xs font-mono bg-slate-900 border-slate-700"
+                className="h-9 text-xs font-mono bg-background border-input"
               />
             </div>
             <div>
-              <label className="text-[11px] text-slate-400 font-semibold block mb-1">Pays</label>
+              <label className="text-[11px] text-muted-foreground font-semibold block mb-1">Pays</label>
               <Input
                 value={withdrawForm.country}
                 onChange={e => setWithdrawForm({ ...withdrawForm, country: e.target.value.toUpperCase() })}
                 placeholder="CI"
                 maxLength={2}
-                className="h-9 text-xs font-mono bg-slate-900 border-slate-700"
+                className="h-9 text-xs font-mono bg-background border-input"
               />
             </div>
             <div>
-              <label className="text-[11px] text-slate-400 font-semibold block mb-1">Opérateur</label>
+              <label className="text-[11px] text-muted-foreground font-semibold block mb-1">Opérateur</label>
               <select
                 value={withdrawForm.operator}
                 onChange={e => setWithdrawForm({ ...withdrawForm, operator: e.target.value })}
-                className="w-full h-9 px-2 rounded-md text-xs bg-slate-900 border border-slate-700 text-white"
+                className="w-full h-9 px-2 rounded-md text-xs bg-background border border-input text-foreground"
               >
                 <option value="ORANGE">ORANGE</option>
                 <option value="MTN">MTN</option>
@@ -1888,21 +1888,21 @@ export function AdminRevenue() {
               </select>
             </div>
             <div>
-              <label className="text-[11px] text-slate-400 font-semibold block mb-1">Téléphone (avec indicatif)</label>
+              <label className="text-[11px] text-muted-foreground font-semibold block mb-1">Téléphone (avec indicatif)</label>
               <Input
                 required
                 placeholder="2250700000000"
                 value={withdrawForm.phoneNumber}
                 onChange={e => setWithdrawForm({ ...withdrawForm, phoneNumber: e.target.value })}
-                className="h-9 text-xs font-mono bg-slate-900 border-slate-700"
+                className="h-9 text-xs font-mono bg-background border-input"
               />
             </div>
             <div>
-              <label className="text-[11px] text-slate-400 font-semibold block mb-1">Devise</label>
+              <label className="text-[11px] text-muted-foreground font-semibold block mb-1">Devise</label>
               <select
                 value={withdrawForm.currency}
                 onChange={e => setWithdrawForm({ ...withdrawForm, currency: e.target.value })}
-                className="w-full h-9 px-2 rounded-md text-xs bg-slate-900 border border-slate-700 text-white font-mono"
+                className="w-full h-9 px-2 rounded-md text-xs bg-background border border-input text-foreground font-mono"
               >
                 <option value="XAF">XAF</option>
                 <option value="XOF">XOF</option>
@@ -1913,10 +1913,10 @@ export function AdminRevenue() {
               {withdrawing ? 'Envoi...' : 'Retirer via iKeePay'}
             </Button>
             {grossPreview > 0 && (
-              <div className="md:col-span-6 text-[11px] text-slate-300 flex flex-wrap gap-4 pt-1 border-t border-slate-800/80">
-                <span>Montant brut : <strong>{grossPreview} {withdrawForm.currency}</strong></span>
-                <span className="text-amber-400">Réduction ({activeFeePct}%) : <strong>-{feePreview} {withdrawForm.currency}</strong></span>
-                <span className="text-emerald-400">Montant Net envoyé : <strong>{netPreview} {withdrawForm.currency}</strong></span>
+              <div className="md:col-span-6 text-[11px] text-muted-foreground flex flex-wrap gap-4 pt-2 border-t border-border">
+                <span>Montant brut : <strong className="text-foreground">{grossPreview} {withdrawForm.currency}</strong></span>
+                <span className="text-amber-600 dark:text-amber-400">Réduction ({activeFeePct}%) : <strong>-{feePreview} {withdrawForm.currency}</strong></span>
+                <span className="text-emerald-600 dark:text-emerald-400">Montant Net envoyé : <strong>{netPreview} {withdrawForm.currency}</strong></span>
               </div>
             )}
           </form>
@@ -1925,7 +1925,7 @@ export function AdminRevenue() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 text-left">
+                  <tr className="border-b border-border text-muted-foreground text-left">
                     <th className="py-2 pr-3">Date</th>
                     <th className="py-2 pr-3">Brut</th>
                     <th className="py-2 pr-3">Frais (%)</th>
@@ -1936,12 +1936,12 @@ export function AdminRevenue() {
                 </thead>
                 <tbody>
                   {wallet.withdrawals.map(w => (
-                    <tr key={w._id} className="border-b border-slate-800/50">
-                      <td className="py-2 pr-3 text-slate-400">{new Date(w.createdAt).toLocaleString()}</td>
-                      <td className="py-2 pr-3 font-mono">{w.grossAmount} {w.currency}</td>
-                      <td className="py-2 pr-3 text-amber-400">-{w.feeAmount} ({w.feePercent}%)</td>
-                      <td className="py-2 pr-3 font-bold text-emerald-400">{w.netAmount} {w.currency}</td>
-                      <td className="py-2 pr-3 font-mono">{w.operator} · {w.phoneNumber}</td>
+                    <tr key={w._id} className="border-b border-border/60">
+                      <td className="py-2 pr-3 text-muted-foreground">{new Date(w.createdAt).toLocaleString()}</td>
+                      <td className="py-2 pr-3 font-mono text-foreground">{w.grossAmount} {w.currency}</td>
+                      <td className="py-2 pr-3 text-amber-600 dark:text-amber-400">-{w.feeAmount} ({w.feePercent}%)</td>
+                      <td className="py-2 pr-3 font-bold text-emerald-600 dark:text-emerald-400">{w.netAmount} {w.currency}</td>
+                      <td className="py-2 pr-3 font-mono text-foreground">{w.operator} · {w.phoneNumber}</td>
                       <td className="py-2">
                         <Badge variant={w.status === 'completed' ? 'success' : w.status === 'failed' ? 'destructive' : 'warning'} className="text-[10px]">
                           {w.status}
