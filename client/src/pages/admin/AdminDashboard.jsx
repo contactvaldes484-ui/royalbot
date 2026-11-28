@@ -691,11 +691,25 @@ export function AdminUsers() {
     fetchUsers()
   }
 
+  const [userActionMsg, setUserActionMsg] = useState(null)
+
   const toggleUserStatus = async (userId, isActive) => {
     try {
       await adminAPI.updateUser(userId, { isActive: !isActive })
       fetchUsers(pagination.page)
     } catch {}
+  }
+
+  const deactivateUserSubscription = async (u) => {
+    if (!window.confirm(`Désactiver l'abonnement de ${u.firstName} ${u.lastName} (${u.email}) ? Ses robots seront immédiatement bloqués jusqu'au prochain paiement.`)) return
+    try {
+      const { data } = await adminAPI.deactivateUserSubscription(u._id)
+      setUserActionMsg({ type: 'success', text: data?.message || 'Abonnement désactivé et robots bloqués.' })
+      setTimeout(() => setUserActionMsg(null), 5000)
+      fetchUsers(pagination.page)
+    } catch (err) {
+      setUserActionMsg({ type: 'error', text: err.response?.data?.error || 'Impossible de désactiver l\'abonnement.' })
+    }
   }
 
   return (
@@ -718,6 +732,12 @@ export function AdminUsers() {
         </div>
         <Button type="submit">Rechercher</Button>
       </form>
+
+      {userActionMsg && (
+        <div className={`p-3 rounded-lg text-sm border ${userActionMsg.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'}`}>
+          {userActionMsg.text}
+        </div>
+      )}
 
       <Card>
         <CardContent className="p-0">
@@ -752,9 +772,24 @@ export function AdminUsers() {
                       </td>
                       <td className="p-3 text-muted-foreground">{u.email}</td>
                       <td className="p-3 text-center">
-                        <Badge variant={u.subscription?.plan === 'vip' ? 'vip' : u.subscription?.plan === 'premium' ? 'premium' : 'success'} className="text-xs capitalize">
-                          {u.subscription?.plan || 'free'}
-                        </Badge>
+                        <div className="flex flex-col items-center gap-1">
+                          <Badge variant={u.subscription?.isActive && u.subscription?.plan !== 'free' ? 'success' : 'secondary'} className="text-xs capitalize">
+                            {u.subscription?.isActive && u.subscription?.plan && u.subscription?.plan !== 'free'
+                              ? u.subscription.plan
+                              : 'free / bloqué'}
+                          </Badge>
+                          {(u.subscription?.isActive || (u.subscription?.plan && u.subscription?.plan !== 'free')) && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="h-6 px-2 text-[10px]"
+                              onClick={() => deactivateUserSubscription(u)}
+                              title="Désactiver l'abonnement et bloquer ses robots"
+                            >
+                              Désactiver abo
+                            </Button>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3 text-right">{u.totalTrades || 0}</td>
                       <td className={`p-3 text-right font-medium ${(u.totalProfit || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>

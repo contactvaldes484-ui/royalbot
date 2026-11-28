@@ -228,6 +228,7 @@ export const adminAPI = {
   getStats: () => api.get('/admin/stats'),
   getUsers: (params) => api.get('/admin/users', { params }),
   updateUser: (id, data) => api.put(`/admin/users/${id}`, data),
+  deactivateUserSubscription: (id) => api.post(`/admin/users/${id}/deactivate-subscription`),
   updateBot: (id, data) => api.put(`/admin/bots/${id}`, data),
   getWithdrawals: (params) => api.get('/admin/withdrawals', { params }),
   processWithdrawal: (id, data) => api.put(`/admin/withdrawals/${id}`, data),

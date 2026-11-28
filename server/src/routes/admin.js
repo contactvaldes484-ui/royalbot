@@ -170,6 +170,78 @@ router.put('/users/:id', async (req, res) => {
   }
 });
 
+// Deactivate user subscription & immediately block/stop all their robots
+router.post('/users/:id/deactivate-subscription', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const now = new Date();
+    const expiredDate = new Date(Date.now() - 1000);
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          'subscription.plan': 'free',
+          'subscription.isActive': false,
+          'subscription.endDate': now,
+          'subscription.autoRenew': false,
+        },
+      },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    }
+
+    await Subscription.updateMany(
+      { user: userId, isActive: true },
+      { $set: { isActive: false, paymentStatus: 'cancelled', endDate: now } }
+    ).catch(() => {});
+
+    // Expirer également la période d'essai sur ses comptes Deriv pour que les robots soient bloqués jusqu'au nouveau paiement
+    const DerivAccount = require('../models/DerivAccount');
+    const DerivSession = require('../models/DerivSession');
+    await DerivAccount.updateMany(
+      { user: userId },
+      { $set: { trialExpiresAt: expiredDate } }
+    ).catch(() => {});
+
+    const fallbackStore = require('../services/RuntimeFallbackStore');
+    if (fallbackStore.derivAccounts instanceof Map) {
+      for (const acc of fallbackStore.derivAccounts.values()) {
+        if (String(acc.user) === String(userId)) {
+          acc.trialExpiresAt = expiredDate;
+        }
+      }
+    }
+
+    // Arrêter immédiatement toutes les sessions de robots Deriv actives de cet utilisateur
+    const derivEngine = require('../services/DerivRobotEngine');
+    const activeSessions = await DerivSession.find({ user: userId, status: { $in: ['active', 'paused'] } }).catch(() => []);
+    for (const s of activeSessions) {
+      await derivEngine.stopSession(s._id, userId).catch(() => {});
+    }
+    await derivEngine.enforceAccessPolicies().catch(() => {});
+
+    if (global.broadcastToUser) {
+      global.broadcastToUser(String(userId), {
+        type: 'deriv_trial_expired',
+        message: 'Votre abonnement a été désactivé par l\'administrateur. Veuillez payer un nouvel abonnement pour débloquer vos robots.',
+      });
+    }
+
+    res.json({
+      success: true,
+      user,
+      stoppedSessions: activeSessions.length,
+      message: 'Abonnement désactivé et robots bloqués immédiatement pour cet utilisateur.',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Manage bots
 router.put('/bots/:id', async (req, res) => {
   try {
