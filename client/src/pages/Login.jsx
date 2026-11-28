@@ -64,7 +64,7 @@ export default function Login() {
       } else if (['admin', 'super_admin'].includes(result?.user?.role)) {
         navigate('/admin')
       } else {
-        navigate('/dashboard')
+        navigate('/dashboard/deriv')
       }
     } catch (err) {
       setError(err.message)

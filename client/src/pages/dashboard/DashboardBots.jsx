@@ -384,9 +384,19 @@ export default function DashboardBots() {
               <Button size="sm" variant="outline" className="h-7 text-xs">Ouvrir</Button>
             </Link>
           ) : (
-            <Button size="sm" onClick={() => startDerivOAuth(derivAppId)} className="h-7 text-xs bg-emerald-600 hover:bg-emerald-500 text-white">
-              Connecter
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <a
+                href={platformSettings?.derivReferralLink || 'https://track.deriv.com/_DEFAULT/'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 text-xs font-semibold"
+              >
+                <ExternalLink className="h-3 w-3" /> Inscription Deriv
+              </a>
+              <Button size="sm" onClick={() => startDerivOAuth(derivAppId)} className="h-7 text-xs bg-emerald-600 hover:bg-emerald-500 text-white">
+                Connecter
+              </Button>
+            </div>
           )}
         </div>
 
@@ -652,6 +662,17 @@ export default function DashboardBots() {
                       <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
                       Connecter {activeTab === 'deriv' ? 'Deriv' : activeTab === 'binance' ? 'Binance' : 'Bybit'} pour lancer
                     </Button>
+                    {activeTab === 'deriv' && (
+                      <a
+                        href={platformSettings?.derivReferralLink || 'https://track.deriv.com/_DEFAULT/'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 text-xs font-semibold"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Inscription Deriv (Lien de Parrainage)
+                      </a>
+                    )}
                   </div>
                 )}
               </CardContent>

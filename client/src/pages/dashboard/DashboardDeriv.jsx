@@ -396,13 +396,13 @@ export default function DashboardDeriv() {
   }
 
   async function handleStartBot(bot) {
-    if (!selectedAccount) {
-      setShowConnectModal(true)
-      return alert('Veuillez d\'abord connecter un compte Deriv (Connexion 1-Clic ou Token) pour lancer ce robot.')
-    }
     if (!canRunRobots) {
       setShowUnlockModal(true)
       return
+    }
+    if (!selectedAccount) {
+      setShowConnectModal(true)
+      return alert('Veuillez d\'abord connecter un compte Deriv (Connexion 1-Clic ou Token) pour lancer ce robot.')
     }
     setSelectedBotForStart(bot)
     setBotStake(bot.defaultSettings?.initialStake || 1)
@@ -1004,9 +1004,9 @@ export default function DashboardDeriv() {
                       className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
                     >
                       <Play className="w-4 h-4 mr-2" />
-                      {!selectedAccount
-                        ? 'Connecter Deriv pour lancer'
-                        : (!canRunRobots ? 'Débloquer pour lancer' : 'Lancer ce Robot')}
+                      {!canRunRobots
+                        ? 'Débloquer pour lancer'
+                        : (!selectedAccount ? 'Connecter Deriv pour lancer' : 'Lancer ce Robot')}
                     </Button>
                   </CardContent>
                 </Card>
@@ -1170,6 +1170,15 @@ export default function DashboardDeriv() {
                 <Zap className="w-4 h-4" />
                 Se connecter avec Deriv en 1-Clic
               </button>
+              <a
+                href={settings?.derivReferralLink || 'https://track.deriv.com/_DEFAULT/'}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full inline-flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-semibold border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 transition text-center"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Inscription Deriv (Lien de Parrainage)
+              </a>
             </div>
 
             <div className="relative flex py-1 items-center">
