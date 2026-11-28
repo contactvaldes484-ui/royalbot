@@ -577,28 +577,33 @@ router.get('/upgrade-preview/:planSlug', authenticate, (req, res) => {
 // ─── Public Webhook: iKeePay Notification de Paiement ─────────────────────────
 router.post('/ikeepay/webhook', async (req, res) => {
   try {
-    const { event, ikeepay_ref, order_id, amount, currency, status } = req.body || {};
-    console.log('🔔 [iKeePay Webhook]:', { event, ikeepay_ref, order_id, status });
+    const { event, ikeepay_ref, order_id, external_reference, externalReference, reference, amount, currency, status } = req.body || {};
+    console.log('🔔 [iKeePay Webhook]:', { event, ikeepay_ref, order_id, external_reference, status });
 
-    if (event !== 'payment.success' && status !== 'completed') {
+    const normalizedStatus = String(status || '').toLowerCase();
+    const isSuccess = event === 'payment.success' || ['completed', 'success', 'succeeded', 'paid'].includes(normalizedStatus);
+    if (!isSuccess) {
       return res.status(200).json({ received: true, note: 'non-success event ignored' });
     }
 
-    if (!order_id) {
+    const refId = order_id || external_reference || externalReference || reference || ikeepay_ref;
+    if (!refId) {
       return res.status(400).json({ error: 'order_id requis' });
     }
 
     // Rechercher l'abonnement
     let sub = await Subscription.findOne({
       $or: [
-        { paymentId: order_id },
-        { ikeepayOrderId: order_id },
-        { mobileMoneyTxRef: order_id },
+        { paymentId: refId },
+        { ikeepayOrderId: refId },
+        { ikeepayRef: refId },
+        ...(ikeepay_ref ? [{ ikeepayRef: ikeepay_ref }] : []),
+        { mobileMoneyTxRef: refId },
       ],
     });
 
-    if (!sub && order_id.startsWith('SUB_')) {
-      const parts = order_id.split('_');
+    if (!sub && String(refId).startsWith('SUB_')) {
+      const parts = String(refId).split('_');
       if (parts[1]) sub = await Subscription.findById(parts[1]);
     }
 

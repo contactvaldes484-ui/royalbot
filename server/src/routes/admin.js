@@ -974,11 +974,12 @@ router.put('/users/:id/unblock-ip', async (req, res) => {
 
 async function computeAdminWalletData() {
   const AdminWithdrawal = require('../models/AdminWithdrawal');
+  const SubscriptionPlan = require('../models/SubscriptionPlan');
   const fallbackStore = require('../services/RuntimeFallbackStore');
   const settings = await fallbackStore.getSettings().catch(() => ({}));
   const feePercent = settings?.adminWithdrawalFeePercent !== undefined ? Number(settings.adminWithdrawalFeePercent) : 6;
 
-  const [revAgg, withdrawnAgg, withdrawals] = await Promise.all([
+  const [revAgg, withdrawnAgg, withdrawals, paidSubsRaw, allPlans] = await Promise.all([
     Subscription.aggregate([
       { $match: { paymentStatus: 'confirmed', amount: { $gt: 0 }, paymentMethod: { $ne: 'admin_grant' } } },
       { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
@@ -988,7 +989,20 @@ async function computeAdminWalletData() {
       { $group: { _id: null, total: { $sum: '$grossAmount' } } },
     ]).catch(() => []),
     AdminWithdrawal.find().sort({ createdAt: -1 }).limit(30).catch(() => []),
+    Subscription.find({ amount: { $gt: 0 }, paymentMethod: { $ne: 'admin_grant' } })
+      .populate('user', 'firstName lastName email')
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean()
+      .catch(() => []),
+    SubscriptionPlan.find().select('slug name').lean().catch(() => []),
   ]);
+
+  const planNameMap = new Map(allPlans.map(p => [p.slug, p.name]));
+  const paidSubscriptions = paidSubsRaw.map(s => ({
+    ...s,
+    planName: planNameMap.get(s.plan) || s.plan,
+  }));
 
   const totalSubscriptionRevenue = +(revAgg?.[0]?.total || 0).toFixed(2);
   const totalSubscriptionsCount = revAgg?.[0]?.count || 0;
@@ -1003,6 +1017,7 @@ async function computeAdminWalletData() {
     feePercent,
     currency: settings?.ikeepayCurrency || 'XAF',
     withdrawals,
+    paidSubscriptions,
   };
 }
 

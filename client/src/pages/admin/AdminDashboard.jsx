@@ -2003,6 +2003,73 @@ export function AdminRevenue() {
               </table>
             </div>
           )}
+
+          {/* Historique complet des utilisateurs ayant payé leur abonnement */}
+          <div className="pt-3 border-t border-border space-y-2">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+              Historique des Paiements d&apos;Abonnements (Utilisateurs)
+            </h4>
+            {wallet?.paidSubscriptions?.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground text-left">
+                      <th className="py-2 pr-3">Date</th>
+                      <th className="py-2 pr-3">Utilisateur</th>
+                      <th className="py-2 pr-3">Plan</th>
+                      <th className="py-2 pr-3">Montant</th>
+                      <th className="py-2 pr-3">Méthode</th>
+                      <th className="py-2">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {wallet.paidSubscriptions.map(s => (
+                      <tr key={s._id} className="border-b border-border/60">
+                        <td className="py-2 pr-3 text-muted-foreground">{new Date(s.createdAt).toLocaleString()}</td>
+                        <td className="py-2 pr-3">
+                          <div className="font-semibold text-foreground">{s.user ? `${s.user.firstName || ''} ${s.user.lastName || ''}`.trim() : 'Utilisateur'}</div>
+                          <div className="text-[10px] text-muted-foreground">{s.user?.email || '—'}</div>
+                        </td>
+                        <td className="py-2 pr-3 font-medium text-violet-400">{s.planName || s.plan}</td>
+                        <td className="py-2 pr-3 font-bold text-emerald-400 font-mono">
+                          {Number(s.amount || 0).toLocaleString()} {s.currency || wallet?.currency || 'XAF'}
+                        </td>
+                        <td className="py-2 pr-3 uppercase text-[10px] text-muted-foreground">
+                          {s.paymentMethod}{s.mobileMoneyProvider ? ` (${s.mobileMoneyProvider})` : ''}
+                        </td>
+                        <td className="py-2 flex items-center gap-2">
+                          <Badge variant={s.paymentStatus === 'confirmed' ? 'success' : s.paymentStatus === 'rejected' ? 'destructive' : 'warning'} className="text-[10px]">
+                            {s.paymentStatus === 'confirmed' ? 'Confirmé' : s.paymentStatus === 'pending' ? 'En attente' : s.paymentStatus}
+                          </Badge>
+                          {s.paymentStatus === 'pending' && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-6 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white"
+                              onClick={async () => {
+                                try {
+                                  await adminAPI.confirmSubscription(s._id, { adminNote: 'Confirmé depuis Portefeuille Admin' })
+                                  const wRes = await adminAPI.getWallet()
+                                  setWallet(wRes.data)
+                                  setWalletMsg('✓ Paiement confirmé et crédité dans le portefeuille !')
+                                } catch (err) {
+                                  setWalletMsg(err.response?.data?.error || 'Erreur confirmation.')
+                                }
+                              }}
+                            >
+                              Confirmer
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground py-2">Aucun paiement d&apos;abonnement enregistré pour le moment.</p>
+            )}
+          </div>
         </CardContent>
       </Card>
 
