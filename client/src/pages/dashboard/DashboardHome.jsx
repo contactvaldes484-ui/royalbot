@@ -8,7 +8,7 @@ import { userAPI, tradeAPI } from '../../lib/api'
 import { formatCurrency, formatPercent } from '../../lib/utils'
 import {
   TrendingUp, TrendingDown, BarChart3, Bot, Wallet, Activity,
-  ArrowUpRight, ArrowDownRight, Zap, Crown, RefreshCw, Wifi, WifiOff
+  ArrowUpRight, ArrowDownRight, ArrowRight, Zap, Crown, RefreshCw, Wifi, WifiOff
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import BinanceConnectGuide from '../../components/guides/BinanceConnectGuide'

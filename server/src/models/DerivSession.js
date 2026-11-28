@@ -17,8 +17,14 @@ const DerivSessionSchema = new mongoose.Schema({
     duration:             { type: Number, default: 5 },
     durationUnit:         { type: String, default: 't' },
     barrier:              { type: String, default: '5' },
+    martingaleEnabled:    { type: Boolean, default: false },
     martingaleMultiplier: { type: Number, default: 2 },
     maxMartingaleSteps:   { type: Number, default: 4 },
+    martiStart:           { type: Number, default: 1 },
+    martiFactor:          { type: Number, default: 1 },
+    virtualHook:          { type: mongoose.Schema.Types.Mixed, default: null },
+    lossFactor:           { type: Number, default: 1 },
+    customLogicCode:      { type: String, default: '' },
   },
 
   stats: {
@@ -28,6 +34,7 @@ const DerivSessionSchema = new mongoose.Schema({
     netProfit:         { type: Number, default: 0 },
     currentStake:      { type: Number, default: 1 },
     consecutiveLosses: { type: Number, default: 0 },
+    unrecoveredLoss:   { type: Number, default: 0 },
     startBalance:      { type: Number, default: 0 },
   },
 
